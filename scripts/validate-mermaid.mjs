@@ -46,6 +46,15 @@ const work = mkdtempSync(join(tmpdir(), "mermaid-validate-"));
 let total = 0;
 const failures = [];
 
+// mermaid-cli は内部で headless Chromium(Puppeteer) を起動する。
+// CI(Ubuntu)ではユーザー名前空間が制限されており、--no-sandbox なしでは
+// "No usable sandbox" で起動に失敗するため、Puppeteer設定を渡す。
+const puppeteerConfig = join(work, "puppeteer.json");
+writeFileSync(
+  puppeteerConfig,
+  JSON.stringify({ args: ["--no-sandbox", "--disable-setuid-sandbox"] })
+);
+
 try {
   for (const file of files) {
     const blocks = extractMermaidBlocks(readFileSync(file, "utf8"));
@@ -57,7 +66,7 @@ try {
       try {
         execFileSync(
           "npx",
-          ["-y", "@mermaid-js/mermaid-cli@11", "-i", inFile, "-o", outFile, "-q"],
+          ["-y", "@mermaid-js/mermaid-cli@11", "-i", inFile, "-o", outFile, "-q", "-p", puppeteerConfig],
           { stdio: "pipe" }
         );
         console.log(`  ok  ${file}:${block.startLine}`);
