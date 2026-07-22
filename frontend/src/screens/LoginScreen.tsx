@@ -2,6 +2,8 @@ import { useState, type FormEvent } from "react";
 import { api, defaultApiBase } from "../lib/apiClient";
 import { session } from "../lib/session";
 import { Button, Field, Input } from "../components/ui";
+import { GlobeIcon, UserIcon, LockIcon, PlayIcon } from "../components/Icons";
+import Wordmark from "../components/Wordmark";
 import type { LoginResponse, Member } from "../types";
 
 interface LoginScreenProps {
@@ -50,65 +52,86 @@ export default function LoginScreen({ onLoggedIn }: LoginScreenProps) {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-700 p-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center text-white">
-          <h1 className="text-4xl font-bold lowercase tracking-tight">
-            duo<span className="font-light text-blue-100">-pocketbook</span>
+    <div className="ledger-bg relative flex min-h-screen items-center justify-center overflow-hidden p-4">
+      <div className="relative w-full max-w-sm">
+        {/* ブランド */}
+        <div className="mb-8 text-center">
+          <h1>
+            <Wordmark className="text-4xl text-slate-800 dark:text-white" />
           </h1>
-          <p className="mt-2 text-sm text-blue-100">ふたりの家計簿</p>
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">ふたりの家計簿</p>
         </div>
+
+        {/* カード */}
         <form
           onSubmit={submit}
-          className="space-y-4 rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900"
+          className="space-y-5 rounded-3xl border border-slate-200 bg-white/95 p-7 shadow-xl shadow-slate-900/10 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90 dark:shadow-black/40"
         >
           <Field label="APIのURL">
-            <Input
-              type="url"
-              required
-              value={apiBase}
-              onChange={(e) => setApiBase(e.target.value)}
-              placeholder="https://xxxx.lambda-url..."
-            />
+            <div className="relative">
+              <GlobeIcon className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+              <Input
+                type="url"
+                required
+                value={apiBase}
+                onChange={(e) => setApiBase(e.target.value)}
+                placeholder="https://xxxx.lambda-url..."
+                className="pl-11"
+              />
+            </div>
           </Field>
           <Field label="メンバーID">
-            <Input
-              type="text"
-              required
-              autoComplete="username"
-              value={memberId}
-              onChange={(e) => setMemberId(e.target.value)}
-            />
+            <div className="relative">
+              <UserIcon className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+              <Input
+                type="text"
+                required
+                autoComplete="username"
+                value={memberId}
+                onChange={(e) => setMemberId(e.target.value)}
+                className="pl-11"
+              />
+            </div>
           </Field>
           <Field label="パスワード">
-            <Input
-              type="password"
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <div className="relative">
+              <LockIcon className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+              <Input
+                type="password"
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="pl-11"
+              />
+            </div>
           </Field>
           {error && (
-            <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-950/40 dark:text-rose-400">
+            <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-400">
               {error}
             </p>
           )}
-          <Button type="submit" disabled={busy} className="w-full">
+          <Button
+            type="submit"
+            disabled={busy}
+            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500"
+          >
             {busy ? "ログイン中..." : "ログイン"}
           </Button>
 
           {/* デモモード導線（API 不要） */}
-          <div className="relative py-1 text-center">
-            <span className="relative bg-white px-3 text-xs text-slate-400 dark:bg-slate-900">または</span>
-            <span className="absolute inset-x-0 top-1/2 -z-0 border-t border-slate-200 dark:border-slate-800" />
+          <div className="flex items-center gap-3 py-1">
+            <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+            <span className="text-xs text-slate-400">または</span>
+            <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
           </div>
           <button
             type="button"
             onClick={loginDemo}
             disabled={busy}
-            className="w-full rounded-xl border border-slate-300 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:border-blue-900 dark:hover:bg-blue-950/40 dark:hover:text-blue-300"
           >
+            <PlayIcon className="h-4 w-4" />
             デモモードで試す（API不要）
           </button>
           <p className="text-center text-xs text-slate-400">
