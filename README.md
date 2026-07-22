@@ -32,7 +32,7 @@ AからBへの振込額 t = (wB × netA - wA × netB) / (wA + wB)   ※端数は
 | Web層 | `internal/web/` | APIインターフェイス（ハンドラ・ルーティング・JWT認証・CORS） |
 
 - **API仕様**: [`api/openapi.yaml`](api/openapi.yaml)（OpenAPI 3.0）
-- **フロントエンド**: `frontend/`（React + Vite + Tailwind CSS、GitHub Pages配信）
+- **フロントエンド**: `frontend/`（TypeScript + React + Vite + Tailwind CSS、GitHub Pages配信）
 - **インフラ**: `terraform/`（Lambda Function URL + DynamoDB。**AWS無料枠のみ**を使用）
 
 ## ローカル開発
