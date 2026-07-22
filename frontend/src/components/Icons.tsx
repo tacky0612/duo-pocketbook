@@ -44,6 +44,34 @@ export const WalletIcon: IconComponent = (p) => (
   </Svg>
 );
 
+export const GlobeIcon: IconComponent = (p) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z" />
+    <path d="M2 12h20" />
+  </Svg>
+);
+
+export const UserIcon: IconComponent = (p) => (
+  <Svg {...p}>
+    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </Svg>
+);
+
+export const LockIcon: IconComponent = (p) => (
+  <Svg {...p}>
+    <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </Svg>
+);
+
+export const PlayIcon: IconComponent = (p) => (
+  <Svg {...p}>
+    <path d="M6 4v16l14-8-14-8Z" />
+  </Svg>
+);
+
 export const ReceiptIcon: IconComponent = (p) => (
   <Svg {...p}>
     <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" />

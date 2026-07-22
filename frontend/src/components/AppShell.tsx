@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import MonthSelector from "./MonthSelector";
+import Wordmark from "./Wordmark";
 import { ScaleIcon, DownloadIcon, UploadIcon, RepeatIcon, HistoryIcon, SettingsIcon, type IconComponent } from "./Icons";
 import type { ScreenName } from "../types";
 
@@ -36,9 +37,7 @@ export default function AppShell({ screen, onNavigate, month, onMonthChange, chi
       {/* サイドバー（PCのみ） */}
       <aside className="hidden lg:flex lg:w-64 lg:shrink-0 lg:flex-col lg:border-r lg:border-slate-200 lg:bg-white dark:lg:border-slate-800 dark:lg:bg-slate-900">
         <div className="flex h-16 items-center border-b border-slate-200 px-6 dark:border-slate-800">
-          <span className="text-xl font-bold lowercase tracking-tight text-slate-900 dark:text-white">
-            duo<span className="font-light text-slate-400">-pocketbook</span>
-          </span>
+          <Wordmark className="text-xl text-slate-900 dark:text-white" subClassName="text-slate-400" />
         </div>
         <nav className="flex flex-1 flex-col gap-1 p-3">
           {NAV.map(({ key, label, icon: Icon }) => {
@@ -69,9 +68,7 @@ export default function AppShell({ screen, onNavigate, month, onMonthChange, chi
           <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-3 px-4 lg:px-8">
             {/* モバイル: ブランド / PC: 画面タイトル */}
             <div className="flex items-center gap-2 text-white">
-              <span className="text-xl font-bold lowercase tracking-tight lg:hidden">
-                duo<span className="font-light text-blue-100">-pocketbook</span>
-              </span>
+              <Wordmark className="text-xl text-white lg:hidden" subClassName="text-blue-100" />
               <span className="hidden text-lg font-semibold tracking-tight lg:inline">{active?.label}</span>
             </div>
             {showMonth && <MonthSelector month={month} onChange={onMonthChange} />}
