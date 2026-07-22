@@ -16,6 +16,34 @@ body {
   height: 100%;
 }
 
+/* ブランドロゴ（duo · pocketbook）用の丸みのある書体。
+   ui-rounded は各OSの丸ゴシック（Mac: SF Pro Rounded など）に解決され、外部フォント読み込み不要。 */
+.font-brand {
+  font-family: ui-rounded, "SF Pro Rounded", "Hiragino Maru Gothic ProN",
+    "Quicksand", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+/* 家計簿（方眼ノート・台帳）を想起させる背景。細かい方眼と、5マスごとの太い罫線を重ねる。 */
+.ledger-bg {
+  background-color: #eef1f6;
+  background-image:
+    linear-gradient(rgba(37, 99, 235, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37, 99, 235, 0.05) 1px, transparent 1px),
+    linear-gradient(rgba(37, 99, 235, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37, 99, 235, 0.09) 1px, transparent 1px);
+  background-size: 26px 26px, 26px 26px, 130px 130px, 130px 130px;
+}
+
+.dark .ledger-bg {
+  background-color: #0b1120;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+    linear-gradient(rgba(148, 163, 184, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.1) 1px, transparent 1px);
+  background-size: 26px 26px, 26px 26px, 130px 130px, 130px 130px;
+}
+
 /* 精算完了の祝福アニメーション */
 @keyframes confetti-fall {
   0% {
