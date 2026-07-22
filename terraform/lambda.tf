@@ -1,0 +1,90 @@
+# Lambda 関数 + Function URL
+#
+# 無料枠の制約:
+#   - Lambda 常時無料枠: 100万リクエスト/月 + 40万GB秒/月。128MB/arm64で十分収まる。
+#   - Function URL は追加料金なし（API Gatewayは12ヶ月無料のみのため使用しない）。
+#   - 認証はアプリケーション側のJWTで行うため authorization_type は NONE。
+
+resource "aws_iam_role" "lambda" {
+  name = "${var.project_name}-lambda"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "sts:AssumeRole"
+      Principal = { Service = "lambda.amazonaws.com" }
+    }]
+  })
+}
+
+# 最小権限: 対象テーブルへのCRUDとログ出力のみ
+resource "aws_iam_role_policy" "lambda" {
+  name = "${var.project_name}-lambda"
+  role = aws_iam_role.lambda.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query",
+        ]
+        Resource = aws_dynamodb_table.main.arn
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+        ]
+        Resource = "${aws_cloudwatch_log_group.lambda.arn}:*"
+      },
+    ]
+  })
+}
+
+resource "aws_cloudwatch_log_group" "lambda" {
+  name              = "/aws/lambda/${var.project_name}"
+  retention_in_days = var.log_retention_days
+}
+
+resource "aws_lambda_function" "api" {
+  function_name = var.project_name
+  role          = aws_iam_role.lambda.arn
+
+  filename         = var.lambda_zip_path
+  source_code_hash = filebase64sha256(var.lambda_zip_path)
+
+  runtime       = "provided.al2023"
+  handler       = "bootstrap"
+  architectures = ["arm64"]
+  memory_size   = 128
+  timeout       = 10
+
+  environment {
+    variables = {
+      TABLE_NAME            = aws_dynamodb_table.main.name
+      MEMBER1_ID            = var.member1_id
+      MEMBER1_NAME          = var.member1_name
+      MEMBER1_PASSWORD_HASH = var.member1_password_hash
+      MEMBER2_ID            = var.member2_id
+      MEMBER2_NAME          = var.member2_name
+      MEMBER2_PASSWORD_HASH = var.member2_password_hash
+      JWT_SECRET            = var.jwt_secret
+      ALLOWED_ORIGINS       = join(",", var.allowed_origins)
+    }
+  }
+
+  depends_on = [aws_cloudwatch_log_group.lambda]
+}
+
+resource "aws_lambda_function_url" "api" {
+  function_name      = aws_lambda_function.api.function_name
+  authorization_type = "NONE"
+  # CORSヘッダはアプリケーション側で付与するため、ここでは設定しない
+}

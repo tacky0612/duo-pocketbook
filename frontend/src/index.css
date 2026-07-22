@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+/* ダークモードをクラス (.dark) で切り替えられるようにする（Tailwind v4） */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+}
+
+:root.dark {
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+/* 精算完了の祝福アニメーション */
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(-15vh) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(115vh) rotate(720deg);
+    opacity: 0.9;
+  }
+}
+
+@keyframes celebrate-pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.confetti-piece {
+  position: absolute;
+  top: 0;
+  border-radius: 2px;
+  animation-name: confetti-fall;
+  animation-timing-function: cubic-bezier(0.4, 0.1, 0.6, 1);
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+
+.celebrate-pop {
+  animation: celebrate-pop 0.45s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confetti-piece {
+    display: none;
+  }
+  .celebrate-pop {
+    animation: none;
+  }
+}

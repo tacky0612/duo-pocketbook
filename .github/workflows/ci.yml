@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  checks: write # dorny/test-reporter がテストレポートをChecksに出力するために必要
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: |
+          files=$(gofmt -l .)
+          if [ -n "$files" ]; then
+            echo "gofmt が必要なファイルがあります:" && echo "$files"
+            exit 1
+          fi
+      - name: go vet
+        run: go vet ./...
+      - name: terraform fmt
+        uses: hashicorp/setup-terraform@v3
+      - run: terraform -chdir=terraform fmt -check
+      - name: terraform validate
+        run: |
+          terraform -chdir=terraform init -backend=false -input=false
+          terraform -chdir=terraform validate
+
+  unit-test:
+    name: Unit Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install gotestsum
+        run: go install gotest.tools/gotestsum@latest
+      - name: Run unit tests
+        run: |
+          mkdir -p reports
+          gotestsum --junitfile reports/unit.xml -- -coverprofile=coverage.out ./...
+      - name: Coverage summary
+        if: always()
+        run: |
+          echo "## Unit Test Coverage" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          go tool cover -func=coverage.out | tail -20 >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - name: Test report
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Unit Test Report
+          path: reports/unit.xml
+          reporter: java-junit
+
+  integration-test:
+    name: Integration Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install gotestsum
+        run: go install gotest.tools/gotestsum@latest
+      - name: Start local environment (Docker Compose)
+        run: docker compose up -d --build --wait
+      - name: Run integration tests
+        run: |
+          mkdir -p reports
+          gotestsum --junitfile reports/integration.xml -- -tags=integration -count=1 ./integration/...
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs
+      - name: Stop local environment
+        if: always()
+        run: docker compose down -v
+      - name: Test report
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Integration Test Report
+          path: reports/integration.xml
+          reporter: java-junit
+
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+  docs-mermaid:
+    name: Docs Mermaid Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate Mermaid diagrams
+        run: node scripts/validate-mermaid.mjs docs

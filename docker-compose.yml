@@ -1,0 +1,25 @@
+# ローカル検証環境。外部(実AWS等)への通信は行わず、ローカルに閉じて動作する。
+# 統合テスト(integration/)はこの環境の http://localhost:8080 に対して実行する。
+services:
+  dynamodb:
+    image: amazon/dynamodb-local:2.5.2
+    command: ["-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb"]
+
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      TABLE_NAME: duo-pocketbook
+      DYNAMO_ENDPOINT: http://dynamodb:8000
+      AWS_REGION: ap-northeast-1
+      MEMBER1_ID: taro
+      MEMBER1_NAME: 太郎
+      MEMBER1_PASSWORD: taro-password # ローカル専用の平文パスワード
+      MEMBER2_ID: hanako
+      MEMBER2_NAME: 花子
+      MEMBER2_PASSWORD: hanako-password
+      JWT_SECRET: local-dev-secret
+      STATIC_DIR: /app/frontend/dist
+    depends_on:
+      - dynamodb
