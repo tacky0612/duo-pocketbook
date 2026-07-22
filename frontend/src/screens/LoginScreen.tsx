@@ -120,9 +120,10 @@ export default function LoginScreen({ onLoggedIn }: LoginScreenProps) {
           </Button>
 
           {/* デモモード導線（API 不要） */}
-          <div className="relative py-1 text-center">
-            <span className="relative bg-white px-3 text-xs text-slate-400 dark:bg-slate-900">または</span>
-            <span className="absolute inset-x-0 top-1/2 -z-0 border-t border-slate-200 dark:border-slate-800" />
+          <div className="flex items-center gap-3 py-1">
+            <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+            <span className="text-xs text-slate-400">または</span>
+            <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
           </div>
           <button
             type="button"
