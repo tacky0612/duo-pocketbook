@@ -16,7 +16,7 @@
 ## 技術スタック
 
 - **バックエンド**: Go（標準 `net/http`、外部フレームワーク不使用）
-- **フロントエンド**: React + Vite + Tailwind CSS（`frontend/`）
+- **フロントエンド**: TypeScript + React + Vite + Tailwind CSS（`frontend/`）
 - **データストア**: Amazon DynamoDB（ローカルは DynamoDB Local）
 - **実行基盤**: AWS Lambda + Function URL（**AWS無料枠のみ**で運用）
 - **IaC**: Terraform（`terraform/`）
