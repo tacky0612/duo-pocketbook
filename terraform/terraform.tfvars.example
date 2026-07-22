@@ -1,0 +1,16 @@
+# terraform.tfvars にコピーして値を設定する（terraform.tfvars はコミットしない）
+
+member1_id   = "taro"
+member1_name = "太郎"
+# go run ./cmd/hashpw '<password>' で生成
+member1_password_hash = "$2a$10$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+member2_id            = "hanako"
+member2_name          = "花子"
+member2_password_hash = "$2a$10$yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+
+# openssl rand -base64 48 などで生成
+jwt_secret = "long-random-secret"
+
+# GitHub Pages のURL（例）
+allowed_origins = ["https://<username>.github.io"]
