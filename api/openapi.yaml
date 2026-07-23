@@ -2,7 +2,7 @@ openapi: "3.0.3"
 info:
   title: duo-pocketbook API
   description: |
-    夫婦2人で使う家計簿アプリケーションのAPI。
+    クライアント2人で使う家計簿アプリケーションのAPI。
 
     共有支出を2アカウントから登録し、月次で双方の収入を入力すると、
     指定した比重で双方の可処分所得が揃うよう精算額（振込額）を算出します。
@@ -11,6 +11,11 @@ info:
     比重 wA:wB に対して A→B の振込額 t = (wB*netA - wA*netB) / (wA + wB) を
     計算します（端数は四捨五入、負の場合はB→Aの振込）。
     精算後は 可処分所得A/wA == 可処分所得B/wB が成り立ちます。
+
+    アクセス制限（任意）: バックエンドに CLIENT_KEY を設定して運用する場合、
+    `/health` と CORS プリフライトを除く全リクエストに `X-Client-Key` ヘッダ
+    （事前共有キー）が必要です。不一致は 403 (FORBIDDEN)。また `/login` は
+    IP単位のレート制限があり、超過時は 429 (RATE_LIMITED) を返します。
   version: "1.0.0"
 servers:
   - url: http://localhost:8080
@@ -531,6 +536,11 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    # 任意の事前共有キー（CLIENT_KEY 設定時のみ有効）。全リクエストに付与する。
+    clientKey:
+      type: apiKey
+      in: header
+      name: X-Client-Key
   parameters:
     Month:
       name: month
@@ -678,8 +688,10 @@ components:
               enum:
                 - VALIDATION_ERROR
                 - UNAUTHORIZED
+                - FORBIDDEN
                 - NOT_FOUND
                 - INCOME_NOT_READY
+                - RATE_LIMITED
                 - INTERNAL
             message:
               type: string

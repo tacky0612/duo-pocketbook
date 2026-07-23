@@ -24,7 +24,7 @@ func (id ExpenseID) Month() (YearMonth, error) {
 	return ParseYearMonth(s)
 }
 
-// Expense は夫婦の共有支出を表すエンティティ。
+// Expense はクライアントの共有支出を表すエンティティ。
 type Expense struct {
 	ID          ExpenseID
 	PaidBy      MemberID // 立て替えたメンバー

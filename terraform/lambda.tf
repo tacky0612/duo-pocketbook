@@ -64,7 +64,11 @@ resource "aws_lambda_function" "api" {
   handler       = "bootstrap"
   architectures = ["arm64"]
   memory_size   = 128
-  timeout       = 10
+  timeout       = 5
+
+  # 同時実行数の上限を低く固定し、想定外の大量アクセスでも実行時間コストを抑える。
+  # -1 のときは未設定（無制限）にする。
+  reserved_concurrent_executions = var.reserved_concurrency
 
   environment {
     variables = {
@@ -77,6 +81,7 @@ resource "aws_lambda_function" "api" {
       MEMBER2_PASSWORD_HASH = var.member2_password_hash
       JWT_SECRET            = var.jwt_secret
       ALLOWED_ORIGINS       = join(",", var.allowed_origins)
+      CLIENT_KEY            = var.client_key
     }
   }
 

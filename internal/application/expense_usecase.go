@@ -103,7 +103,7 @@ func (u *ExpenseUsecase) ListByMonth(ctx context.Context, month string) ([]domai
 	return list, nil
 }
 
-// Delete は共有支出を削除する。夫婦どちらのメンバーでも削除できる。
+// Delete は共有支出を削除する。クライアントどちらのメンバーでも削除できる。
 func (u *ExpenseUsecase) Delete(ctx context.Context, id domain.ExpenseID) error {
 	if _, err := id.Month(); err != nil {
 		return err
