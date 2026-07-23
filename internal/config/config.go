@@ -46,6 +46,10 @@ type Config struct {
 	Port           string
 	AllowedOrigins []string
 	StaticDir      string
+	// ClientKey は正規クライアントだけを通すための事前共有キー。
+	// 設定時は X-Client-Key ヘッダが一致しないリクエストを 403 で弾く（/health と CORS プリフライトは対象外）。
+	// 空文字なら無効（後方互換・ローカル開発）。公開SPAに埋め込むため「秘密」ではなく、botノイズ低減の多層防御の一枚。
+	ClientKey string
 }
 
 // Couple は設定された2メンバーから Couple を構築する。
@@ -111,5 +115,6 @@ func Load() (Config, error) {
 	}
 
 	cfg.StaticDir = os.Getenv("STATIC_DIR")
+	cfg.ClientKey = os.Getenv("CLIENT_KEY")
 	return cfg, nil
 }

@@ -32,6 +32,10 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Build
         working-directory: frontend
+        env:
+          # 正規クライアント識別キー。Lambda の CLIENT_KEY と同じ値をリポジトリ Secrets に登録する。
+          # 未設定ならヘッダを送らない（バックエンド側 CLIENT_KEY も未設定なら従来どおり動作）。
+          VITE_CLIENT_KEY: ${{ secrets.CLIENT_KEY }}
         run: |
           npm ci
           npm run build

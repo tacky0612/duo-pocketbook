@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { api } from "../lib/apiClient";
+import { api, apiBase } from "../lib/apiClient";
 import { session } from "../lib/session";
 import { useAsync } from "../hooks";
 import { Card, SectionTitle, Field, Input, NumberInput, Button, Spinner } from "../components/ui";
@@ -256,7 +256,7 @@ export default function SettingsScreen({ members, me, theme, notify, onError, on
           <div className="flex justify-between gap-4">
             <dt className="shrink-0 text-slate-400">API</dt>
             <dd className="truncate font-mono text-xs text-slate-500">
-              {session.demo ? "デモモード（モック）" : session.apiBase || "—"}
+              {session.demo ? "デモモード（モック）" : apiBase() || "—"}
             </dd>
           </div>
         </dl>

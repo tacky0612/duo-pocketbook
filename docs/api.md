@@ -97,9 +97,15 @@ curl $BASE/months/2026-07/settlement -H "Authorization: Bearer $TOKEN"
 |---|---|---|
 | 400 | `VALIDATION_ERROR` | 入力値がドメイン制約を満たさない（金額・年月形式・不明メンバー等） |
 | 401 | `UNAUTHORIZED` | 未認証・トークン無効・認証情報誤り |
+| 403 | `FORBIDDEN` | 事前共有クライアントキー（`X-Client-Key`）が不一致（`CLIENT_KEY` 設定時のみ） |
 | 404 | `NOT_FOUND` | 対象データが存在しない |
 | 409 | `INCOME_NOT_READY` | 精算に必要な両メンバーの収入が未入力 |
+| 429 | `RATE_LIMITED` | リクエストが多すぎる（`/login` のIP単位レート制限） |
 | 500 | `INTERNAL` | 内部エラー |
+
+### アクセス制限ヘッダ
+
+`CLIENT_KEY` を設定して運用する場合、`/health` と CORS プリフライト（OPTIONS）を除く全リクエストに `X-Client-Key: <キー>` を付与する必要がある（不一致は 403 `FORBIDDEN`）。フロントエンドはビルド時の `VITE_CLIENT_KEY` から自動付与する。詳細は [デプロイガイド](./deployment.md) の「アクセス制限とコスト最適化」を参照。
 
 ## 外部ツール連携
 

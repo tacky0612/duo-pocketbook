@@ -1,20 +1,34 @@
 package web
 
-import "net/http"
+import (
+	"net/http"
+	"time"
+)
 
 // RouterOption はルーター構築のオプション。
 type RouterOption struct {
 	// StaticDir が空でない場合、APIに一致しないGETリクエストへ静的ファイルを配信する。
 	StaticDir string
+	// ClientKey が空でない場合、X-Client-Key ヘッダによる事前共有キー検証を有効にする。
+	ClientKey string
 }
+
+// loginRateLimit はログイン試行のレート制限（IPあたり windowの間に limit 回まで）。
+const (
+	loginRateLimit  = 10
+	loginRateWindow = 5 * time.Minute
+)
 
 // NewRouter はAPIルーティングを構築して http.Handler を返す。
 func NewRouter(h *Handler, auth *Authenticator, allowedOrigins []string, opt RouterOption) http.Handler {
 	mux := http.NewServeMux()
 
+	loginLimiter := newRateLimiter(loginRateLimit, loginRateWindow, nil)
+
 	// 認証不要
 	mux.HandleFunc("GET /health", h.Health)
-	mux.HandleFunc("POST /login", h.Login)
+	// ログインは総当り対策として IP 単位のレート制限をかける
+	mux.HandleFunc("POST /login", rateLimitByIP(loginLimiter, h.Login))
 
 	// 認証必須
 	authed := func(handler http.HandlerFunc) http.Handler {
@@ -43,5 +57,7 @@ func NewRouter(h *Handler, auth *Authenticator, allowedOrigins []string, opt Rou
 		mux.Handle("GET /", http.FileServer(http.Dir(opt.StaticDir)))
 	}
 
-	return CORS(allowedOrigins)(mux)
+	// CORS（最外） → クライアントキー検証 → ルーティング の順。
+	// プリフライトは CORS 層で 204 を返すため、キー検証には到達しない。
+	return CORS(allowedOrigins)(ClientKeyGuard(opt.ClientKey)(mux))
 }

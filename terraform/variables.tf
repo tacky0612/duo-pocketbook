@@ -65,3 +65,22 @@ variable "log_retention_days" {
   type        = number
   default     = 7
 }
+
+variable "reserved_concurrency" {
+  description = "Lambdaの予約同時実行数（上限）。低く固定して、想定外のトラフィック（bot/DoS）でも実行時間コストが青天井にならないようにする。2人利用なら2で十分。-1で未設定（無制限）。"
+  type        = number
+  default     = 2
+}
+
+variable "client_key" {
+  description = "正規クライアント（フロントエンド）識別用の事前共有キー。設定すると X-Client-Key ヘッダが一致しないリクエストを403で弾く。フロントは VITE_CLIENT_KEY として同じ値をビルド時に注入する。空なら無効。公開SPAに埋め込まれるため秘密情報ではなく、botノイズ低減の多層防御。"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "budget_alert_email" {
+  description = "コスト監視用。設定するとAWS Budgetsで月$1超過時にこのメールへ通知する。空なら作成しない。"
+  type        = string
+  default     = ""
+}

@@ -3,7 +3,7 @@
 [![CI](https://github.com/tacky0612/duo-pocketbook/actions/workflows/ci.yml/badge.svg)](https://github.com/tacky0612/duo-pocketbook/actions/workflows/ci.yml)
 [![Deploy to GitHub Pages](https://github.com/tacky0612/duo-pocketbook/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/tacky0612/duo-pocketbook/actions/workflows/deploy-pages.yml)
 
-夫婦2人で使う家計簿Webアプリケーション。共有支出を2アカウントから登録し、月次で双方の収入を入力すると、指定した比重で双方の可処分所得が揃うように精算額（振込額）を算出します。
+クライアント2人で使う家計簿Webアプリケーション。共有支出を2アカウントから登録し、月次で双方の収入を入力すると、指定した比重で双方の可処分所得が揃うように精算額（振込額）を算出します。
 
 📚 **詳細ドキュメント**: [docs/](docs/README.md)（アーキテクチャ / 精算仕様 / API / データモデル / 開発 / デプロイ）
 

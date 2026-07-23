@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { api, defaultApiBase } from "../lib/apiClient";
+import { api, defaultApiBase, FIXED_API_BASE } from "../lib/apiClient";
 import { session } from "../lib/session";
 import { Button, Field, Input } from "../components/ui";
 import { GlobeIcon, UserIcon, LockIcon, PlayIcon } from "../components/Icons";
@@ -21,7 +21,8 @@ export default function LoginScreen({ onLoggedIn }: LoginScreenProps) {
     ev.preventDefault();
     setError(null);
     setBusy(true);
-    session.apiBase = apiBase.replace(/\/+$/, "");
+    // API ベースがビルド時に固定されている場合はユーザー入力を保存しない
+    if (!FIXED_API_BASE) session.apiBase = apiBase.replace(/\/+$/, "");
     try {
       const data = await api<LoginResponse>("POST", "/login", { memberId: memberId.trim(), password });
       session.token = data.token;
@@ -67,19 +68,21 @@ export default function LoginScreen({ onLoggedIn }: LoginScreenProps) {
           onSubmit={submit}
           className="space-y-5 rounded-3xl border border-slate-200 bg-white/95 p-7 shadow-xl shadow-slate-900/10 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90 dark:shadow-black/40"
         >
-          <Field label="APIのURL">
-            <div className="relative">
-              <GlobeIcon className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-              <Input
-                type="url"
-                required
-                value={apiBase}
-                onChange={(e) => setApiBase(e.target.value)}
-                placeholder="https://xxxx.lambda-url..."
-                className="pl-11"
-              />
-            </div>
-          </Field>
+          {!FIXED_API_BASE && (
+            <Field label="APIのURL">
+              <div className="relative">
+                <GlobeIcon className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                <Input
+                  type="url"
+                  required
+                  value={apiBase}
+                  onChange={(e) => setApiBase(e.target.value)}
+                  placeholder="https://xxxx.lambda-url..."
+                  className="pl-11"
+                />
+              </div>
+            </Field>
+          )}
           <Field label="メンバーID">
             <div className="relative">
               <UserIcon className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />

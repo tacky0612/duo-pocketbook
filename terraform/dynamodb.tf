@@ -3,7 +3,7 @@
 # 無料枠の制約:
 #   - PROVISIONED モード（常時無料枠: 25 RCU / 25 WCU / 25GB）を使う。
 #   - PAY_PER_REQUEST(オンデマンド) は常時無料枠の対象外のため使用しない。
-#   - 夫婦2人での利用のため 1 RCU / 1 WCU で十分。
+#   - クライアント2人での利用のため 1 RCU / 1 WCU で十分。
 resource "aws_dynamodb_table" "main" {
   name         = var.project_name
   billing_mode = "PROVISIONED"
