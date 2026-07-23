@@ -2,7 +2,7 @@ package domain
 
 import "fmt"
 
-// MemberID はメンバー（夫婦それぞれ）の識別子。
+// MemberID はメンバー（クライアントそれぞれ）の識別子。
 type MemberID string
 
 // Member は家計簿を共有するメンバーを表すエンティティ。

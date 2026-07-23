@@ -1,0 +1,128 @@
+<mxfile host="app.diagrams.net" version="24.7.17">
+  <diagram id="duo-pocketbook-infra" name="duo-pocketbook 構成図">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="720" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- 上部アクター -->
+        <mxCell id="user" value="クライアント" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="330" y="30" width="180" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="attacker" value="第三者・bot" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8CECC;strokeColor=#B85450;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="700" y="30" width="190" height="52" as="geometry" />
+        </mxCell>
+
+        <!-- ゾーン -->
+        <mxCell id="ghz" value="GitHub" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0F0F0;strokeColor=#6E7781;verticalAlign=top;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="40" y="140" width="230" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="cfz" value="Cloudflare" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDF0E6;strokeColor=#F6821F;verticalAlign=top;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="300" y="120" width="300" height="470" as="geometry" />
+        </mxCell>
+        <mxCell id="awsz" value="AWS  ap-northeast-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E5;strokeColor=#FF9900;verticalAlign=top;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="660" y="120" width="500" height="470" as="geometry" />
+        </mxCell>
+
+        <!-- Terraform（左下・アイコン） -->
+        <mxCell id="tf" value="Terraform" style="shape=image;html=1;imageAspect=0;aspect=fixed;verticalLabelPosition=bottom;verticalAlign=top;fontSize=12;image=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIwLjg4ZW0iIGhlaWdodD0iMWVtIiB2aWV3Qm94PSIwIDAgMjU2IDI5MSI+PHBhdGggZmlsbD0iIzQwNDBiMiIgZD0iTTE3Ni40ODUgMTg4Ljk5NEwyNTYgMTQzLjEyN1Y1MS4yNDlsLTc5LjUxNSA0NS45NjN6Ii8+PHBhdGggZmlsbD0iIzVjNGVlNSIgZD0ibTg4LjI0MyA1MS4yNDlsNzkuNTE1IDQ1Ljk2M3Y5MS43ODJMODguMjQzIDE0My4wOE0wIDkxLjgzbDc5LjUxNSA0NS45MTZ2LTkxLjgzTDAgMG04OC4yNDMgMjQ0Ljk5NGw3OS41MTUgNDUuOTE1di05MS44M2wtNzkuNTE1LTQ1LjkxNSIvPjwvc3ZnPg==;" vertex="1" parent="1">
+          <mxGeometry x="70" y="610" width="48" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- GitHub 内 -->
+        <mxCell id="ghLogo" value="" style="shape=image;html=1;imageAspect=0;aspect=fixed;image=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZmlsbD0iIzE4MTcxNyIgZD0iTTggMEMzLjU4IDAgMCAzLjU4IDAgOGMwIDMuNTQgMi4yOSA2LjUzIDUuNDcgNy41OS40LjA3LjU1LS4xNy41NS0uMzggMC0uMTktLjAxLS44Mi0uMDEtMS40OS0yLjAxLjM3LTIuNTMtLjQ5LTIuNjktLjk0LS4wOS0uMjMtLjQ4LS45NC0uODItMS4xMy0uMjgtLjE1LS42OC0uNTItLjAxLS41My42My0uMDEgMS4wOC41OCAxLjIzLjgyLjcyIDEuMjEgMS44Ny44NyAyLjMzLjY2LjA3LS41Mi4yOC0uODcuNTEtMS4wNy0xLjc4LS4yLTMuNjQtLjg5LTMuNjQtMy45NSAwLS44Ny4zMS0xLjU5LjgyLTIuMTUtLjA4LS4yLS4zNi0xLjAyLjA4LTIuMTIgMCAwIC42Ny0uMjEgMi4yLjgyLjY0LS4xOCAxLjMyLS4yNyAyLS4yNy42OCAwIDEuMzYuMDkgMiAuMjcgMS41My0xLjA0IDIuMi0uODIgMi4yLS44Mi40NCAxLjEuMTYgMS45Mi4wOCAyLjEyLjUxLjU2LjgyIDEuMjcuODIgMi4xNSAwIDMuMDctMS44NyAzLjc1LTMuNjUgMy45NS4yOS4yNS41NC43My41NCAxLjQ4IDAgMS4wNy0uMDEgMS45My0uMDEgMi4yIDAgLjIxLjE1LjQ2LjU1LjM4QTguMDEzIDguMDEzIDAgMCAwIDE2IDhjMC00LjQyLTMuNTgtOC04LTh6Ii8+PC9zdmc+Cg==;" vertex="1" parent="1">
+          <mxGeometry x="55" y="158" width="30" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="ghRepo" value="リポジトリ / GitHub Actions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6E7781;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="55" y="196" width="200" height="42" as="geometry" />
+        </mxCell>
+        <mxCell id="ghPages" value="GitHub Pages" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6E7781;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="55" y="248" width="200" height="42" as="geometry" />
+        </mxCell>
+
+        <!-- Cloudflare 内 -->
+        <mxCell id="cfLogo" value="" style="shape=image;html=1;imageAspect=0;aspect=fixed;image=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA0MCI+PHBhdGggZmlsbD0iI0ZCQUQ0MSIgZD0iTTUwIDM4SDE2QzkgMzggNCAzMiA0IDI2YzAtNiA1LTExIDExLTExIDEgMCAyIC4xIDMgLjNDMjAgOC41IDI3IDMgMzUgM2MxMCAwIDE4IDggMTggMTh2MWM0IDEgNyA1IDcgOSAwIDMuNS0yLjUgNS01IDV6Ii8+PHBhdGggZmlsbD0iI0Y2ODIxRiIgZD0iTTUyIDI0Yy0uNiAwLTEgLjQtMS4yIDFsLS42IDJjLS4xLjQgMCAuOC40IDEgLjMuMi41LjYuNSAxIDAgLjctLjYgMS4yLTEuMyAxLjJIMjcuMmMtLjMgMC0uNS4yLS42LjVsLS4zIDEuNGMwIC4zLjEuNS40LjVoMjNjMi4zIDAgNC4yLTEuOSA0LjItNC4yIDAtMi0xLjQtMy43LTMuMy00LjF6Ii8+PC9zdmc+Cg==;" vertex="1" parent="1">
+          <mxGeometry x="540" y="130" width="44" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="cfAccess" value="Cloudflare Access&lt;br&gt;夫婦2人のメールのみ許可" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE9D6;strokeColor=#F6821F;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="315" y="175" width="270" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="cfPages" value="Cloudflare Pages&lt;br&gt;SPA配信" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE9D6;strokeColor=#F6821F;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="315" y="250" width="270" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="cfRoute" value="ルーティング&lt;br&gt;/api/* → Function URL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE9D6;strokeColor=#F6821F;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="315" y="355" width="270" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="cfTransform" value="Transform Rule&lt;br&gt;X-Client-Key を注入" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE9D6;strokeColor=#F6821F;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="315" y="435" width="270" height="52" as="geometry" />
+        </mxCell>
+
+        <!-- AWS 内（公式 aws4・リソース間の矢印なし） -->
+        <mxCell id="fnUrl" value="Lambda Function URL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE9C7;strokeColor=#E88B00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="680" y="175" width="460" height="42" as="geometry" />
+        </mxCell>
+        <mxCell id="lambda" value="Lambda" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#ED7100;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;" vertex="1" parent="1">
+          <mxGeometry x="720" y="260" width="78" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="iam" value="IAM Role" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#DD344C;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.identity_and_access_management_iam;" vertex="1" parent="1">
+          <mxGeometry x="890" y="260" width="78" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="ddb" value="DynamoDB" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#C925D1;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.dynamodb;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="260" width="78" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="logs" value="CloudWatch Logs" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#E7157B;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudwatch;" vertex="1" parent="1">
+          <mxGeometry x="720" y="400" width="78" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="budgets" value="AWS Budgets" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#E7157B;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.budgets;" vertex="1" parent="1">
+          <mxGeometry x="890" y="400" width="78" height="78" as="geometry" />
+        </mxCell>
+
+        <!-- 正規フロー -->
+        <mxCell id="e1" value="① SSO認証" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontSize=10;" edge="1" parent="1" source="user" target="cfAccess">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="SPA配信" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontSize=10;" edge="1" parent="1" source="cfAccess" target="cfPages">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="② fetch /api/*" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontSize=10;" edge="1" parent="1" source="cfPages" target="cfRoute">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="秘密ヘッダ付与" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontSize=10;" edge="1" parent="1" source="cfRoute" target="cfTransform">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="③ オリジンへ転送" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontSize=10;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="cfTransform" target="fnUrl">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 攻撃遮断 -->
+        <mxCell id="e10" value="未認証 → エッジで遮断" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;dashed=1;strokeColor=#B85450;fontColor=#B85450;fontSize=10;" edge="1" parent="1" source="attacker" target="cfAccess">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" value="生URL直叩き → 403" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;dashed=1;strokeColor=#B85450;fontColor=#B85450;fontSize=10;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="attacker" target="fnUrl">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- デプロイ / provision -->
+        <mxCell id="e12" value="provision" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=open;dashed=1;strokeColor=#9673A6;fontColor=#9673A6;fontSize=10;entryX=0.25;entryY=1;" edge="1" parent="1" source="tf" target="awsz">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="94" y="700" />
+              <mxPoint x="785" y="700" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e13" value="デプロイ" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=open;dashed=1;strokeColor=#6E7781;fontColor=#6E7781;fontSize=10;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="ghRepo" target="cfPages">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e14" value="デプロイ" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=open;dashed=1;strokeColor=#6E7781;fontColor=#6E7781;fontSize=10;" edge="1" parent="1" source="ghRepo" target="ghPages">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 凡例 -->
+        <mxCell id="legend" value="凡例：&#10;──▶ 正規リクエストの流れ&#10;╌╌▶（赤）攻撃：Cloudflare / 403 で遮断&#10;╌╌▶（灰・紫）デプロイ / provision" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;rounded=1;fillColor=#ffffff;strokeColor=#cccccc;fontSize=10;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="300" y="620" width="440" height="70" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

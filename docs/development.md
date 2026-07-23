@@ -117,8 +117,18 @@ cd frontend && npm run build      # tsc --noEmit → vite build
 | `TOKEN_TTL_HOURS` | | トークン有効時間（デフォルト720=30日） |
 | `TABLE_NAME` | | DynamoDBテーブル名。未設定ならインメモリ |
 | `DYNAMO_ENDPOINT` | | DynamoDB Localのエンドポイント（設定時はテーブル自動作成） |
-| `ALLOWED_ORIGINS` | | CORS許可オリジン（カンマ区切り、デフォルト`*`） |
+| `ALLOWED_ORIGINS` | | CORS許可オリジン（カンマ区切り、デフォルト`*`。本番は GitHub Pages のURLに限定する） |
+| `CLIENT_KEY` | | 事前共有クライアントキー。設定時は `X-Client-Key` ヘッダが一致しないリクエストを403で弾く（`/health`・CORSプリフライトは対象外）。空なら無効 |
 | `PORT` / `STATIC_DIR` | | サーバーポート / 静的配信ディレクトリ（cmd/serverのみ） |
+
+フロントエンドのビルド時変数（Vite）:
+
+| 変数 | 説明 |
+|---|---|
+| `VITE_CLIENT_KEY` | バックエンドの `CLIENT_KEY` と同じ値。設定時、全APIリクエストに `X-Client-Key` を付与する。GitHub Pages では Actions の Secret `CLIENT_KEY` から注入（`deploy-pages.yml`）。※Cloudflare Access構成では**設定しない**（秘密は Cloudflare がサーバ側で注入するため） |
+| `VITE_API_BASE` | API のベースURL/パスを固定する（例 `/api`）。設定するとログイン画面の「APIのURL」入力欄が非表示になり、この値を使う。同一ドメイン構成（Cloudflare Pages + Access）向け。未設定なら従来どおりユーザーが入力 |
+
+> 注意: `cmd/server` で静的配信（`STATIC_DIR`）とともに `CLIENT_KEY` を設定すると、SPA本体（HTML）の取得もキーで弾かれるため併用しない。`CLIENT_KEY` は API のみを配信する Lambda 運用向け。
 
 ## CI（GitHub Actions）
 

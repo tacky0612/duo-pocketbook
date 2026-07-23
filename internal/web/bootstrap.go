@@ -57,5 +57,7 @@ func BuildHandler(ctx context.Context, cfg config.Config, opt RouterOption) (htt
 		application.NewSettingsUsecase(couple, settings),
 		application.NewRecurringExpenseUsecase(couple, recurringRepo),
 	)
+	// 事前共有キー検証を有効化（設定時のみ）。
+	opt.ClientKey = cfg.ClientKey
 	return NewRouter(handler, auth, cfg.AllowedOrigins, opt), nil
 }
