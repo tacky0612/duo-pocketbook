@@ -102,9 +102,13 @@ make build-lambda && terraform -chdir=terraform apply
 ## フロントエンドのデプロイ（GitHub Pages）
 
 1. リポジトリの **Settings → Pages → Source** を「GitHub Actions」に設定する
-2. `main` ブランチへ `frontend/` の変更をpushすると `deploy-pages.yml` が自動でビルド・デプロイする（手動実行も可: workflow_dispatch）
+2. `main` ブランチへ `frontend/` または `api/openapi.yaml` の変更をpushすると `deploy-pages.yml` が自動でビルド・デプロイする（手動実行も可: workflow_dispatch）
 3. 公開URL（`https://<user>.github.io/<repo>/`）を `terraform.tfvars` の `allowed_origins` に設定して `terraform apply`（CORS許可）
 4. 公開ページのログイン画面「APIのURL」に Function URL を入力する
+
+### API ドキュメントの同梱
+
+`npm run build` が `api/openapi.yaml` から ReDoc 形式のドキュメント HTML を生成して配信物に含める（`@redocly/cli` の `build-docs`）。GitHub Pages・Cloudflare Pages の両方で **`/api-docs.html`** として公開される（例: `https://<user>.github.io/<repo>/api-docs.html`）。OpenAPI 定義を更新して push すれば自動で再生成・再デプロイされる。詳細は [api.md](./api.md) の「ドキュメントページ」を参照。
 
 ### デモモードの同梱
 

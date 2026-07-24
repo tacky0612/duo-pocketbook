@@ -35,6 +35,17 @@ jobs:
           terraform -chdir=terraform init -backend=false -input=false
           terraform -chdir=terraform validate
 
+  openapi-check:
+    name: OpenAPI Up-to-date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Regenerate and check api/openapi.yaml
+        run: make openapi-check
+
   unit-test:
     name: Unit Test
     runs-on: ubuntu-latest

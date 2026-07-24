@@ -48,10 +48,11 @@ func NewHandler(
 // ---- 共通レスポンス ----
 
 type errorBody struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Code    string `json:"code" example:"VALIDATION_ERROR"`
+	Message string `json:"message" example:"validation error: 金額は1円以上で入力してください"`
 }
 
+// errorResponse はエラー時に返す JSON ボディ。
 type errorResponse struct {
 	Error errorBody `json:"error"`
 }
@@ -96,9 +97,9 @@ func decodeBody(w http.ResponseWriter, r *http.Request, dst any) bool {
 // ---- DTO ----
 
 type memberDTO struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Color string `json:"color,omitempty"`
+	ID    string `json:"id" example:"acct_9f3c1a2b7d4e5f60"`
+	Name  string `json:"name" example:"太郎"`
+	Color string `json:"color,omitempty" example:"#FF8800"`
 }
 
 func toMemberDTO(m domain.Member) memberDTO {
@@ -110,13 +111,13 @@ func toMemberViewDTO(v application.MemberView) memberDTO {
 }
 
 type expenseDTO struct {
-	ID          string `json:"id"`
-	PaidBy      string `json:"paidBy"`
-	AmountYen   int64  `json:"amountYen"`
-	Description string `json:"description"`
-	Date        string `json:"date"`
-	Month       string `json:"month"`
-	CreatedAt   string `json:"createdAt"`
+	ID          string `json:"id" example:"2026-07_a1b2c3d4e5f6a7b8a1b2c3d4e5f6a7b8"`
+	PaidBy      string `json:"paidBy" example:"acct_9f3c1a2b7d4e5f60"`
+	AmountYen   int64  `json:"amountYen" example:"20000"`
+	Description string `json:"description" example:"家賃"`
+	Date        string `json:"date" example:"2026-07-01"`
+	Month       string `json:"month" example:"2026-07"`
+	CreatedAt   string `json:"createdAt" example:"2026-07-01T09:00:00Z"`
 }
 
 func toExpenseDTO(e domain.Expense) expenseDTO {
@@ -132,15 +133,15 @@ func toExpenseDTO(e domain.Expense) expenseDTO {
 }
 
 type incomeDTO struct {
-	MemberID  string `json:"memberId"`
-	AmountYen int64  `json:"amountYen"`
+	MemberID  string `json:"memberId" example:"acct_9f3c1a2b7d4e5f60"`
+	AmountYen int64  `json:"amountYen" example:"100000"`
 }
 
 type recurringExpenseDTO struct {
-	ID          string `json:"id"`
-	PaidBy      string `json:"paidBy"`
-	AmountYen   int64  `json:"amountYen"`
-	Description string `json:"description"`
+	ID          string `json:"id" example:"recurring-a1b2c3d4"`
+	PaidBy      string `json:"paidBy" example:"acct_9f3c1a2b7d4e5f60"`
+	AmountYen   int64  `json:"amountYen" example:"80000"`
+	Description string `json:"description" example:"家賃"`
 }
 
 func toRecurringExpenseDTO(e domain.RecurringExpense) recurringExpenseDTO {
@@ -168,23 +169,47 @@ func toWeightsDTO(couple domain.Couple, w domain.Weight) weightsDTO {
 
 // ---- ハンドラ ----
 
-// Health はヘルスチェック。
+// healthResponse はヘルスチェックのレスポンス。
+type healthResponse struct {
+	Status string `json:"status" example:"ok"`
+}
+
+// Health godoc
+//
+//	@Summary		ヘルスチェック
+//	@Description	認証・クライアントキー検証の対象外。
+//	@Tags			system
+//	@Produce		json
+//	@Success		200	{object}	healthResponse
+//	@Router			/health [get]
 func (h *Handler) Health(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, healthResponse{Status: "ok"})
 }
 
 type loginRequest struct {
-	MemberID string `json:"memberId"` // ログインID
-	Password string `json:"password"`
+	MemberID string `json:"memberId" example:"taro"` // ログインID（可変のユーザー名）
+	Password string `json:"password" example:"taro-password"`
 }
 
 type loginResponse struct {
-	Token     string    `json:"token"`
+	Token     string    `json:"token" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
 	Member    memberDTO `json:"member"`
-	ExpiresAt string    `json:"expiresAt"`
+	ExpiresAt string    `json:"expiresAt" example:"2026-08-23T03:29:55Z"`
 }
 
-// Login はログインID・パスワードを検証してJWTを発行する。
+// Login godoc
+//
+//	@Summary		ログイン（JWT発行）
+//	@Description	ログインID・パスワードを検証してJWTを発行する。memberId にはログインID（可変）を渡す。
+//	@Description	JWT の subject は不変の AccountID。IP単位のレート制限があり、超過時は 429 を返す。
+//	@Tags			auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		loginRequest	true	"認証情報"
+//	@Success		200		{object}	loginResponse
+//	@Failure		401		{object}	errorResponse	"ログインID/パスワード不一致"
+//	@Failure		429		{object}	errorResponse	"レート制限超過"
+//	@Router			/login [post]
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
 	if !decodeBody(w, r, &req) {
@@ -210,10 +235,11 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 // ---- アカウント（自分の資格情報） ----
 
+// accountDTO は認証中アカウントの情報。accountId は不変、loginId は可変。
 type accountDTO struct {
-	AccountID string `json:"accountId"`
-	LoginID   string `json:"loginId"`
-	Name      string `json:"name"`
+	AccountID string `json:"accountId" example:"acct_9f3c1a2b7d4e5f60"`
+	LoginID   string `json:"loginId" example:"taro"`
+	Name      string `json:"name" example:"太郎"`
 }
 
 func (h *Handler) accountResponse(w http.ResponseWriter, r *http.Request, id domain.MemberID) {
@@ -226,17 +252,40 @@ func (h *Handler) accountResponse(w http.ResponseWriter, r *http.Request, id dom
 	writeJSON(w, http.StatusOK, accountDTO{AccountID: string(acc.ID), LoginID: acc.LoginID, Name: member.Name})
 }
 
-// GetAccount は認証中アカウントの AccountID・ログインID・表示名を返す。
+// GetAccount godoc
+//
+//	@Summary		認証中アカウントの情報
+//	@Description	不変の AccountID・可変のログインID・表示名を返す。
+//	@Tags			account
+//	@Produce		json
+//	@Success		200	{object}	accountDTO
+//	@Failure		401	{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/account [get]
 func (h *Handler) GetAccount(w http.ResponseWriter, r *http.Request) {
 	id, _ := MemberIDFromContext(r.Context())
 	h.accountResponse(w, r, id)
 }
 
-// UpdateLoginID はログインIDを変更する。
+type updateLoginIDRequest struct {
+	LoginID string `json:"loginId" example:"taro2"`
+}
+
+// UpdateLoginID godoc
+//
+//	@Summary		ログインIDの変更
+//	@Description	ログイン用の可変ユーザー名を変更する。AccountID は不変で変わらない。英数字と . _ - のみ・32文字以内・2アカウントで重複不可。
+//	@Tags			account
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		updateLoginIDRequest	true	"新しいログインID"
+//	@Success		200		{object}	accountDTO
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/account/login-id [put]
 func (h *Handler) UpdateLoginID(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		LoginID string `json:"loginId"`
-	}
+	var req updateLoginIDRequest
 	if !decodeBody(w, r, &req) {
 		return
 	}
@@ -248,12 +297,25 @@ func (h *Handler) UpdateLoginID(w http.ResponseWriter, r *http.Request) {
 	h.accountResponse(w, r, id)
 }
 
-// UpdatePassword はパスワードを変更する（現在のパスワードを検証）。
+type updatePasswordRequest struct {
+	CurrentPassword string `json:"currentPassword" example:"taro-password"`
+	NewPassword     string `json:"newPassword" example:"new-password-8+"`
+}
+
+// UpdatePassword godoc
+//
+//	@Summary		パスワードの変更
+//	@Description	現在のパスワードを検証したうえで新しいパスワード（8文字以上）に更新する。
+//	@Tags			account
+//	@Accept			json
+//	@Param			body	body	updatePasswordRequest	true	"現在と新しいパスワード"
+//	@Success		204		"変更成功"
+//	@Failure		400		{object}	errorResponse	"現在のパスワード不一致・新パスワードが要件未満"
+//	@Failure		401		{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/account/password [put]
 func (h *Handler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		CurrentPassword string `json:"currentPassword"`
-		NewPassword     string `json:"newPassword"`
-	}
+	var req updatePasswordRequest
 	if !decodeBody(w, r, &req) {
 		return
 	}
@@ -265,24 +327,52 @@ func (h *Handler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// ListMembers はメンバー一覧を返す（表示名・カラーの上書きを反映）。
+// membersResponse はメンバー一覧のレスポンス。
+type membersResponse struct {
+	Members []memberDTO `json:"members"`
+}
+
+// ListMembers godoc
+//
+//	@Summary		メンバー一覧（2人）
+//	@Description	表示名・カラーの上書きを反映して2人のメンバーを返す。
+//	@Tags			members
+//	@Produce		json
+//	@Success		200	{object}	membersResponse
+//	@Failure		401	{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/members [get]
 func (h *Handler) ListMembers(w http.ResponseWriter, r *http.Request) {
 	members, err := h.settings.GetMembers(r.Context())
 	if err != nil {
 		writeUsecaseError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string][]memberDTO{
-		"members": {toMemberViewDTO(members[0]), toMemberViewDTO(members[1])},
+	writeJSON(w, http.StatusOK, membersResponse{
+		Members: []memberDTO{toMemberViewDTO(members[0]), toMemberViewDTO(members[1])},
 	})
 }
 
 type updateMemberRequest struct {
-	Name  *string `json:"name"`
-	Color *string `json:"color"`
+	Name  *string `json:"name" example:"太郎"`
+	Color *string `json:"color" example:"#FF8800"`
 }
 
-// UpdateMember はメンバーの表示名・カラーを更新する（指定された項目のみ）。
+// UpdateMember godoc
+//
+//	@Summary		メンバーの表示名・カラーの更新
+//	@Description	指定された項目のみ上書きする（省略した項目は変更しない）。
+//	@Tags			members
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string				true	"メンバーID（AccountID）"
+//	@Param			body	body		updateMemberRequest	true	"更新内容"
+//	@Success		200		{object}	memberDTO
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse
+//	@Failure		404		{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/members/{id} [put]
 func (h *Handler) UpdateMember(w http.ResponseWriter, r *http.Request) {
 	var req updateMemberRequest
 	if !decodeBody(w, r, &req) {
@@ -310,13 +400,24 @@ func (h *Handler) UpdateMember(w http.ResponseWriter, r *http.Request) {
 }
 
 type registerExpenseRequest struct {
-	PaidBy      string `json:"paidBy"`
-	AmountYen   int64  `json:"amountYen"`
-	Description string `json:"description"`
-	Date        string `json:"date"`
+	PaidBy      string `json:"paidBy" example:"acct_9f3c1a2b7d4e5f60"`
+	AmountYen   int64  `json:"amountYen" example:"20000"`
+	Description string `json:"description" example:"家賃"`
+	Date        string `json:"date" example:"2026-07-01"`
 }
 
-// RegisterExpense は共有支出を登録する。
+// RegisterExpense godoc
+//
+//	@Summary		共有支出の登録
+//	@Tags			expenses
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		registerExpenseRequest	true	"支出"
+//	@Success		201		{object}	expenseDTO
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/expenses [post]
 func (h *Handler) RegisterExpense(w http.ResponseWriter, r *http.Request) {
 	var req registerExpenseRequest
 	if !decodeBody(w, r, &req) {
@@ -335,7 +436,20 @@ func (h *Handler) RegisterExpense(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, toExpenseDTO(e))
 }
 
-// UpdateExpense は既存の共有支出を更新する。
+// UpdateExpense godoc
+//
+//	@Summary		共有支出の更新
+//	@Tags			expenses
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string					true	"支出ID"
+//	@Param			body	body		registerExpenseRequest	true	"支出"
+//	@Success		200		{object}	expenseDTO
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse
+//	@Failure		404		{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/expenses/{id} [put]
 func (h *Handler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
 	var req registerExpenseRequest
 	if !decodeBody(w, r, &req) {
@@ -354,7 +468,24 @@ func (h *Handler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toExpenseDTO(e))
 }
 
-// ListExpenses は対象月の共有支出一覧を返す。
+// expensesResponse は対象月の共有支出一覧のレスポンス。
+type expensesResponse struct {
+	Month    string       `json:"month" example:"2026-07"`
+	Expenses []expenseDTO `json:"expenses"`
+}
+
+// ListExpenses godoc
+//
+//	@Summary		共有支出の月別一覧
+//	@Description	日付降順で返す。
+//	@Tags			expenses
+//	@Produce		json
+//	@Param			month	query		string	true	"対象月（YYYY-MM）"
+//	@Success		200		{object}	expensesResponse
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/expenses [get]
 func (h *Handler) ListExpenses(w http.ResponseWriter, r *http.Request) {
 	month := r.URL.Query().Get("month")
 	list, err := h.expenses.ListByMonth(r.Context(), month)
@@ -366,10 +497,19 @@ func (h *Handler) ListExpenses(w http.ResponseWriter, r *http.Request) {
 	for _, e := range list {
 		dtos = append(dtos, toExpenseDTO(e))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"month": month, "expenses": dtos})
+	writeJSON(w, http.StatusOK, expensesResponse{Month: month, Expenses: dtos})
 }
 
-// DeleteExpense は共有支出を削除する。
+// DeleteExpense godoc
+//
+//	@Summary		共有支出の削除
+//	@Tags			expenses
+//	@Param			id	path	string	true	"支出ID"
+//	@Success		204	"削除成功"
+//	@Failure		401	{object}	errorResponse
+//	@Failure		404	{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/expenses/{id} [delete]
 func (h *Handler) DeleteExpense(w http.ResponseWriter, r *http.Request) {
 	id := domain.ExpenseID(r.PathValue("id"))
 	if err := h.expenses.Delete(r.Context(), id); err != nil {
@@ -380,10 +520,29 @@ func (h *Handler) DeleteExpense(w http.ResponseWriter, r *http.Request) {
 }
 
 type inputIncomeRequest struct {
-	AmountYen int64 `json:"amountYen"`
+	AmountYen int64 `json:"amountYen" example:"100000"`
 }
 
-// InputIncome は対象月のメンバーの収入を入力する。
+// incomeResponse は収入入力のレスポンス。
+type incomeResponse struct {
+	Month  string    `json:"month" example:"2026-07"`
+	Income incomeDTO `json:"income"`
+}
+
+// InputIncome godoc
+//
+//	@Summary		月次収入の入力（上書き）
+//	@Tags			incomes
+//	@Accept			json
+//	@Produce		json
+//	@Param			month		path		string				true	"対象月（YYYY-MM）"
+//	@Param			memberId	path		string				true	"メンバーID（AccountID）"
+//	@Param			body		body		inputIncomeRequest	true	"収入額"
+//	@Success		200			{object}	incomeResponse
+//	@Failure		400			{object}	errorResponse
+//	@Failure		401			{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/months/{month}/incomes/{memberId} [put]
 func (h *Handler) InputIncome(w http.ResponseWriter, r *http.Request) {
 	var req inputIncomeRequest
 	if !decodeBody(w, r, &req) {
@@ -396,13 +555,29 @@ func (h *Handler) InputIncome(w http.ResponseWriter, r *http.Request) {
 		writeUsecaseError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"month":  income.Month.String(),
-		"income": incomeDTO{MemberID: string(income.MemberID), AmountYen: int64(income.Amount)},
+	writeJSON(w, http.StatusOK, incomeResponse{
+		Month:  income.Month.String(),
+		Income: incomeDTO{MemberID: string(income.MemberID), AmountYen: int64(income.Amount)},
 	})
 }
 
-// ListIncomes は対象月の入力済み収入を返す。
+// incomesResponse は対象月の収入一覧のレスポンス。
+type incomesResponse struct {
+	Month   string      `json:"month" example:"2026-07"`
+	Incomes []incomeDTO `json:"incomes"`
+}
+
+// ListIncomes godoc
+//
+//	@Summary		月次収入の一覧
+//	@Tags			incomes
+//	@Produce		json
+//	@Param			month	path		string	true	"対象月（YYYY-MM）"
+//	@Success		200		{object}	incomesResponse
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/months/{month}/incomes [get]
 func (h *Handler) ListIncomes(w http.ResponseWriter, r *http.Request) {
 	list, err := h.settlement.GetIncomes(r.Context(), r.PathValue("month"))
 	if err != nil {
@@ -413,33 +588,45 @@ func (h *Handler) ListIncomes(w http.ResponseWriter, r *http.Request) {
 	for _, income := range list {
 		dtos = append(dtos, incomeDTO{MemberID: string(income.MemberID), AmountYen: int64(income.Amount)})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"month": r.PathValue("month"), "incomes": dtos})
+	writeJSON(w, http.StatusOK, incomesResponse{Month: r.PathValue("month"), Incomes: dtos})
 }
 
 type settlementMemberDTO struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	Weight         int64  `json:"weight"`
-	IncomeYen      int64  `json:"incomeYen"`
-	PaidExpenseYen int64  `json:"paidExpenseYen"`
-	DisposableYen  int64  `json:"disposableYen"`
+	ID             string `json:"id" example:"acct_9f3c1a2b7d4e5f60"`
+	Name           string `json:"name" example:"太郎"`
+	Weight         int64  `json:"weight" example:"1"`
+	IncomeYen      int64  `json:"incomeYen" example:"100000"`
+	PaidExpenseYen int64  `json:"paidExpenseYen" example:"20000"`
+	DisposableYen  int64  `json:"disposableYen" example:"55000"`
 }
 
 type transferDTO struct {
-	From      string `json:"from"`
-	To        string `json:"to"`
-	AmountYen int64  `json:"amountYen"`
+	From      string `json:"from" example:"acct_9f3c1a2b7d4e5f60"`
+	To        string `json:"to" example:"acct_1a2b3c4d5e6f7a8b"`
+	AmountYen int64  `json:"amountYen" example:"25000"`
 }
 
 type settlementResponse struct {
-	Month           string                `json:"month"`
-	TotalExpenseYen int64                 `json:"totalExpenseYen"`
+	Month           string                `json:"month" example:"2026-07"`
+	TotalExpenseYen int64                 `json:"totalExpenseYen" example:"40000"`
 	Members         []settlementMemberDTO `json:"members"`
 	Transfer        *transferDTO          `json:"transfer"`
-	Settled         bool                  `json:"settled"`
+	Settled         bool                  `json:"settled" example:"false"`
 }
 
-// GetSettlement は対象月の精算結果を返す。
+// GetSettlement godoc
+//
+//	@Summary		月次精算の取得
+//	@Description	比重に応じて双方の可処分所得が揃うよう振込額を算出する。収入が両者分そろっていない場合は 409（INCOME_NOT_READY）。
+//	@Tags			settlement
+//	@Produce		json
+//	@Param			month	path		string	true	"対象月（YYYY-MM）"
+//	@Success		200		{object}	settlementResponse
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse
+//	@Failure		409		{object}	errorResponse	"収入未入力"
+//	@Security		BearerAuth
+//	@Router			/months/{month}/settlement [get]
 func (h *Handler) GetSettlement(w http.ResponseWriter, r *http.Request) {
 	month := r.PathValue("month")
 	s, err := h.settlement.GetSettlement(r.Context(), month)
@@ -478,12 +665,23 @@ func (h *Handler) GetSettlement(w http.ResponseWriter, r *http.Request) {
 }
 
 type registerRecurringExpenseRequest struct {
-	PaidBy      string `json:"paidBy"`
-	AmountYen   int64  `json:"amountYen"`
-	Description string `json:"description"`
+	PaidBy      string `json:"paidBy" example:"acct_9f3c1a2b7d4e5f60"`
+	AmountYen   int64  `json:"amountYen" example:"80000"`
+	Description string `json:"description" example:"家賃"`
 }
 
-// RegisterRecurringExpense は固定費を登録する。
+// RegisterRecurringExpense godoc
+//
+//	@Summary		固定費の登録
+//	@Tags			recurring-expenses
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		registerRecurringExpenseRequest	true	"固定費"
+//	@Success		201		{object}	recurringExpenseDTO
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/recurring-expenses [post]
 func (h *Handler) RegisterRecurringExpense(w http.ResponseWriter, r *http.Request) {
 	var req registerRecurringExpenseRequest
 	if !decodeBody(w, r, &req) {
@@ -501,7 +699,20 @@ func (h *Handler) RegisterRecurringExpense(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusCreated, toRecurringExpenseDTO(e))
 }
 
-// UpdateRecurringExpense は既存の固定費を更新する。
+// UpdateRecurringExpense godoc
+//
+//	@Summary		固定費の更新
+//	@Tags			recurring-expenses
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string							true	"固定費ID"
+//	@Param			body	body		registerRecurringExpenseRequest	true	"固定費"
+//	@Success		200		{object}	recurringExpenseDTO
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse
+//	@Failure		404		{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/recurring-expenses/{id} [put]
 func (h *Handler) UpdateRecurringExpense(w http.ResponseWriter, r *http.Request) {
 	var req registerRecurringExpenseRequest
 	if !decodeBody(w, r, &req) {
@@ -519,7 +730,20 @@ func (h *Handler) UpdateRecurringExpense(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, toRecurringExpenseDTO(e))
 }
 
-// ListRecurringExpenses は固定費の一覧を返す。
+// recurringExpensesResponse は固定費一覧のレスポンス。
+type recurringExpensesResponse struct {
+	RecurringExpenses []recurringExpenseDTO `json:"recurringExpenses"`
+}
+
+// ListRecurringExpenses godoc
+//
+//	@Summary		固定費の一覧
+//	@Tags			recurring-expenses
+//	@Produce		json
+//	@Success		200	{object}	recurringExpensesResponse
+//	@Failure		401	{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/recurring-expenses [get]
 func (h *Handler) ListRecurringExpenses(w http.ResponseWriter, r *http.Request) {
 	list, err := h.recurring.List(r.Context())
 	if err != nil {
@@ -530,10 +754,19 @@ func (h *Handler) ListRecurringExpenses(w http.ResponseWriter, r *http.Request) 
 	for _, e := range list {
 		dtos = append(dtos, toRecurringExpenseDTO(e))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"recurringExpenses": dtos})
+	writeJSON(w, http.StatusOK, recurringExpensesResponse{RecurringExpenses: dtos})
 }
 
-// DeleteRecurringExpense は固定費を削除する。
+// DeleteRecurringExpense godoc
+//
+//	@Summary		固定費の削除
+//	@Tags			recurring-expenses
+//	@Param			id	path	string	true	"固定費ID"
+//	@Success		204	"削除成功"
+//	@Failure		401	{object}	errorResponse
+//	@Failure		404	{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/recurring-expenses/{id} [delete]
 func (h *Handler) DeleteRecurringExpense(w http.ResponseWriter, r *http.Request) {
 	id := domain.RecurringExpenseID(r.PathValue("id"))
 	if err := h.recurring.Delete(r.Context(), id); err != nil {
@@ -544,13 +777,30 @@ func (h *Handler) DeleteRecurringExpense(w http.ResponseWriter, r *http.Request)
 }
 
 type settlementHistoryEntryDTO struct {
-	Month           string       `json:"month"`
-	Settled         bool         `json:"settled"`
-	TotalExpenseYen int64        `json:"totalExpenseYen"`
+	Month           string       `json:"month" example:"2026-07"`
+	Settled         bool         `json:"settled" example:"true"`
+	TotalExpenseYen int64        `json:"totalExpenseYen" example:"40000"`
 	Transfer        *transferDTO `json:"transfer"`
 }
 
-// GetSettlementHistory は from〜to（YYYY-MM）の精算履歴を新しい月順に返す。
+// settlementHistoryResponse は精算履歴のレスポンス。
+type settlementHistoryResponse struct {
+	Entries []settlementHistoryEntryDTO `json:"entries"`
+}
+
+// GetSettlementHistory godoc
+//
+//	@Summary		精算履歴の取得
+//	@Description	from〜to（YYYY-MM）の精算履歴を新しい月順に返す。収入が揃っていない月は除外する。
+//	@Tags			settlement
+//	@Produce		json
+//	@Param			from	query		string	true	"開始月（YYYY-MM）"
+//	@Param			to		query		string	true	"終了月（YYYY-MM）"
+//	@Success		200		{object}	settlementHistoryResponse
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/settlements/history [get]
 func (h *Handler) GetSettlementHistory(w http.ResponseWriter, r *http.Request) {
 	from := r.URL.Query().Get("from")
 	to := r.URL.Query().Get("to")
@@ -575,14 +825,32 @@ func (h *Handler) GetSettlementHistory(w http.ResponseWriter, r *http.Request) {
 		}
 		dtos = append(dtos, dto)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"entries": dtos})
+	writeJSON(w, http.StatusOK, settlementHistoryResponse{Entries: dtos})
 }
 
 type settlementStatusRequest struct {
-	Settled bool `json:"settled"`
+	Settled bool `json:"settled" example:"true"`
 }
 
-// UpdateSettlementStatus は対象月の精算済みフラグを更新する。
+// settlementStatusResponse は精算済みフラグ更新のレスポンス。
+type settlementStatusResponse struct {
+	Month   string `json:"month" example:"2026-07"`
+	Settled bool   `json:"settled" example:"true"`
+}
+
+// UpdateSettlementStatus godoc
+//
+//	@Summary		精算済みフラグの更新
+//	@Tags			settlement
+//	@Accept			json
+//	@Produce		json
+//	@Param			month	path		string					true	"対象月（YYYY-MM）"
+//	@Param			body	body		settlementStatusRequest	true	"精算済みフラグ"
+//	@Success		200		{object}	settlementStatusResponse
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/months/{month}/settlement/status [put]
 func (h *Handler) UpdateSettlementStatus(w http.ResponseWriter, r *http.Request) {
 	var req settlementStatusRequest
 	if !decodeBody(w, r, &req) {
@@ -594,10 +862,19 @@ func (h *Handler) UpdateSettlementStatus(w http.ResponseWriter, r *http.Request)
 		writeUsecaseError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"month": month, "settled": settled})
+	writeJSON(w, http.StatusOK, settlementStatusResponse{Month: month, Settled: settled})
 }
 
-// GetWeight は精算比重を返す。
+// GetWeight godoc
+//
+//	@Summary		精算比重の取得
+//	@Description	未設定時は 1:1。
+//	@Tags			settings
+//	@Produce		json
+//	@Success		200	{object}	weightsDTO
+//	@Failure		401	{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/settings/weight [get]
 func (h *Handler) GetWeight(w http.ResponseWriter, r *http.Request) {
 	weight, err := h.settings.GetWeight(r.Context())
 	if err != nil {
@@ -607,7 +884,19 @@ func (h *Handler) GetWeight(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toWeightsDTO(h.couple, weight))
 }
 
-// UpdateWeight は精算比重を更新する。
+// UpdateWeight godoc
+//
+//	@Summary		精算比重の更新
+//	@Description	各メンバーの比重（正整数）を memberID→比重 のマップで指定する。
+//	@Tags			settings
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		weightsDTO	true	"比重"
+//	@Success		200		{object}	weightsDTO
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/settings/weight [put]
 func (h *Handler) UpdateWeight(w http.ResponseWriter, r *http.Request) {
 	var req weightsDTO
 	if !decodeBody(w, r, &req) {

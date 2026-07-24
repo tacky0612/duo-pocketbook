@@ -19,8 +19,14 @@ make test-integration    # 統合テスト（要 make up）
 make down                # ローカル環境停止（データ削除）
 make frontend            # フロントエンドのビルド（frontend/dist）
 make build-lambda        # Lambdaデプロイパッケージ生成（build/lambda.zip）
+make openapi             # Goコードの注釈から api/openapi.yaml を生成
+make openapi-check       # openapi.yaml がコードと同期しているか検証
 make docs-validate       # docs/ 内の Mermaid 図の構文検証
 ```
+
+### OpenAPI 定義の生成（コードが正）
+
+`api/openapi.yaml` は手書きせず、`internal/web` のハンドラに付けた [swag](https://github.com/swaggo/swag) 注釈（`// @Summary` / `// @Router` 等）と DTO 型から生成する。swag は `go.mod` の `tool` ディレクティブで管理し、`make openapi`（`go tool swag ... --v3.1` → `api/openapi.yaml` にリネーム）で OpenAPI 3.1 を出力する。API を変更したらハンドラ注釈・DTO を直して `make openapi` を実行し、生成物をコミットする。CI の `openapi-check` ジョブが `make openapi-check`（再生成して差分がないか）を実行し、未再生成なら失敗する。生成された定義は [api-docs.html](#フロントエンドの開発) の入力にもなる。
 
 単一テストの実行:
 
@@ -78,8 +84,11 @@ JWT_SECRET=dev-secret go run ./cmd/server
 ```bash
 cd frontend && npm run dev        # Vite dev server
 cd frontend && npm run typecheck  # tsc --noEmit（型チェックのみ）
-cd frontend && npm run build      # tsc --noEmit → vite build
+cd frontend && npm run build      # tsc --noEmit → vite build → docs:api
+cd frontend && npm run docs:api   # OpenAPIからAPIドキュメント生成（dist/api-docs.html）
 ```
+
+`npm run build` は最後に `docs:api`（`@redocly/cli` の `build-docs`）を実行し、`api/openapi.yaml` から `dist/api-docs.html`（ReDoc）を生成する。これは配信物に含まれ、GitHub Pages・Cloudflare Pages の両方で `/api-docs.html` として公開される（[api.md](./api.md) 参照）。
 
 ログイン画面の「APIのURL」にAPIサーバー（例 `http://localhost:8080`）を入力する。値は localStorage に保存される。
 

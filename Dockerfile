@@ -7,6 +7,8 @@ WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
+# npm run build の docs:api（redocly）が ../api/openapi.yaml を参照するため配置する
+COPY api/openapi.yaml /api/openapi.yaml
 RUN npm run build
 
 # --- バックエンドビルド ---
