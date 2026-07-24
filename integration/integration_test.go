@@ -33,6 +33,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"sync"
 	"testing"
 	"time"
 )
@@ -118,11 +119,39 @@ func login(t *testing.T, loginID, password string) (token, accountID string) {
 	return out.Token, out.Member.ID
 }
 
-// loginBoth は taro / hanako 双方でログインし、トークンとAccountIDを返す。
+// authCache はログインIDごとのトークン・AccountIDのキャッシュ。
+// /login はIP単位のレート制限（10回/5分）があるため、テスト全体で同じ資格情報の
+// ログインは1回だけ行い、以降はキャッシュを使い回してログイン回数を上限内に抑える。
+// JWT の subject は不変の AccountID のため、トークンはテスト間で安全に共有できる。
+var (
+	authMu    sync.Mutex
+	authCache = map[string]authEntry{}
+)
+
+type authEntry struct {
+	token, accountID string
+}
+
+// auth は loginID/password で（初回のみ）ログインし、トークンとAccountIDをキャッシュして返す。
+// 標準的なトークンが欲しい大半のテストはこちらを使う。認証そのものや資格情報変更を
+// 検証するテストのみ、キャッシュを介さない login / 直接の POST /login を使う。
+func auth(t *testing.T, loginID, password string) (token, accountID string) {
+	t.Helper()
+	authMu.Lock()
+	defer authMu.Unlock()
+	if c, ok := authCache[loginID]; ok {
+		return c.token, c.accountID
+	}
+	token, accountID = login(t, loginID, password)
+	authCache[loginID] = authEntry{token: token, accountID: accountID}
+	return token, accountID
+}
+
+// loginBoth は taro / hanako 双方のトークンとAccountIDを返す（キャッシュ利用）。
 func loginBoth(t *testing.T) (taro, taroID, hanako, hanakoID string) {
 	t.Helper()
-	taro, taroID = login(t, "taro", "taro-password")
-	hanako, hanakoID = login(t, "hanako", "hanako-password")
+	taro, taroID = auth(t, "taro", "taro-password")
+	hanako, hanakoID = auth(t, "hanako", "hanako-password")
 	return
 }
 

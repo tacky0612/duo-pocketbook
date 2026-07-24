@@ -12,8 +12,8 @@ import (
 // 比重はグローバル設定のため、終了時に既定(1:1)へ戻す。
 func TestWeightSettings(t *testing.T) {
 	waitForHealthy(t)
-	taro, taroID := login(t, "taro", "taro-password")
-	_, hanakoID := login(t, "hanako", "hanako-password")
+	taro, taroID := auth(t, "taro", "taro-password")
+	_, hanakoID := auth(t, "hanako", "hanako-password")
 
 	defer func() {
 		if status, _ := doJSON(t, http.MethodPut, "/settings/weight", taro, map[string]any{
@@ -49,7 +49,7 @@ func TestWeightSettings(t *testing.T) {
 // グローバル設定のため終了時に既定(1)へ戻す。
 func TestClosingDaySetting(t *testing.T) {
 	waitForHealthy(t)
-	taro, _ := login(t, "taro", "taro-password")
+	taro, _ := auth(t, "taro", "taro-password")
 
 	defer func() {
 		if status, _ := doJSON(t, http.MethodPut, "/settings/closing-day", taro, map[string]any{"closingDay": 1}); status != http.StatusOK {

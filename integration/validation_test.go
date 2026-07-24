@@ -12,7 +12,7 @@ import (
 // いずれも状態を変更しない失敗ケースのため、月・グローバル設定への副作用はない。
 func TestValidationErrors(t *testing.T) {
 	waitForHealthy(t)
-	taro, taroID := login(t, "taro", "taro-password")
+	taro, taroID := auth(t, "taro", "taro-password")
 
 	cases := []struct {
 		name       string

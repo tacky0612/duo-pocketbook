@@ -11,7 +11,7 @@ import (
 // TestAuthAndMembers は認証（成功・失敗・トークンなし）とメンバー一覧を検証する。
 func TestAuthAndMembers(t *testing.T) {
 	waitForHealthy(t)
-	taro, _ := login(t, "taro", "taro-password")
+	taro, _ := auth(t, "taro", "taro-password")
 
 	// 誤ったパスワードは 401
 	if status, _ := doJSON(t, http.MethodPost, "/login", "", map[string]string{
@@ -54,7 +54,7 @@ func TestAuthAndMembers(t *testing.T) {
 // JWT の subject は不変の AccountID のため、変更後も同じトークンで戻せる。
 func TestAccount(t *testing.T) {
 	waitForHealthy(t)
-	hanako, hanakoID := login(t, "hanako", "hanako-password")
+	hanako, hanakoID := auth(t, "hanako", "hanako-password")
 
 	// GET /account
 	status, body := doJSON(t, http.MethodGet, "/account", hanako, nil)
@@ -125,7 +125,7 @@ func TestAccount(t *testing.T) {
 // 表示は全体設定のため、元の値に戻して他テストへの影響を避ける。
 func TestMemberProfile(t *testing.T) {
 	waitForHealthy(t)
-	taro, taroID := login(t, "taro", "taro-password")
+	taro, taroID := auth(t, "taro", "taro-password")
 
 	// 元の表示名・カラーを取得
 	getMember := func(id string) (name, color string) {
