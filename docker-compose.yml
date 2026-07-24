@@ -13,11 +13,11 @@ services:
       TABLE_NAME: duo-pocketbook
       DYNAMO_ENDPOINT: http://dynamodb:8000
       AWS_REGION: ap-northeast-1
-      # 表示名(MEMBER*_NAME)は設定しない。アプリ既定の 太郎/花子 を使う
-      MEMBER1_ID: taro
-      MEMBER1_PASSWORD: taro-password # ローカル専用の平文パスワード
-      MEMBER2_ID: hanako
-      MEMBER2_PASSWORD: hanako-password
+      # 表示名(ACCOUNT*_NAME)は設定しない。アプリ既定の 太郎/花子 を使う
+      ACCOUNT1_LOGINID: taro
+      ACCOUNT1_PASSWORD: taro-password # ローカル専用の平文パスワード
+      ACCOUNT2_LOGINID: hanako
+      ACCOUNT2_PASSWORD: hanako-password
       JWT_SECRET: local-dev-secret
       STATIC_DIR: /app/frontend/dist
     depends_on:

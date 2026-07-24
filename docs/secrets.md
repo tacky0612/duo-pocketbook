@@ -15,10 +15,10 @@
 |---|---|---|---|
 | `AWS_ROLE_ARN` | OIDC で AssumeRole する IAM ロール（`role-to-assume`） | ✅ | bootstrap 出力 `ci_role_arn` |
 | `JWT_SECRET` | JWT 署名鍵（`TF_VAR_jwt_secret`） | ✅ | `openssl rand -base64 48` |
-| `MEMBER1_PASSWORD_HASH` | メンバー1のパスワード bcrypt ハッシュ | ✅ | `go run ./cmd/hashpw '<パスワード>'` |
-| `MEMBER2_PASSWORD_HASH` | メンバー2のパスワード bcrypt ハッシュ | ✅ | `go run ./cmd/hashpw '<パスワード>'` |
-| `MEMBER1_ID` | メンバー1のログインID（`TF_VAR_member1_id`） | ✅ | 任意に決める |
-| `MEMBER2_ID` | メンバー2のログインID（`TF_VAR_member2_id`） | ✅ | 任意に決める |
+| `ACCOUNT1_PASSWORD_HASH` | アカウント1の初期パスワード bcrypt ハッシュ | ✅ | `go run ./cmd/hashpw '<パスワード>'` |
+| `ACCOUNT2_PASSWORD_HASH` | アカウント2の初期パスワード bcrypt ハッシュ | ✅ | `go run ./cmd/hashpw '<パスワード>'` |
+| `ACCOUNT1_LOGINID` | アカウント1の初期ログインID（`TF_VAR_account1_login_id`） | ✅ | 任意に決める |
+| `ACCOUNT2_LOGINID` | アカウント2の初期ログインID（`TF_VAR_account2_login_id`） | ✅ | 任意に決める |
 | `CLIENT_KEY` | 事前共有クライアントキー（Lambda 検証＋Cloudflare Worker が注入） | ✅※ | `openssl rand -hex 24` |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare プロバイダ認証 | ✅※ | Cloudflare ダッシュボードでスコープ限定トークン発行 |
 | `CLOUDFLARE_ACCOUNT_ID` | `TF_VAR_cloudflare_account_id` | ✅※ | Cloudflare ダッシュボード右サイド |
@@ -57,15 +57,15 @@ Terraform や CI の前に一度用意するもの。
 ## 5. Lambda 実行時の環境変数（Terraform が設定）
 以下は Terraform が上記シークレットから **自動で** Lambda に設定する。手動設定は不要（参考）。
 
-`MEMBER1_ID` / `MEMBER1_PASSWORD_HASH` / `MEMBER2_ID` / `MEMBER2_PASSWORD_HASH` / `JWT_SECRET` / `CLIENT_KEY` / `TABLE_NAME` / `ALLOWED_ORIGINS`（表示名は設定せず、アプリ既定の太郎 / 花子を使う）
+`ACCOUNT1_LOGINID` / `ACCOUNT1_PASSWORD_HASH` / `ACCOUNT2_LOGINID` / `ACCOUNT2_PASSWORD_HASH` / `JWT_SECRET` / `CLIENT_KEY` / `TABLE_NAME` / `ALLOWED_ORIGINS`（表示名は設定せず、アプリ既定の太郎 / 花子を使う）
 
 ## 6. ローカル開発
 `make up`（Docker Compose）は `docker-compose.yml` にコミット済みの**ローカル専用値**で動く。本番シークレットは不要。
 
 | 変数 | ローカル値 |
 |---|---|
-| `MEMBER1_ID` / `MEMBER1_PASSWORD` | `taro` / `taro-password` |
-| `MEMBER2_ID` / `MEMBER2_PASSWORD` | `hanako` / `hanako-password` |
+| `ACCOUNT1_LOGINID` / `ACCOUNT1_PASSWORD` | `taro` / `taro-password` |
+| `ACCOUNT2_LOGINID` / `ACCOUNT2_PASSWORD` | `hanako` / `hanako-password` |
 | `JWT_SECRET` | `local-dev-secret` |
 
 > ローカルで本番同等の apply を試す場合のみ、`terraform.tfvars`（gitignore 済み）に機密値を置く。詳細は [deployment.md](./deployment.md)。

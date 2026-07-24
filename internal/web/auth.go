@@ -10,7 +10,6 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/tacky0612/duo-pocketbook/internal/config"
 	"github.com/tacky0612/duo-pocketbook/internal/domain"
 )
 
@@ -21,60 +20,51 @@ type contextKey string
 
 const memberIDKey contextKey = "memberID"
 
-// MemberIDFromContext はリクエストコンテキストから認証済みメンバーIDを取り出す。
+// MemberIDFromContext はリクエストコンテキストから認証済みアカウントID（AccountID）を取り出す。
 func MemberIDFromContext(ctx context.Context) (domain.MemberID, bool) {
 	id, ok := ctx.Value(memberIDKey).(domain.MemberID)
 	return id, ok
 }
 
-// Authenticator は2メンバーのパスワード認証とJWTの発行・検証を担う。
+// Authenticator は JWT の発行・検証を担う。
+// 認証（ログインID・パスワード照合）は application.AccountUsecase が担い、
+// ここでは検証済みの AccountID をトークン化する。
 type Authenticator struct {
-	credentials map[domain.MemberID]config.MemberCredential
-	couple      domain.Couple
-	secret      []byte
-	ttl         time.Duration
-	now         func() time.Time
+	couple domain.Couple
+	secret []byte
+	ttl    time.Duration
+	now    func() time.Time
 }
 
 // NewAuthenticator は Authenticator を生成する。
-func NewAuthenticator(cfg config.Config, couple domain.Couple, now func() time.Time) *Authenticator {
+func NewAuthenticator(secret string, ttl time.Duration, couple domain.Couple, now func() time.Time) *Authenticator {
 	if now == nil {
 		now = time.Now
 	}
-	creds := map[domain.MemberID]config.MemberCredential{}
-	for _, m := range cfg.Members {
-		creds[m.Member.ID] = m
-	}
 	return &Authenticator{
-		credentials: creds,
-		couple:      couple,
-		secret:      []byte(cfg.JWTSecret),
-		ttl:         cfg.TokenTTL,
-		now:         now,
+		couple: couple,
+		secret: []byte(secret),
+		ttl:    ttl,
+		now:    now,
 	}
 }
 
-// Login はメンバーID・パスワードを検証してJWTを発行する。
-func (a *Authenticator) Login(memberID domain.MemberID, password string) (token string, member domain.Member, expiresAt time.Time, err error) {
-	cred, ok := a.credentials[memberID]
-	if !ok || !cred.VerifyPassword(password) {
-		return "", domain.Member{}, time.Time{}, ErrUnauthorized
-	}
-
+// IssueToken は AccountID を subject とする JWT を発行する。
+func (a *Authenticator) IssueToken(accountID domain.MemberID) (token string, expiresAt time.Time, err error) {
 	expiresAt = a.now().Add(a.ttl)
 	claims := jwt.RegisteredClaims{
-		Subject:   string(memberID),
+		Subject:   string(accountID),
 		IssuedAt:  jwt.NewNumericDate(a.now()),
 		ExpiresAt: jwt.NewNumericDate(expiresAt),
 	}
 	token, err = jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(a.secret)
 	if err != nil {
-		return "", domain.Member{}, time.Time{}, fmt.Errorf("トークンの発行に失敗しました: %w", err)
+		return "", time.Time{}, fmt.Errorf("トークンの発行に失敗しました: %w", err)
 	}
-	return token, cred.Member, expiresAt, nil
+	return token, expiresAt, nil
 }
 
-// Verify はJWTを検証してメンバーIDを返す。
+// Verify はJWTを検証して AccountID を返す。
 func (a *Authenticator) Verify(token string) (domain.MemberID, error) {
 	parsed, err := jwt.ParseWithClaims(token, &jwt.RegisteredClaims{}, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -97,7 +87,7 @@ func (a *Authenticator) Verify(token string) (domain.MemberID, error) {
 }
 
 // Middleware は Authorization: Bearer トークンを検証し、
-// メンバーIDをコンテキストに載せて次のハンドラへ渡す。
+// AccountID をコンテキストに載せて次のハンドラへ渡す。
 func (a *Authenticator) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")

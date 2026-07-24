@@ -2,33 +2,44 @@ package web_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/tacky0612/duo-pocketbook/internal/application"
-	"github.com/tacky0612/duo-pocketbook/internal/config"
 	"github.com/tacky0612/duo-pocketbook/internal/domain"
 	"github.com/tacky0612/duo-pocketbook/internal/infrastructure/memory"
 	"github.com/tacky0612/duo-pocketbook/internal/web"
 )
 
-func newTestServer(t *testing.T) *httptest.Server {
+type testAccount struct {
+	AccountID string
+	LoginID   string
+	Password  string
+}
+
+func newTestServer(t *testing.T) (*httptest.Server, [2]testAccount) {
 	t.Helper()
-	cfg := config.Config{
-		Members: [2]config.MemberCredential{
-			{Member: domain.Member{ID: "taro", Name: "太郎"}, PasswordPlain: "taro-pass"},
-			{Member: domain.Member{ID: "hanako", Name: "花子"}, PasswordPlain: "hanako-pass"},
-		},
-		JWTSecret:      "test-secret",
-		TokenTTL:       time.Hour,
-		AllowedOrigins: []string{"*"},
+
+	seeds := [2]application.AccountSeed{
+		{LoginID: "taro", Name: "太郎", Plain: "taro-pass"},
+		{LoginID: "hanako", Name: "花子", Plain: "hanako-pass"},
 	}
-	couple, err := cfg.Couple()
+	accountRepo := memory.NewAccountRepository()
+	n := 0
+	idgen := func() string { n++; return fmt.Sprintf("acct_test_%d", n) }
+	account := application.NewAccountUsecase(accountRepo, seeds, idgen)
+	members, err := account.Provision(context.Background())
 	if err != nil {
-		t.Fatalf("Couple: %v", err)
+		t.Fatalf("Provision: %v", err)
+	}
+	couple, err := domain.NewCouple(members[0], members[1])
+	if err != nil {
+		t.Fatalf("NewCouple: %v", err)
 	}
 
 	expenseRepo := memory.NewExpenseRepository()
@@ -37,18 +48,24 @@ func newTestServer(t *testing.T) *httptest.Server {
 	settingsRepo := memory.NewSettingsRepository()
 	statusRepo := memory.NewSettlementStatusRepository()
 
-	auth := web.NewAuthenticator(cfg, couple, nil)
+	auth := web.NewAuthenticator("test-secret", time.Hour, couple, nil)
 	handler := web.NewHandler(
 		couple,
 		auth,
+		account,
 		application.NewExpenseUsecase(couple, expenseRepo, nil),
 		application.NewSettlementUsecase(couple, expenseRepo, incomeRepo, recurringRepo, settingsRepo, statusRepo),
 		application.NewSettingsUsecase(couple, settingsRepo),
 		application.NewRecurringExpenseUsecase(couple, recurringRepo),
 	)
-	srv := httptest.NewServer(web.NewRouter(handler, auth, cfg.AllowedOrigins, web.RouterOption{}))
+	srv := httptest.NewServer(web.NewRouter(handler, auth, []string{"*"}, web.RouterOption{}))
 	t.Cleanup(srv.Close)
-	return srv
+
+	accounts := [2]testAccount{
+		{AccountID: string(members[0].ID), LoginID: "taro", Password: "taro-pass"},
+		{AccountID: string(members[1].ID), LoginID: "hanako", Password: "hanako-pass"},
+	}
+	return srv, accounts
 }
 
 func doJSON(t *testing.T, method, url, token string, body any) (*http.Response, []byte) {
@@ -79,10 +96,10 @@ func doJSON(t *testing.T, method, url, token string, body any) (*http.Response, 
 	return resp, out.Bytes()
 }
 
-func login(t *testing.T, srv *httptest.Server, memberID, password string) string {
+func login(t *testing.T, srv *httptest.Server, loginID, password string) string {
 	t.Helper()
 	resp, body := doJSON(t, http.MethodPost, srv.URL+"/login", "", map[string]string{
-		"memberId": memberID, "password": password,
+		"memberId": loginID, "password": password,
 	})
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("login status = %d, body = %s", resp.StatusCode, body)
@@ -97,22 +114,22 @@ func login(t *testing.T, srv *httptest.Server, memberID, password string) string
 }
 
 func TestLogin(t *testing.T) {
-	srv := newTestServer(t)
+	srv, acc := newTestServer(t)
 
-	token := login(t, srv, "taro", "taro-pass")
+	token := login(t, srv, acc[0].LoginID, acc[0].Password)
 	if token == "" {
 		t.Fatal("token が空")
 	}
 
 	// パスワード誤り
 	resp, _ := doJSON(t, http.MethodPost, srv.URL+"/login", "", map[string]string{
-		"memberId": "taro", "password": "wrong",
+		"memberId": acc[0].LoginID, "password": "wrong",
 	})
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", resp.StatusCode)
 	}
 
-	// 不明なメンバー
+	// 不明なログインID
 	resp, _ = doJSON(t, http.MethodPost, srv.URL+"/login", "", map[string]string{
 		"memberId": "unknown", "password": "taro-pass",
 	})
@@ -122,10 +139,11 @@ func TestLogin(t *testing.T) {
 }
 
 func TestAuthRequired(t *testing.T) {
-	srv := newTestServer(t)
+	srv, _ := newTestServer(t)
 
 	paths := []struct{ method, path string }{
 		{http.MethodGet, "/members"},
+		{http.MethodGet, "/account"},
 		{http.MethodPost, "/expenses"},
 		{http.MethodGet, "/expenses?month=2026-07"},
 		{http.MethodGet, "/months/2026-07/settlement"},
@@ -138,7 +156,6 @@ func TestAuthRequired(t *testing.T) {
 		}
 	}
 
-	// 不正なトークン
 	resp, _ := doJSON(t, http.MethodGet, srv.URL+"/members", "invalid-token", nil)
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("不正トークン: status = %d, want 401", resp.StatusCode)
@@ -146,13 +163,13 @@ func TestAuthRequired(t *testing.T) {
 }
 
 func TestExpenseAndSettlementAPI(t *testing.T) {
-	srv := newTestServer(t)
-	taroToken := login(t, srv, "taro", "taro-pass")
-	hanakoToken := login(t, srv, "hanako", "hanako-pass")
+	srv, acc := newTestServer(t)
+	taro, hanako := acc[0], acc[1]
+	taroToken := login(t, srv, taro.LoginID, taro.Password)
+	hanakoToken := login(t, srv, hanako.LoginID, hanako.Password)
 
-	// 支出登録（ユーザー提示の例）
 	resp, body := doJSON(t, http.MethodPost, srv.URL+"/expenses", taroToken, map[string]any{
-		"paidBy": "taro", "amountYen": 20000, "description": "家賃(一部)", "date": "2026-07-01",
+		"paidBy": taro.AccountID, "amountYen": 20000, "description": "家賃(一部)", "date": "2026-07-01",
 	})
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("status = %d, body = %s", resp.StatusCode, body)
@@ -165,20 +182,18 @@ func TestExpenseAndSettlementAPI(t *testing.T) {
 	}
 
 	if resp, body = doJSON(t, http.MethodPost, srv.URL+"/expenses", hanakoToken, map[string]any{
-		"paidBy": "hanako", "amountYen": 20000, "description": "食費", "date": "2026-07-05",
+		"paidBy": hanako.AccountID, "amountYen": 20000, "description": "食費", "date": "2026-07-05",
 	}); resp.StatusCode != http.StatusCreated {
 		t.Fatalf("status = %d, body = %s", resp.StatusCode, body)
 	}
 
-	// 一覧
 	resp, body = doJSON(t, http.MethodGet, srv.URL+"/expenses?month=2026-07", taroToken, nil)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", resp.StatusCode, body)
 	}
 	var list struct {
 		Expenses []struct {
-			ID        string `json:"id"`
-			AmountYen int64  `json:"amountYen"`
+			ID string `json:"id"`
 		} `json:"expenses"`
 	}
 	if err := json.Unmarshal(body, &list); err != nil {
@@ -195,12 +210,12 @@ func TestExpenseAndSettlementAPI(t *testing.T) {
 	}
 
 	// 収入入力
-	if resp, body = doJSON(t, http.MethodPut, srv.URL+"/months/2026-07/incomes/taro", taroToken, map[string]any{
+	if resp, body = doJSON(t, http.MethodPut, srv.URL+"/months/2026-07/incomes/"+taro.AccountID, taroToken, map[string]any{
 		"amountYen": 100000,
 	}); resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", resp.StatusCode, body)
 	}
-	if resp, body = doJSON(t, http.MethodPut, srv.URL+"/months/2026-07/incomes/hanako", hanakoToken, map[string]any{
+	if resp, body = doJSON(t, http.MethodPut, srv.URL+"/months/2026-07/incomes/"+hanako.AccountID, hanakoToken, map[string]any{
 		"amountYen": 50000,
 	}); resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", resp.StatusCode, body)
@@ -226,8 +241,8 @@ func TestExpenseAndSettlementAPI(t *testing.T) {
 		t.Errorf("totalExpenseYen = %d, want 40000", settlement.TotalExpenseYen)
 	}
 	if settlement.Transfer == nil ||
-		settlement.Transfer.From != "taro" || settlement.Transfer.To != "hanako" || settlement.Transfer.AmountYen != 25000 {
-		t.Errorf("transfer = %+v, want taro→hanako 25000", settlement.Transfer)
+		settlement.Transfer.From != taro.AccountID || settlement.Transfer.To != hanako.AccountID || settlement.Transfer.AmountYen != 25000 {
+		t.Errorf("transfer = %+v, want %s→%s 25000", settlement.Transfer, taro.AccountID, hanako.AccountID)
 	}
 
 	// 支出削除
@@ -242,7 +257,7 @@ func TestExpenseAndSettlementAPI(t *testing.T) {
 
 	// バリデーションエラー
 	resp, _ = doJSON(t, http.MethodPost, srv.URL+"/expenses", taroToken, map[string]any{
-		"paidBy": "taro", "amountYen": -100, "date": "2026-07-01",
+		"paidBy": taro.AccountID, "amountYen": -100, "date": "2026-07-01",
 	})
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", resp.StatusCode)
@@ -250,10 +265,9 @@ func TestExpenseAndSettlementAPI(t *testing.T) {
 }
 
 func TestWeightAPI(t *testing.T) {
-	srv := newTestServer(t)
-	token := login(t, srv, "taro", "taro-pass")
+	srv, acc := newTestServer(t)
+	token := login(t, srv, acc[0].LoginID, acc[0].Password)
 
-	// デフォルト 1:1
 	resp, body := doJSON(t, http.MethodGet, srv.URL+"/settings/weight", token, nil)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", resp.StatusCode, body)
@@ -264,13 +278,12 @@ func TestWeightAPI(t *testing.T) {
 	if err := json.Unmarshal(body, &weights); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if weights.Weights["taro"] != 1 || weights.Weights["hanako"] != 1 {
+	if weights.Weights[acc[0].AccountID] != 1 || weights.Weights[acc[1].AccountID] != 1 {
 		t.Errorf("weights = %v, want 1:1", weights.Weights)
 	}
 
-	// 更新
 	resp, body = doJSON(t, http.MethodPut, srv.URL+"/settings/weight", token, map[string]any{
-		"weights": map[string]int64{"taro": 3, "hanako": 2},
+		"weights": map[string]int64{acc[0].AccountID: 3, acc[1].AccountID: 2},
 	})
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", resp.StatusCode, body)
@@ -278,13 +291,69 @@ func TestWeightAPI(t *testing.T) {
 	if err := json.Unmarshal(body, &weights); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if weights.Weights["taro"] != 3 || weights.Weights["hanako"] != 2 {
+	if weights.Weights[acc[0].AccountID] != 3 || weights.Weights[acc[1].AccountID] != 2 {
 		t.Errorf("weights = %v, want 3:2", weights.Weights)
 	}
 }
 
+func TestAccountAPI(t *testing.T) {
+	srv, acc := newTestServer(t)
+	token := login(t, srv, acc[0].LoginID, acc[0].Password)
+
+	// GET /account
+	resp, body := doJSON(t, http.MethodGet, srv.URL+"/account", token, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", resp.StatusCode, body)
+	}
+	var a struct {
+		AccountID string `json:"accountId"`
+		LoginID   string `json:"loginId"`
+		Name      string `json:"name"`
+	}
+	if err := json.Unmarshal(body, &a); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if a.AccountID != acc[0].AccountID || a.LoginID != "taro" {
+		t.Fatalf("account = %+v", a)
+	}
+
+	// ログインID変更
+	resp, body = doJSON(t, http.MethodPut, srv.URL+"/account/login-id", token, map[string]string{"loginId": "taro2"})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("login-id status = %d, body = %s", resp.StatusCode, body)
+	}
+	// 旧IDはログイン不可・新IDはログイン可
+	resp, _ = doJSON(t, http.MethodPost, srv.URL+"/login", "", map[string]string{"memberId": "taro", "password": "taro-pass"})
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("旧ID login status = %d, want 401", resp.StatusCode)
+	}
+	_ = login(t, srv, "taro2", "taro-pass")
+
+	// 他アカウントと重複するIDは 400
+	resp, _ = doJSON(t, http.MethodPut, srv.URL+"/account/login-id", token, map[string]string{"loginId": "hanako"})
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("重複ID status = %d, want 400", resp.StatusCode)
+	}
+
+	// パスワード変更（現在PW誤り→400）
+	resp, _ = doJSON(t, http.MethodPut, srv.URL+"/account/password", token, map[string]string{
+		"currentPassword": "wrong", "newPassword": "newpassword1",
+	})
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("現在PW誤り status = %d, want 400", resp.StatusCode)
+	}
+	// 現在PW正しい→204、新PWでログイン可
+	resp, _ = doJSON(t, http.MethodPut, srv.URL+"/account/password", token, map[string]string{
+		"currentPassword": "taro-pass", "newPassword": "newpassword1",
+	})
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("PW変更 status = %d, want 204", resp.StatusCode)
+	}
+	_ = login(t, srv, "taro2", "newpassword1")
+}
+
 func TestCORSPreflight(t *testing.T) {
-	srv := newTestServer(t)
+	srv, _ := newTestServer(t)
 
 	req, _ := http.NewRequest(http.MethodOptions, srv.URL+"/expenses", nil)
 	req.Header.Set("Origin", "https://example.github.io")
@@ -303,31 +372,23 @@ func TestCORSPreflight(t *testing.T) {
 }
 
 func TestTokenExpiry(t *testing.T) {
-	cfg := config.Config{
-		Members: [2]config.MemberCredential{
-			{Member: domain.Member{ID: "taro", Name: "太郎"}, PasswordPlain: "pass"},
-			{Member: domain.Member{ID: "hanako", Name: "花子"}, PasswordPlain: "pass"},
-		},
-		JWTSecret: "test-secret",
-		TokenTTL:  time.Hour,
-	}
-	couple, err := cfg.Couple()
+	member := domain.Member{ID: "acct_x", Name: "太郎"}
+	couple, err := domain.NewCouple(member, domain.Member{ID: "acct_y", Name: "花子"})
 	if err != nil {
-		t.Fatalf("Couple: %v", err)
+		t.Fatalf("NewCouple: %v", err)
 	}
 
 	current := time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC)
-	auth := web.NewAuthenticator(cfg, couple, func() time.Time { return current })
+	auth := web.NewAuthenticator("test-secret", time.Hour, couple, func() time.Time { return current })
 
-	token, _, _, err := auth.Login("taro", "pass")
+	token, _, err := auth.IssueToken(member.ID)
 	if err != nil {
-		t.Fatalf("Login: %v", err)
+		t.Fatalf("IssueToken: %v", err)
 	}
 	if _, err := auth.Verify(token); err != nil {
 		t.Fatalf("Verify: %v", err)
 	}
 
-	// 有効期限を過ぎると検証に失敗する
 	current = current.Add(2 * time.Hour)
 	if _, err := auth.Verify(token); err == nil {
 		t.Fatal("期限切れトークンが有効と判定された")

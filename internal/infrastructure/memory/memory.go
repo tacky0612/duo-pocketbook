@@ -231,3 +231,33 @@ func (r *SettingsRepository) SaveWeight(_ context.Context, weight domain.Weight)
 	r.set = true
 	return nil
 }
+
+// AccountRepository は application.AccountRepository のインメモリ実装。
+type AccountRepository struct {
+	mu       sync.RWMutex
+	accounts map[domain.MemberID]application.Account
+}
+
+// NewAccountRepository は空の AccountRepository を生成する。
+func NewAccountRepository() *AccountRepository {
+	return &AccountRepository{accounts: map[domain.MemberID]application.Account{}}
+}
+
+// List は全アカウントを返す。
+func (r *AccountRepository) List(_ context.Context) ([]application.Account, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]application.Account, 0, len(r.accounts))
+	for _, a := range r.accounts {
+		out = append(out, a)
+	}
+	return out, nil
+}
+
+// Save はアカウントを保存（upsert）する。
+func (r *AccountRepository) Save(_ context.Context, a application.Account) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.accounts[a.ID] = a
+	return nil
+}

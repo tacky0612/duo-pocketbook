@@ -2,38 +2,25 @@
 package config
 
 import (
-	"crypto/subtle"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
-
 	"github.com/tacky0612/duo-pocketbook/internal/domain"
 )
 
-// MemberCredential はメンバーと認証情報の組。
+// MemberCredential はアカウント初期値（seed）。Member.ID は初期ログインID、
+// Member.Name は表示名の初期値、パスワードは初期パスワード。
+// 実行時の資格情報（可変のログインID・パスワード・不変のAccountID）は
+// application.AccountUsecase / AccountRepository が管理する。
 type MemberCredential struct {
 	Member domain.Member
 	// PasswordHash は bcrypt ハッシュ。本番環境ではこちらを設定する。
 	PasswordHash string
 	// PasswordPlain は平文パスワード。ローカル開発・テスト用。
 	PasswordPlain string
-}
-
-// VerifyPassword はパスワードを検証する。
-// PasswordHash（bcrypt）が設定されていればそちらを優先し、
-// なければ PasswordPlain と定数時間比較する。
-func (c MemberCredential) VerifyPassword(password string) bool {
-	if c.PasswordHash != "" {
-		return bcrypt.CompareHashAndPassword([]byte(c.PasswordHash), []byte(password)) == nil
-	}
-	if c.PasswordPlain == "" {
-		return false
-	}
-	return subtle.ConstantTimeCompare([]byte(c.PasswordPlain), []byte(password)) == 1
 }
 
 // Config はアプリケーション全体の設定。
@@ -52,24 +39,19 @@ type Config struct {
 	ClientKey string
 }
 
-// Couple は設定された2メンバーから Couple を構築する。
-func (c Config) Couple() (domain.Couple, error) {
-	return domain.NewCouple(c.Members[0].Member, c.Members[1].Member)
-}
-
 // defaultMemberNames はメンバーの表示名の既定値。
 // 表示名は変数/シークレットで持たず、ここを初期値としてアプリ側で設定する
-// （環境変数 MEMBERn_NAME が設定されていればそちらを優先。実行時に画面から変更も可能）。
+// （環境変数 ACCOUNTn_NAME が設定されていればそちらを優先。実行時に画面から変更も可能）。
 var defaultMemberNames = [2]string{"太郎", "花子"}
 
 // Load は環境変数から設定を読み込む。
 func Load() (Config, error) {
 	var cfg Config
 	for i := range cfg.Members {
-		prefix := fmt.Sprintf("MEMBER%d_", i+1)
-		id := os.Getenv(prefix + "ID")
+		prefix := fmt.Sprintf("ACCOUNT%d_", i+1)
+		id := os.Getenv(prefix + "LOGINID")
 		if id == "" {
-			return Config{}, fmt.Errorf("環境変数 %sID は必須です", prefix)
+			return Config{}, fmt.Errorf("環境変数 %sLOGINID は必須です", prefix)
 		}
 		name := os.Getenv(prefix + "NAME")
 		if name == "" {

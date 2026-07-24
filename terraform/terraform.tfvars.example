@@ -1,12 +1,13 @@
 # terraform.tfvars にコピーして値を設定する（terraform.tfvars はコミットしない）
 
-# 表示名（member*_name）は設定しない。アプリ側の既定値（太郎/花子）を使い、変更は画面から行う。
-member1_id = "taro"
+# 表示名（account*_name）は設定しない。アプリ側の既定値（太郎/花子）を使い、変更は画面から行う。
+# login_id は初期ログインID（AccountIDとは別。ログイン後に画面から変更可能）
+account1_login_id = "taro"
 # go run ./cmd/hashpw '<password>' で生成
-member1_password_hash = "$2a$10$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+account1_password_hash = "$2a$10$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
-member2_id            = "hanako"
-member2_password_hash = "$2a$10$yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+account2_login_id      = "hanako"
+account2_password_hash = "$2a$10$yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
 
 # openssl rand -base64 48 などで生成
 jwt_secret = "long-random-secret"

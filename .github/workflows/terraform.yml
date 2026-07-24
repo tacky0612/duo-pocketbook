@@ -17,16 +17,16 @@ env:
   TF_STATE_KEY: duo-pocketbook/terraform.tfstate
   # 機密は GitHub Secrets、非機密の識別子は GitHub Variables から TF_VAR_* で注入する
   TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
-  TF_VAR_member1_password_hash: ${{ secrets.MEMBER1_PASSWORD_HASH }}
-  TF_VAR_member2_password_hash: ${{ secrets.MEMBER2_PASSWORD_HASH }}
+  TF_VAR_account1_password_hash: ${{ secrets.ACCOUNT1_PASSWORD_HASH }}
+  TF_VAR_account2_password_hash: ${{ secrets.ACCOUNT2_PASSWORD_HASH }}
   TF_VAR_client_key: ${{ secrets.CLIENT_KEY }}
   TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
   TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
   TF_VAR_client_emails: ${{ secrets.CLIENT_EMAILS }} # 例: ["a@example.com","b@example.com"]
   TF_VAR_budget_alert_email: ${{ secrets.BUDGET_ALERT_EMAIL }}
-  TF_VAR_member1_id: ${{ secrets.MEMBER1_ID }}
-  TF_VAR_member2_id: ${{ secrets.MEMBER2_ID }}
-  # 表示名(member*_name)はアプリ側の既定値（太郎/花子）を使うため注入しない
+  TF_VAR_account1_login_id: ${{ secrets.ACCOUNT1_LOGINID }}
+  TF_VAR_account2_login_id: ${{ secrets.ACCOUNT2_LOGINID }}
+  # 表示名(account*_name)はアプリ側の既定値（太郎/花子）を使うため注入しない
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
 jobs:

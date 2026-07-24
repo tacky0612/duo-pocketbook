@@ -4,7 +4,7 @@ import { session } from "../lib/session";
 import { useAsync } from "../hooks";
 import { Card, SectionTitle, Field, Input, NumberInput, Button, Spinner } from "../components/ui";
 import { SunIcon, MoonIcon, SettingsIcon, LogoutIcon, type IconComponent } from "../components/Icons";
-import type { MemberView, ScreenProps, Theme, ThemeMode, WeightsResponse } from "../types";
+import type { AccountResponse, MemberView, ScreenProps, Theme, ThemeMode, WeightsResponse } from "../types";
 
 interface SettingsScreenProps extends ScreenProps {
   theme: Theme;
@@ -96,11 +96,20 @@ function ThemeSegmented({ mode, onChange }: ThemeSegmentedProps) {
 
 export default function SettingsScreen({ members, me, theme, notify, onError, onLogout, onMemberUpdated }: SettingsScreenProps) {
   const { loading, data, error, reload } = useAsync<WeightsResponse>(() => api<WeightsResponse>("GET", "/settings/weight"), []);
+  const account = useAsync<AccountResponse>(() => api<AccountResponse>("GET", "/account"), []);
   const [weights, setWeights] = useState<Record<string, string>>({});
   const [name, setName] = useState(me?.name || "");
   const [savingName, setSavingName] = useState(false);
   const [savingColor, setSavingColor] = useState(false);
   const [busy, setBusy] = useState(false);
+  // ログインID変更
+  const [loginId, setLoginId] = useState("");
+  const [savingLoginId, setSavingLoginId] = useState(false);
+  // パスワード変更
+  const [curPw, setCurPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [savingPw, setSavingPw] = useState(false);
 
   const myColor = members.find((m) => m.id === me?.id)?.color;
 
@@ -112,8 +121,46 @@ export default function SettingsScreen({ members, me, theme, notify, onError, on
   }, [data, members]);
 
   useEffect(() => setName(me?.name || ""), [me]);
+  useEffect(() => {
+    if (account.data) setLoginId(account.data.loginId);
+  }, [account.data]);
 
   if (error) onError(error);
+  if (account.error) onError(account.error);
+
+  const saveLoginId = async (ev: FormEvent<HTMLFormElement>) => {
+    ev.preventDefault();
+    setSavingLoginId(true);
+    try {
+      await api("PUT", "/account/login-id", { loginId: loginId.trim() });
+      notify("ログインIDを変更しました");
+      account.reload();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setSavingLoginId(false);
+    }
+  };
+
+  const savePassword = async (ev: FormEvent<HTMLFormElement>) => {
+    ev.preventDefault();
+    if (newPw !== confirmPw) {
+      notify("新しいパスワードが一致しません", "error");
+      return;
+    }
+    setSavingPw(true);
+    try {
+      await api("PUT", "/account/password", { currentPassword: curPw, newPassword: newPw });
+      notify("パスワードを変更しました");
+      setCurPw("");
+      setNewPw("");
+      setConfirmPw("");
+    } catch (err) {
+      onError(err);
+    } finally {
+      setSavingPw(false);
+    }
+  };
 
   const saveName = async (ev: FormEvent<HTMLFormElement>) => {
     ev.preventDefault();
@@ -249,9 +296,9 @@ export default function SettingsScreen({ members, me, theme, notify, onError, on
       <Card>
         <SectionTitle>アカウント</SectionTitle>
         <dl className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <dt className="text-slate-400">ログイン中</dt>
-            <dd className="font-medium">{me?.name}（{me?.id}）</dd>
+          <div className="flex justify-between gap-4">
+            <dt className="shrink-0 text-slate-400">アカウントID</dt>
+            <dd className="truncate font-mono text-xs text-slate-500">{account.data?.accountId ?? "—"}</dd>
           </div>
           <div className="flex justify-between gap-4">
             <dt className="shrink-0 text-slate-400">API</dt>
@@ -260,6 +307,39 @@ export default function SettingsScreen({ members, me, theme, notify, onError, on
             </dd>
           </div>
         </dl>
+
+        {/* ログインID変更 */}
+        <form onSubmit={saveLoginId} className="mt-5 space-y-3 border-t border-slate-200 pt-5 dark:border-slate-800">
+          <Field label="ログインID" hint="ログインに使うID（英数字と . _ - / 32文字以内）">
+            <Input
+              type="text"
+              required
+              autoComplete="username"
+              value={loginId}
+              onChange={(e) => setLoginId(e.target.value)}
+            />
+          </Field>
+          <Button type="submit" variant="secondary" disabled={savingLoginId || !loginId.trim()} className="w-full">
+            {savingLoginId ? "保存中..." : "ログインIDを変更"}
+          </Button>
+        </form>
+
+        {/* パスワード変更 */}
+        <form onSubmit={savePassword} className="mt-5 space-y-3 border-t border-slate-200 pt-5 dark:border-slate-800">
+          <Field label="現在のパスワード">
+            <Input type="password" required autoComplete="current-password" value={curPw} onChange={(e) => setCurPw(e.target.value)} />
+          </Field>
+          <Field label="新しいパスワード" hint="8文字以上">
+            <Input type="password" required autoComplete="new-password" value={newPw} onChange={(e) => setNewPw(e.target.value)} />
+          </Field>
+          <Field label="新しいパスワード（確認）">
+            <Input type="password" required autoComplete="new-password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} />
+          </Field>
+          <Button type="submit" variant="secondary" disabled={savingPw || !curPw || !newPw} className="w-full">
+            {savingPw ? "保存中..." : "パスワードを変更"}
+          </Button>
+        </form>
+
         {session.demo && (
           <div className="mt-4 rounded-xl bg-amber-50 p-3 dark:bg-amber-950/30">
             <p className="text-xs text-amber-700 dark:text-amber-300">

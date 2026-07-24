@@ -78,9 +78,9 @@ make build-lambda && terraform -chdir=terraform apply
 |---|---|
 | AWS 資格情報 | OIDC（保存しない）。ロールARN → Secrets `AWS_ROLE_ARN` |
 | `CLOUDFLARE_API_TOKEN` | Secrets |
-| `jwt_secret` / `member1_password_hash` / `member2_password_hash` / `client_key` | Secrets（`JWT_SECRET` 等）→ `TF_VAR_*` |
+| `jwt_secret` / `account1_password_hash` / `account2_password_hash` / `client_key` | Secrets（`JWT_SECRET` 等）→ `TF_VAR_*` |
 | `client_emails`（JSON配列文字列） / `budget_alert_email` / `cloudflare_account_id` / `cloudflare_zone_id` | Secrets → `TF_VAR_*` |
-| `member*_id` / `member*_name` | Variables（非機密）→ `TF_VAR_*` |
+| `account*_login_id`（初期ログインID） | Secrets `ACCOUNT*_LOGINID` → `TF_VAR_*`（表示名はアプリ既定値のため設定しない） |
 | `TF_STATE_BUCKET` | Variables |
 | 非機密の設定（region, app_domain, github_owner/repo, enable_cloudflare 等） | リポジトリの `terraform/prod.auto.tfvars` |
 
@@ -93,7 +93,7 @@ make build-lambda && terraform -chdir=terraform apply
      -var 'github_owner=tacky0612' -var 'github_repo=duo-pocketbook'
    ```
    出力 `ci_role_arn` → Secrets `AWS_ROLE_ARN`、`state_bucket` → Variables `TF_STATE_BUCKET`。
-2. GitHub の Secrets / Variables を上表に従い設定。生成例: `JWT_SECRET`=`openssl rand -base64 48`、`MEMBERn_PASSWORD_HASH`=`go run ./cmd/hashpw '<pw>'`、`CLIENT_KEY`=`openssl rand -hex 24`、`CLIENT_EMAILS`=`["you@example.com","partner@example.com"]`。
+2. GitHub の Secrets / Variables を上表に従い設定。生成例: `JWT_SECRET`=`openssl rand -base64 48`、`ACCOUNTn_PASSWORD_HASH`=`go run ./cmd/hashpw '<pw>'`、`CLIENT_KEY`=`openssl rand -hex 24`、`CLIENT_EMAILS`=`["you@example.com","partner@example.com"]`。
 3. `production` Environment を作成し必須レビュアーを設定（apply の承認ゲート）。
 4. PR を出すと plan がコメントされる。apply は Actions タブの `Terraform` ワークフローを手動実行（承認後に適用）。
 
@@ -200,7 +200,7 @@ terraform -chdir=terraform apply
 ## セキュリティ上の注意
 
 - Function URL は `authorization_type = NONE` だが、`/health` と `/login` 以外は**アプリケーション側のJWT検証**で保護される
-- パスワードは bcrypt ハッシュのみをLambda環境変数に保存する（平文の `MEMBERn_PASSWORD` はローカル専用）
+- パスワードは bcrypt ハッシュのみをLambda環境変数に保存する（平文の `ACCOUNTn_PASSWORD` はローカル専用）
 - `terraform.tfvars` と tfstate には機微情報が含まれるためコミットしない（tfstateをリモート管理する場合はS3バックエンド等の暗号化を検討）
 - IAMはテーブル単位の最小権限（GetItem/PutItem/DeleteItem/Query のみ）
 

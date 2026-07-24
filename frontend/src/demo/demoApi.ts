@@ -21,6 +21,9 @@ interface DemoBody {
   date?: string;
   settled?: boolean;
   weights?: Weights;
+  loginId?: string;
+  currentPassword?: string;
+  newPassword?: string;
 }
 
 // --- エラーヘルパー（apiClient の ApiError 形状に合わせる） ---
@@ -252,6 +255,19 @@ export async function demoApi(method: HttpMethod, path: string, body?: unknown):
     db.weights = next;
     store.save();
     return { weights: { ...db.weights } };
+  }
+
+  // --- アカウント（デモ: 先頭メンバーをログイン中として扱う。永続化はしない） ---
+  if (key === "GET /account") {
+    const m = db.members[0];
+    return { accountId: m.id, loginId: m.id, name: m.name };
+  }
+  if (key === "PUT /account/login-id") {
+    const m = db.members[0];
+    return { accountId: m.id, loginId: b.loginId ?? m.id, name: m.name };
+  }
+  if (key === "PUT /account/password") {
+    return null;
   }
 
   // --- ヘルスチェック（画面からは未使用だが念のため） ---

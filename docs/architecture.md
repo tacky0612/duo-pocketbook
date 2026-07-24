@@ -41,12 +41,13 @@ flowchart TD
 
 ### アプリケーション層 — `internal/application/`
 
-ユースケース（アプリケーションとしての動作）を定義する。永続化は `repository.go` の**インターフェイス**（`ExpenseRepository` / `IncomeRepository` / `RecurringExpenseRepository` / `SettlementStatusRepository` / `SettingsRepository`）経由でのみアクセスし、実装には依存しない。
+ユースケース（アプリケーションとしての動作）を定義する。永続化は `repository.go` の**インターフェイス**（`ExpenseRepository` / `IncomeRepository` / `RecurringExpenseRepository` / `SettlementStatusRepository` / `SettingsRepository` / `AccountRepository`）経由でのみアクセスし、実装には依存しない。
 
 - `ExpenseUsecase` — 支出の登録・更新・月別一覧（日付降順）・削除
 - `SettlementUsecase` — 収入の入力/取得、精算結果の計算、精算済みフラグの取得/更新、精算履歴の取得（固定費を対象月の支出として合算する）
 - `RecurringExpenseUsecase` — 固定費の登録・更新・一覧・削除
 - `SettingsUsecase` — 精算比重の取得/更新（未設定時はデフォルト1:1）、メンバー表示名/カラーの取得・上書き
+- `AccountUsecase` — 起動時のアカウントプロビジョニング（不変の AccountID 生成）、ログイン認証（bcrypt照合）、ログインID/パスワードの変更（→ [data-model.md](data-model.md) の「AccountID とログインIDの分離」）
 
 ### インフラ層 — `internal/infrastructure/`
 
