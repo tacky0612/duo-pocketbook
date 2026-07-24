@@ -41,6 +41,24 @@ export default function App() {
     setMonth(currentYearMonth());
   }, []);
 
+  // スクロールを最上部へ戻す。iOS(WebKit)ではスクロールの実体が documentElement か
+  // body かが状況で変わるため、window/documentElement/body すべてをリセットする。
+  const scrollToTop = useCallback(() => {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, []);
+
+  // 画面切替はまず（前画面の高さがある状態で）スクロールを0にしてから差し替える。
+  // 切替後のスピナー表示・レイアウト未確定な状態でリセットするより iOS では確実。
+  const navigate = useCallback(
+    (next: ScreenName) => {
+      scrollToTop();
+      setScreen(next);
+    },
+    [scrollToTop]
+  );
+
   // プロフィール（表示名・カラー）の更新をメンバー一覧と自分の情報へ反映する
   const handleMemberUpdated = useCallback((updated: MemberView) => {
     setMembers((prev) => prev.map((m) => (m.id === updated.id ? { ...m, ...updated } : m)));
@@ -91,20 +109,13 @@ export default function App() {
       });
   }, [me]);
 
-  // 画面を切り替えたら、現在のスクロール位置にかかわらず切り替え先を最上部から表示する。
-  // iOS(WebKit) ではスクロールの実体が documentElement か body かが状況で変わり、
-  // window.scrollTo だけでは動かないことがある。両方をリセットし、遷移直後の
-  // レイアウト未確定に備えて次フレームでも実行する。
+  // 画面が変わったら最上部から表示する保険。navigate 経由でない画面変更（ログアウト等）
+  // にも対応する。遷移直後のレイアウト未確定に備えて次フレームでも実行する。
   useEffect(() => {
-    const reset = () => {
-      window.scrollTo(0, 0);
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
-    };
-    reset();
-    const id = requestAnimationFrame(reset);
+    scrollToTop();
+    const id = requestAnimationFrame(scrollToTop);
     return () => cancelAnimationFrame(id);
-  }, [screen]);
+  }, [screen, scrollToTop]);
 
   if (!me) {
     return (
@@ -121,12 +132,12 @@ export default function App() {
     me,
     notify,
     onError: handleError,
-    onNavigate: setScreen,
+    onNavigate: navigate,
     onMonthChange: setMonth,
   };
 
   return (
-    <AppShell screen={screen} onNavigate={setScreen} month={month} onMonthChange={setMonth}>
+    <AppShell screen={screen} onNavigate={navigate} month={month} onMonthChange={setMonth}>
       {membersLoading || members.length === 0 ? (
         <Spinner />
       ) : screen === "settlement" ? (
