@@ -43,13 +43,13 @@ func testMonth(t *testing.T) domain.YearMonth {
 	return ym
 }
 
-func testIncome(t *testing.T, id domain.MemberID, amount domain.Money) domain.MonthlyIncome {
+func testSalary(t *testing.T, id domain.MemberID, amount domain.Money) domain.Salary {
 	t.Helper()
-	inc, err := domain.NewMonthlyIncome(testMonth(t), id, amount)
+	s, err := domain.NewSalary(testMonth(t), id, amount)
 	if err != nil {
-		t.Fatalf("NewMonthlyIncome: %v", err)
+		t.Fatalf("NewSalary: %v", err)
 	}
-	return inc
+	return s
 }
 
 func testExpense(t *testing.T, suffix string, paidBy domain.MemberID, amount domain.Money) domain.Expense {
@@ -138,9 +138,9 @@ func TestCalculateSettlement(t *testing.T) {
 			got, err := domain.CalculateSettlement(domain.SettlementInput{
 				Month:  testMonth(t),
 				Couple: testCouple(t),
-				Incomes: []domain.MonthlyIncome{
-					testIncome(t, husband, tt.incomeHusband),
-					testIncome(t, wife, tt.incomeWife),
+				Salaries: []domain.Salary{
+					testSalary(t, husband, tt.incomeHusband),
+					testSalary(t, wife, tt.incomeWife),
 				},
 				Expenses: expenses,
 				Weight:   testWeight(t, tt.weightHusband, tt.weightWife),
@@ -182,9 +182,9 @@ func TestCalculateSettlementDisposableRatio(t *testing.T) {
 	got, err := domain.CalculateSettlement(domain.SettlementInput{
 		Month:  testMonth(t),
 		Couple: testCouple(t),
-		Incomes: []domain.MonthlyIncome{
-			testIncome(t, husband, 100_000),
-			testIncome(t, wife, 50_000),
+		Salaries: []domain.Salary{
+			testSalary(t, husband, 100_000),
+			testSalary(t, wife, 50_000),
 		},
 		Expenses: []domain.Expense{
 			testExpense(t, "e1", husband, 20_000),
@@ -219,9 +219,9 @@ func TestCalculateSettlementWithDirectTransfers(t *testing.T) {
 	got, err := domain.CalculateSettlement(domain.SettlementInput{
 		Month:  month,
 		Couple: testCouple(t),
-		Incomes: []domain.MonthlyIncome{
-			testIncome(t, husband, 100_000),
-			testIncome(t, wife, 50_000),
+		Salaries: []domain.Salary{
+			testSalary(t, husband, 100_000),
+			testSalary(t, wife, 50_000),
 		},
 		Expenses: []domain.Expense{
 			testExpense(t, "e1", husband, 20_000),
@@ -263,9 +263,9 @@ func TestCalculateSettlementDirectTransfersCancelOut(t *testing.T) {
 	got, err := domain.CalculateSettlement(domain.SettlementInput{
 		Month:  month,
 		Couple: testCouple(t),
-		Incomes: []domain.MonthlyIncome{
-			testIncome(t, husband, 80_000),
-			testIncome(t, wife, 80_000),
+		Salaries: []domain.Salary{
+			testSalary(t, husband, 80_000),
+			testSalary(t, wife, 80_000),
 		},
 		DirectTransfers: []domain.DirectTransfer{
 			testDirectTransfer(t, "dtr_a", husband, wife, 5_000, domain.YearMonth{}),
@@ -294,13 +294,43 @@ func TestCalculateSettlementIncomeNotReady(t *testing.T) {
 	_, err := domain.CalculateSettlement(domain.SettlementInput{
 		Month:  testMonth(t),
 		Couple: testCouple(t),
-		Incomes: []domain.MonthlyIncome{
-			testIncome(t, husband, 100_000), // 妻の収入が未入力
+		Salaries: []domain.Salary{
+			testSalary(t, husband, 100_000), // 妻の収入が未入力
 		},
 		Weight: testWeight(t, 1, 1),
 	})
 	if !errors.Is(err, domain.ErrIncomeNotReady) {
 		t.Fatalf("err = %v, want ErrIncomeNotReady", err)
+	}
+}
+
+func TestCalculateSettlementAddsIncomes(t *testing.T) {
+	// 給与は夫8万・妻8万で精算不要のはずだが、夫に追加収入2万を足すと
+	// 収入が10万対8万となり、比重1:1では夫→妻1万の精算が生じる。
+	month := testMonth(t)
+	rid := string(domain.NewRecurringIncomeID("side"))
+	inc, err := domain.NewIncome(rid, husband, 20_000, "副業", domain.YearMonth{})
+	if err != nil {
+		t.Fatalf("NewIncome: %v", err)
+	}
+	got, err := domain.CalculateSettlement(domain.SettlementInput{
+		Month:  month,
+		Couple: testCouple(t),
+		Salaries: []domain.Salary{
+			testSalary(t, husband, 80_000),
+			testSalary(t, wife, 80_000),
+		},
+		Incomes: []domain.Income{inc},
+		Weight:  testWeight(t, 1, 1),
+	})
+	if err != nil {
+		t.Fatalf("CalculateSettlement: %v", err)
+	}
+	if got.Members[0].Income != 100_000 {
+		t.Errorf("夫の収入 = %s, want 100000（給与8万＋追加収入2万）", got.Members[0].Income)
+	}
+	if got.Transfer == nil || got.Transfer.From != husband || got.Transfer.To != wife || got.Transfer.Amount != 10_000 {
+		t.Errorf("Transfer = %+v, want 夫→妻 10000", got.Transfer)
 	}
 }
 
@@ -313,9 +343,9 @@ func TestCalculateSettlementRejectsOtherMonth(t *testing.T) {
 	_, err = domain.CalculateSettlement(domain.SettlementInput{
 		Month:  testMonth(t),
 		Couple: testCouple(t),
-		Incomes: []domain.MonthlyIncome{
-			testIncome(t, husband, 100_000),
-			testIncome(t, wife, 50_000),
+		Salaries: []domain.Salary{
+			testSalary(t, husband, 100_000),
+			testSalary(t, wife, 50_000),
 		},
 		Expenses: []domain.Expense{e},
 		Weight:   testWeight(t, 1, 1),

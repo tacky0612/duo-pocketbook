@@ -22,6 +22,7 @@ type fixture struct {
 	settings   *application.SettingsUsecase
 	recurring  *application.RecurringExpenseUsecase
 	direct     *application.DirectTransferUsecase
+	income     *application.IncomeUsecase
 }
 
 func newFixture(t *testing.T) fixture {
@@ -34,6 +35,7 @@ func newFixture(t *testing.T) fixture {
 		t.Fatalf("NewCouple: %v", err)
 	}
 	expenseRepo := memory.NewExpenseRepository()
+	salaryRepo := memory.NewSalaryRepository()
 	incomeRepo := memory.NewIncomeRepository()
 	recurringRepo := memory.NewRecurringExpenseRepository()
 	directRepo := memory.NewDirectTransferRepository()
@@ -42,10 +44,11 @@ func newFixture(t *testing.T) fixture {
 	now := func() time.Time { return time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC) }
 	return fixture{
 		expenses:   application.NewExpenseUsecase(couple, expenseRepo, settingsRepo, now),
-		settlement: application.NewSettlementUsecase(couple, expenseRepo, incomeRepo, recurringRepo, directRepo, settingsRepo, statusRepo),
+		settlement: application.NewSettlementUsecase(couple, expenseRepo, salaryRepo, incomeRepo, recurringRepo, directRepo, settingsRepo, statusRepo),
 		settings:   application.NewSettingsUsecase(couple, settingsRepo),
 		recurring:  application.NewRecurringExpenseUsecase(couple, recurringRepo),
 		direct:     application.NewDirectTransferUsecase(couple, directRepo),
+		income:     application.NewIncomeUsecase(couple, incomeRepo),
 	}
 }
 
@@ -237,11 +240,11 @@ func TestSettlementFlow(t *testing.T) {
 		t.Fatalf("err = %v, want ErrIncomeNotReady", err)
 	}
 
-	if _, err := f.settlement.InputIncome(ctx, "2026-07", husband, 100_000); err != nil {
-		t.Fatalf("InputIncome: %v", err)
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", husband, 100_000); err != nil {
+		t.Fatalf("InputSalary: %v", err)
 	}
-	if _, err := f.settlement.InputIncome(ctx, "2026-07", wife, 50_000); err != nil {
-		t.Fatalf("InputIncome: %v", err)
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", wife, 50_000); err != nil {
+		t.Fatalf("InputSalary: %v", err)
 	}
 
 	got, err := f.settlement.GetSettlement(ctx, "2026-07")
@@ -257,12 +260,12 @@ func TestSettlementFlow(t *testing.T) {
 	}
 
 	// 収入は上書き可能
-	if _, err := f.settlement.InputIncome(ctx, "2026-07", wife, 100_000); err != nil {
-		t.Fatalf("InputIncome(上書き): %v", err)
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", wife, 100_000); err != nil {
+		t.Fatalf("InputSalary(上書き): %v", err)
 	}
-	incomes, err := f.settlement.GetIncomes(ctx, "2026-07")
+	incomes, err := f.settlement.GetSalaries(ctx, "2026-07")
 	if err != nil {
-		t.Fatalf("GetIncomes: %v", err)
+		t.Fatalf("GetSalaries: %v", err)
 	}
 	if len(incomes) != 2 {
 		t.Fatalf("len(incomes) = %d, want 2", len(incomes))
@@ -289,11 +292,11 @@ func TestSettlementWithWeight(t *testing.T) {
 		t.Fatalf("UpdateWeight: %v", err)
 	}
 
-	if _, err := f.settlement.InputIncome(ctx, "2026-07", husband, 100_000); err != nil {
-		t.Fatalf("InputIncome: %v", err)
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", husband, 100_000); err != nil {
+		t.Fatalf("InputSalary: %v", err)
 	}
-	if _, err := f.settlement.InputIncome(ctx, "2026-07", wife, 50_000); err != nil {
-		t.Fatalf("InputIncome: %v", err)
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", wife, 50_000); err != nil {
+		t.Fatalf("InputSalary: %v", err)
 	}
 	got, err := f.settlement.GetSettlement(ctx, "2026-07")
 	if err != nil {
@@ -335,11 +338,11 @@ func TestRecurringExpenseAffectsSettlement(t *testing.T) {
 	}
 
 	// 収入を両者入力（同額）。固定費が精算に反映されるか確認する。
-	if _, err := f.settlement.InputIncome(ctx, "2026-07", husband, 100_000); err != nil {
-		t.Fatalf("InputIncome: %v", err)
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", husband, 100_000); err != nil {
+		t.Fatalf("InputSalary: %v", err)
 	}
-	if _, err := f.settlement.InputIncome(ctx, "2026-07", wife, 100_000); err != nil {
-		t.Fatalf("InputIncome: %v", err)
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", wife, 100_000); err != nil {
+		t.Fatalf("InputSalary: %v", err)
 	}
 
 	// net夫 = 100000 - 60000 = 40000, net妻 = 100000 → t = (40000-100000)/2 = -30000
@@ -373,11 +376,11 @@ func TestDirectTransferAffectsSettlement(t *testing.T) {
 	ctx := context.Background()
 
 	// 収入同額・支出なし → 精算のみなら0円。ここに立替精算を加える。
-	if _, err := f.settlement.InputIncome(ctx, "2026-07", husband, 100_000); err != nil {
-		t.Fatalf("InputIncome: %v", err)
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", husband, 100_000); err != nil {
+		t.Fatalf("InputSalary: %v", err)
 	}
-	if _, err := f.settlement.InputIncome(ctx, "2026-07", wife, 100_000); err != nil {
-		t.Fatalf("InputIncome: %v", err)
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", wife, 100_000); err != nil {
+		t.Fatalf("InputSalary: %v", err)
 	}
 
 	// 継続: 夫→妻 5000。全月に自動加算される。
@@ -420,11 +423,11 @@ func TestDirectTransferAffectsSettlement(t *testing.T) {
 	}
 
 	// 単発は別月には効かない。継続分のみで 夫→妻 5000。
-	if _, err := f.settlement.InputIncome(ctx, "2026-08", husband, 100_000); err != nil {
-		t.Fatalf("InputIncome(8月): %v", err)
+	if _, err := f.settlement.InputSalary(ctx, "2026-08", husband, 100_000); err != nil {
+		t.Fatalf("InputSalary(8月): %v", err)
 	}
-	if _, err := f.settlement.InputIncome(ctx, "2026-08", wife, 100_000); err != nil {
-		t.Fatalf("InputIncome(8月): %v", err)
+	if _, err := f.settlement.InputSalary(ctx, "2026-08", wife, 100_000); err != nil {
+		t.Fatalf("InputSalary(8月): %v", err)
 	}
 	aug, err := f.settlement.GetSettlement(ctx, "2026-08")
 	if err != nil {
@@ -501,16 +504,16 @@ func TestSettlementHistory(t *testing.T) {
 	ctx := context.Background()
 
 	// 7月: 収入あり（精算対象）、8月: 収入未入力（スキップ対象）、9月: 収入あり＋精算済み
-	if _, err := f.settlement.InputIncome(ctx, "2026-07", husband, 100_000); err != nil {
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", husband, 100_000); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.settlement.InputIncome(ctx, "2026-07", wife, 60_000); err != nil {
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", wife, 60_000); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.settlement.InputIncome(ctx, "2026-09", husband, 100_000); err != nil {
+	if _, err := f.settlement.InputSalary(ctx, "2026-09", husband, 100_000); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.settlement.InputIncome(ctx, "2026-09", wife, 100_000); err != nil {
+	if _, err := f.settlement.InputSalary(ctx, "2026-09", wife, 100_000); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.settlement.SetSettled(ctx, "2026-09", true); err != nil {
@@ -629,18 +632,98 @@ func TestMemberProfileNameAndColor(t *testing.T) {
 	}
 }
 
-func TestInputIncomeValidation(t *testing.T) {
+func TestInputSalaryValidation(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 
-	if _, err := f.settlement.InputIncome(ctx, "2026-07", "unknown", 100); !errors.Is(err, domain.ErrValidation) {
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", "unknown", 100); !errors.Is(err, domain.ErrValidation) {
 		t.Errorf("不明メンバー: err = %v, want ErrValidation", err)
 	}
-	if _, err := f.settlement.InputIncome(ctx, "bad-month", husband, 100); !errors.Is(err, domain.ErrValidation) {
+	if _, err := f.settlement.InputSalary(ctx, "bad-month", husband, 100); !errors.Is(err, domain.ErrValidation) {
 		t.Errorf("年月不正: err = %v, want ErrValidation", err)
 	}
-	if _, err := f.settlement.InputIncome(ctx, "2026-07", husband, -1); !errors.Is(err, domain.ErrValidation) {
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", husband, -1); !errors.Is(err, domain.ErrValidation) {
 		t.Errorf("負の金額: err = %v, want ErrValidation", err)
+	}
+}
+
+func TestIncomeFlow(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	// 給与を両者分入力（精算可能な状態にする）
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", husband, 80_000); err != nil {
+		t.Fatalf("InputSalary: %v", err)
+	}
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", wife, 80_000); err != nil {
+		t.Fatalf("InputSalary: %v", err)
+	}
+
+	// 継続の追加収入（夫・副業2万）と当月単発（妻・臨時1万）を登録
+	rec, err := f.income.Register(ctx, application.RegisterIncomeInput{
+		MemberID: husband, AmountYen: 20_000, Description: "副業", Month: "",
+	})
+	if err != nil {
+		t.Fatalf("Register(継続): %v", err)
+	}
+	if !rec.IsRecurring() {
+		t.Errorf("継続として登録されていない: %+v", rec)
+	}
+	if _, err := f.income.Register(ctx, application.RegisterIncomeInput{
+		MemberID: wife, AmountYen: 10_000, Description: "臨時", Month: "2026-07",
+	}); err != nil {
+		t.Fatalf("Register(単発): %v", err)
+	}
+
+	// 当月の一覧は継続＋単発の2件
+	list, err := f.income.ListForMonth(ctx, "2026-07")
+	if err != nil {
+		t.Fatalf("ListForMonth: %v", err)
+	}
+	if len(list) != 2 {
+		t.Fatalf("len(list) = %d, want 2", len(list))
+	}
+	// 翌月には継続分のみ現れる
+	next, err := f.income.ListForMonth(ctx, "2026-08")
+	if err != nil {
+		t.Fatalf("ListForMonth(8月): %v", err)
+	}
+	if len(next) != 1 || !next[0].IsRecurring() {
+		t.Errorf("8月の収入 = %+v, want 継続1件", next)
+	}
+
+	// 精算に給与＋追加収入が反映される: 夫10万 対 妻9万 → 夫→妻5000
+	s, err := f.settlement.GetSettlement(ctx, "2026-07")
+	if err != nil {
+		t.Fatalf("GetSettlement: %v", err)
+	}
+	if int64(s.Members[0].Income) != 100_000 {
+		t.Errorf("夫の収入 = %d, want 100000", int64(s.Members[0].Income))
+	}
+	if int64(s.Members[1].Income) != 90_000 {
+		t.Errorf("妻の収入 = %d, want 90000", int64(s.Members[1].Income))
+	}
+	if s.Transfer == nil || s.Transfer.From != husband || int64(s.Transfer.Amount) != 5_000 {
+		t.Errorf("Transfer = %+v, want 夫→妻 5000", s.Transfer)
+	}
+
+	// 更新（金額のみ変更）→ 継続/単発は維持
+	updated, err := f.income.Update(ctx, rec.ID, application.RegisterIncomeInput{
+		MemberID: husband, AmountYen: 30_000, Description: "副業(増)", Month: "",
+	})
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if updated.ID != rec.ID || !updated.IsRecurring() || updated.Amount != 30_000 {
+		t.Errorf("更新結果が不正: %+v", updated)
+	}
+
+	// 削除
+	if err := f.income.Delete(ctx, rec.ID); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if err := f.income.Delete(ctx, rec.ID); !errors.Is(err, application.ErrNotFound) {
+		t.Errorf("削除済みID: err = %v, want ErrNotFound", err)
 	}
 }
 
@@ -675,11 +758,11 @@ func TestClosingDaySettlementPeriod(t *testing.T) {
 	}
 
 	// 精算の合計支出は 2000+4000 = 6000
-	if _, err := f.settlement.InputIncome(ctx, "2026-07", husband, 100000); err != nil {
-		t.Fatalf("InputIncome: %v", err)
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", husband, 100000); err != nil {
+		t.Fatalf("InputSalary: %v", err)
 	}
-	if _, err := f.settlement.InputIncome(ctx, "2026-07", wife, 100000); err != nil {
-		t.Fatalf("InputIncome: %v", err)
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", wife, 100000); err != nil {
+		t.Fatalf("InputSalary: %v", err)
 	}
 	s, err := f.settlement.GetSettlement(ctx, "2026-07")
 	if err != nil {

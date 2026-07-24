@@ -17,6 +17,7 @@ import (
 func BuildHandler(ctx context.Context, cfg config.Config, opt RouterOption) (http.Handler, error) {
 	var (
 		expenseRepo   application.ExpenseRepository
+		salaryRepo    application.SalaryRepository
 		incomeRepo    application.IncomeRepository
 		recurringRepo application.RecurringExpenseRepository
 		directRepo    application.DirectTransferRepository
@@ -36,10 +37,11 @@ func BuildHandler(ctx context.Context, cfg config.Config, opt RouterOption) (htt
 			}
 		}
 		repos := dynamoinfra.NewRepositories(client, cfg.TableName)
-		expenseRepo, incomeRepo, recurringRepo, directRepo, settings, statusRepo, accountRepo =
-			repos.Expenses, repos.Incomes, repos.Recurring, repos.Direct, repos.Settings, repos.Status, repos.Accounts
+		expenseRepo, salaryRepo, incomeRepo, recurringRepo, directRepo, settings, statusRepo, accountRepo =
+			repos.Expenses, repos.Salaries, repos.Incomes, repos.Recurring, repos.Direct, repos.Settings, repos.Status, repos.Accounts
 	} else {
 		expenseRepo = memory.NewExpenseRepository()
+		salaryRepo = memory.NewSalaryRepository()
 		incomeRepo = memory.NewIncomeRepository()
 		recurringRepo = memory.NewRecurringExpenseRepository()
 		directRepo = memory.NewDirectTransferRepository()
@@ -67,10 +69,11 @@ func BuildHandler(ctx context.Context, cfg config.Config, opt RouterOption) (htt
 		auth,
 		account,
 		application.NewExpenseUsecase(couple, expenseRepo, settings, nil),
-		application.NewSettlementUsecase(couple, expenseRepo, incomeRepo, recurringRepo, directRepo, settings, statusRepo),
+		application.NewSettlementUsecase(couple, expenseRepo, salaryRepo, incomeRepo, recurringRepo, directRepo, settings, statusRepo),
 		application.NewSettingsUsecase(couple, settings),
 		application.NewRecurringExpenseUsecase(couple, recurringRepo),
 		application.NewDirectTransferUsecase(couple, directRepo),
+		application.NewIncomeUsecase(couple, incomeRepo),
 	)
 	// 事前共有キー検証を有効化（設定時のみ）。
 	opt.ClientKey = cfg.ClientKey
