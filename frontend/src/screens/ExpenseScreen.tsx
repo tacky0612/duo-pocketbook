@@ -112,7 +112,7 @@ export default function ExpenseScreen({ month, members, me, notify, onError }: S
       <Card className="lg:col-span-2 lg:sticky lg:top-20">
         <SectionTitle>支出を登録</SectionTitle>
         <form onSubmit={add} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-4">
             <Field label="支払った人">
               <Select value={paidBy || members[0]?.id || ""} onChange={(e) => setPaidBy(e.target.value)}>
                 {members.map((m) => (
@@ -176,7 +176,7 @@ export default function ExpenseScreen({ month, members, me, notify, onError }: S
                     onSubmit={saveEdit}
                     className="space-y-3 rounded-xl bg-blue-50/70 p-3 ring-1 ring-blue-200 dark:bg-blue-950/30 dark:ring-blue-900"
                   >
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-4">
                       <Field label="支払った人">
                         <Select
                           value={draft.paidBy}
@@ -233,9 +233,9 @@ export default function ExpenseScreen({ month, members, me, notify, onError }: S
                 <li key={e.id} className="flex items-center gap-2 py-3">
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-medium">{e.description || "（内容なし）"}</div>
-                    <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-400">
-                      <span className="tabular-nums">{e.date}</span>
+                    <div className="mt-0.5 flex flex-col items-start gap-0.5 text-xs text-slate-400">
                       <MemberBadge name={memberName(e.paidBy)} color={memberColor(e.paidBy)} />
+                      <span className="tabular-nums">{e.date}</span>
                     </div>
                   </div>
                   <span className="whitespace-nowrap font-semibold tabular-nums">{yen(e.amountYen)}</span>

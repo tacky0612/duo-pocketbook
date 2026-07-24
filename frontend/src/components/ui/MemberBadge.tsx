@@ -11,7 +11,7 @@ export default function MemberBadge({ name, color }: MemberBadgeProps) {
   const style: CSSProperties | undefined = color ? { backgroundColor: color } : undefined;
   return (
     <span
-      className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium text-white"
+      className="inline-flex max-w-full items-center truncate rounded-full px-2 py-0.5 text-xs font-medium text-white"
       style={style}
     >
       {name}

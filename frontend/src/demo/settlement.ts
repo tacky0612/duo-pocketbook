@@ -5,7 +5,10 @@
 // 既定比重1:1・収入未入力の扱い）を JS へ移植したもの。計算ロジックは同一に保つ。
 
 import { ApiError } from "../lib/apiClient";
+import { settlementMonthOf } from "../lib/month";
 import type { DemoIncome, Expense, Member, RecurringExpense, Settlement, Weights } from "../types";
+
+export { settlementMonthOf };
 
 export interface SettlementInput {
   month: string;
@@ -15,21 +18,6 @@ export interface SettlementInput {
   expenses: Expense[];
   recurring: RecurringExpense[];
   closingDay: number;
-}
-
-// settlementMonthOf は支出日(YYYY-MM-DD)が属する精算月(YYYY-MM)を返す。
-// バックエンド domain.ClosingDay.SettlementMonth と同一ロジック。
-// 締め日=1（デフォルト）は暦月どおり。D>=2 は実効締め日 min(D, その月の日数) 以上の日を翌月分にする。
-export function settlementMonthOf(dateISO: string, closingDay: number): string {
-  const [y, m, d] = dateISO.split("-").map(Number);
-  const ym = (yy: number, mm: number) => `${yy}-${String(mm).padStart(2, "0")}`;
-  if (!closingDay || closingDay <= 1) return ym(y, m);
-  const daysInMonth = new Date(y, m, 0).getDate(); // m は1始まり。翌月0日＝当月末日
-  const eff = Math.min(closingDay, daysInMonth);
-  if (d >= eff) {
-    return m === 12 ? ym(y + 1, 1) : ym(y, m + 1);
-  }
-  return ym(y, m);
 }
 
 // settled を除いた精算結果（settled は呼び出し側でストアから付与する）。

@@ -84,8 +84,9 @@ t = (20,000 - 100,000) / 2 = -40,000
 - 範囲は 1〜31。29〜31 はその日が存在しない月（2月など）では**その月の末日に丸める**（例: 締め日31・2月は28日/29日が起算）。
 - 対象は支出のみ。収入・精算済みフラグ・固定費は月単位の設定なので締め日の影響を受けない（固定費は各精算月にそのまま計上）。
 - 支出一覧・精算・履歴のいずれも同じ締め期間で集計する（画面間で金額・件数が一致する）。
+- フロントの初期表示月も締め日に追従する。起動時に締め日を取得し、「今日が属する精算月」（`settlementMonthOf(今日, 締め日)`、`frontend/src/lib/month.ts`）を初期選択にする。例: 締め日=15・今日が7/20 なら初期表示は **8月**（7/15〜8/14 の期間）。締め日=1 なら暦当月と一致。ユーザーが月を手動変更した後や締め日の取得に失敗した場合は暦当月のままにする。
 
-ドメインの `ClosingDay.SettlementMonth(date)`（`internal/domain/closing.go`）が支出日→精算月の対応を担い、`CalculateSettlement` は `SettlementInput.ClosingDay` で対象月に属するかを検証する。保存レイヤーでの扱い（暦月キーのまま2パーティションを集計）は [data-model.md](data-model.md#締め日は保存先を変えない暦月キーのまま集計時に期間で絞る) を参照。
+ドメインの `ClosingDay.SettlementMonth(date)`（`internal/domain/closing.go`）が支出日→精算月の対応を担い、`CalculateSettlement` は `SettlementInput.ClosingDay` で対象月に属するかを検証する。フロントの `settlementMonthOf`（`frontend/src/lib/month.ts`）はこれと同一ロジックの移植で、デモモードの支出絞り込みと初期表示月の算出に共用する。保存レイヤーでの扱い（暦月キーのまま2パーティションを集計）は [data-model.md](data-model.md#締め日は保存先を変えない暦月キーのまま集計時に期間で絞る) を参照。
 
 ## テスト
 

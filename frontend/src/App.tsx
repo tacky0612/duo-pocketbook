@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./lib/apiClient";
+import { currentYearMonth, settlementMonthOf, todayISO } from "./lib/month";
 import { session } from "./lib/session";
 import { useTheme } from "./theme";
 import AppShell from "./components/AppShell";
@@ -12,12 +13,7 @@ import ExpenseScreen from "./screens/ExpenseScreen";
 import RecurringScreen from "./screens/RecurringScreen";
 import HistoryScreen from "./screens/HistoryScreen";
 import SettingsScreen from "./screens/SettingsScreen";
-import type { Member, MembersResponse, MemberView, ScreenName, ScreenProps, ToastKind, ToastMessage } from "./types";
-
-function thisMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
+import type { ClosingDayResponse, Member, MembersResponse, MemberView, ScreenName, ScreenProps, ToastKind, ToastMessage } from "./types";
 
 export default function App() {
   const theme = useTheme();
@@ -25,7 +21,10 @@ export default function App() {
   const [members, setMembers] = useState<MemberView[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const [screen, setScreen] = useState<ScreenName>("settlement");
-  const [month, setMonth] = useState<string>(thisMonth());
+  // 初期値は暦当月。締め日取得後に「今日が属する精算月」へ補正する（下記 effect）。
+  const [month, setMonth] = useState<string>(currentYearMonth());
+  // 締め日に基づく初期表示月の補正を一度だけ行うためのフラグ。
+  const defaultMonthApplied = useRef(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
   const notify = useCallback((message: string, kind: ToastKind = "success") => {
@@ -37,6 +36,9 @@ export default function App() {
     setMe(null);
     setMembers([]);
     setScreen("settlement");
+    // 次回ログイン時に締め日ベースの初期月補正を再適用できるようリセットする。
+    defaultMonthApplied.current = false;
+    setMonth(currentYearMonth());
   }, []);
 
   // プロフィール（表示名・カラー）の更新をメンバー一覧と自分の情報へ反映する
@@ -72,6 +74,22 @@ export default function App() {
       .catch(handleError)
       .finally(() => setMembersLoading(false));
   }, [me, handleError]);
+
+  // 締め日を取得して初期表示月を「今日が属する精算月」へ補正する。
+  // 締め日=1（暦月）なら当月と一致するため実質変化しない。ユーザーが手動で月を
+  // 変更済みの場合や取得失敗時は暦当月のままにする（致命的でないため無視）。
+  useEffect(() => {
+    if (!me || defaultMonthApplied.current) return;
+    api<ClosingDayResponse>("GET", "/settings/closing-day")
+      .then((res) => {
+        defaultMonthApplied.current = true;
+        const target = settlementMonthOf(todayISO(), res.closingDay);
+        setMonth((cur) => (cur === currentYearMonth() ? target : cur));
+      })
+      .catch(() => {
+        /* 締め日の取得に失敗しても暦当月で続行する */
+      });
+  }, [me]);
 
   if (!me) {
     return (
