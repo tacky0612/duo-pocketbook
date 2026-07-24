@@ -66,8 +66,8 @@ make up && make test-integration
 
 | メンバーID | パスワード | 表示名 |
 |---|---|---|
-| `taro` | `taro-password` | 太郎 |
-| `hanako` | `hanako-password` | 花子 |
+| `taro` | `taro-password` | アカウントA |
+| `hanako` | `hanako-password` | アカウントB |
 
 ### Dockerを使わない最小起動（インメモリ）
 
@@ -112,7 +112,7 @@ cd frontend && npm run docs:api   # OpenAPIからAPIドキュメント生成（d
 | `demoApi.ts` | 各エンドポイントをモックへマッピングするルーター |
 | `index.ts` | バレル（`apiClient` から動的 import される） |
 
-デモの2アカウントは `taro`（太郎）/ `hanako`（花子）。デモモードではパスワードは検証しない。
+デモの2アカウントは `taro`（アカウントA）/ `hanako`（アカウントB）。デモモードではパスワードは検証しない。
 
 ## 環境変数
 

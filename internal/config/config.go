@@ -42,7 +42,7 @@ type Config struct {
 // defaultMemberNames はメンバーの表示名の既定値。
 // 表示名は変数/シークレットで持たず、ここを初期値としてアプリ側で設定する
 // （環境変数 ACCOUNTn_NAME が設定されていればそちらを優先。実行時に画面から変更も可能）。
-var defaultMemberNames = [2]string{"太郎", "花子"}
+var defaultMemberNames = [2]string{"アカウントA", "アカウントB"}
 
 // Load は環境変数から設定を読み込む。
 func Load() (Config, error) {

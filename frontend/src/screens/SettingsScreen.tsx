@@ -255,7 +255,7 @@ export default function SettingsScreen({ members, me, theme, notify, onError, on
                 maxLength={20}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="例: 太郎"
+                placeholder="例: アカウントA"
               />
             </Field>
             <Button type="submit" disabled={savingName || !name.trim()} className="w-full">

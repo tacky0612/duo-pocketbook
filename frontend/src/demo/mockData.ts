@@ -8,8 +8,8 @@ import type { DemoDb, DemoIncome, Expense, MemberId, MemberView, RecurringExpens
 
 // デモの2アカウント。id はログインに使い、color は支出一覧のバッジ色に使う。
 const MEMBERS: MemberView[] = [
-  { id: "taro", name: "太郎", color: "#2563eb" },
-  { id: "hanako", name: "花子", color: "#4f46e5" },
+  { id: "taro", name: "アカウントA", color: "#2563eb" },
+  { id: "hanako", name: "アカウントB", color: "#4f46e5" },
 ];
 
 function ymOf(date: Date): string {
