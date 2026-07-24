@@ -100,11 +100,10 @@ export default function SettingsScreen({ members, me, theme, notify, onError, on
   const closing = useAsync<ClosingDayResponse>(() => api<ClosingDayResponse>("GET", "/settings/closing-day"), []);
   const [weights, setWeights] = useState<Record<string, string>>({});
   const [closingDay, setClosingDay] = useState("1");
-  const [savingClosing, setSavingClosing] = useState(false);
   const [name, setName] = useState(me?.name || "");
   const [savingName, setSavingName] = useState(false);
   const [savingColor, setSavingColor] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [savingSettlement, setSavingSettlement] = useState(false);
   // ログインID変更
   const [loginId, setLoginId] = useState("");
   const [savingLoginId, setSavingLoginId] = useState(false);
@@ -197,33 +196,22 @@ export default function SettingsScreen({ members, me, theme, notify, onError, on
     }
   };
 
-  const saveClosingDay = async (ev: FormEvent<HTMLFormElement>) => {
+  // 精算比重と締め日は1つのフォームでまとめて保存する。
+  const saveSettlement = async (ev: FormEvent<HTMLFormElement>) => {
     ev.preventDefault();
-    setSavingClosing(true);
-    try {
-      await api("PUT", "/settings/closing-day", { closingDay: Number(closingDay) });
-      notify("締め日を保存しました");
-      closing.reload();
-    } catch (err) {
-      onError(err);
-    } finally {
-      setSavingClosing(false);
-    }
-  };
-
-  const saveWeights = async (ev: FormEvent<HTMLFormElement>) => {
-    ev.preventDefault();
-    setBusy(true);
+    setSavingSettlement(true);
     try {
       const body: Record<string, number> = {};
       for (const m of members) body[m.id] = Number(weights[m.id]);
       await api("PUT", "/settings/weight", { weights: body });
-      notify("精算比重を保存しました");
+      await api("PUT", "/settings/closing-day", { closingDay: Number(closingDay) });
+      notify("精算設定を保存しました");
       reload();
+      closing.reload();
     } catch (err) {
       onError(err);
     } finally {
-      setBusy(false);
+      setSavingSettlement(false);
     }
   };
 
@@ -236,173 +224,180 @@ export default function SettingsScreen({ members, me, theme, notify, onError, on
   };
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
-      {/* プロフィール（表示名・カラー） */}
-      <Card>
-        <SectionTitle>プロフィール</SectionTitle>
-        <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
-          アプリ内で表示されるあなたの名前とカラーです。
-        </p>
-        <form onSubmit={saveName} className="space-y-4">
-          <Field label="あなたの表示名" hint="20文字以内">
-            <Input
-              type="text"
-              required
-              maxLength={20}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="例: 太郎"
-            />
-          </Field>
-          <Button type="submit" disabled={savingName || !name.trim()} className="w-full">
-            {savingName ? "保存中..." : "表示名を保存"}
-          </Button>
-        </form>
-
-        <div className="mt-6 border-t border-slate-200 pt-5 dark:border-slate-800">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-600 dark:text-slate-300">アカウントカラー</span>
-            <span
-              className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium text-white"
-              style={{ backgroundColor: myColor || "#2563eb" }}
-            >
-              {name || me?.name}
-            </span>
-          </div>
-          <p className="mb-3 text-xs text-slate-400">
-            支出一覧の「支払った人」の表示色に使われます。{savingColor && "（保存中...）"}
+    <div className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+      {/* 左カラム: アカウント（プロフィール + アカウント設定を統合） */}
+      <div className="flex flex-col gap-4">
+        <Card>
+          <SectionTitle>アカウント</SectionTitle>
+          <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+            アプリ内で表示されるあなたの名前・カラーと、ログイン情報を管理します。
           </p>
-          <ColorSwatches value={myColor} onSelect={saveColor} />
-        </div>
-      </Card>
+          <dl className="space-y-2 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="shrink-0 text-slate-400">アカウントID</dt>
+              <dd className="truncate font-mono text-xs text-slate-500">{account.data?.accountId ?? "—"}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="shrink-0 text-slate-400">API</dt>
+              <dd className="truncate font-mono text-xs text-slate-500">
+                {session.demo ? "デモモード（モック）" : apiBase() || "—"}
+              </dd>
+            </div>
+          </dl>
 
-      {/* 精算比重 */}
-      <Card>
-        <SectionTitle>精算比重</SectionTitle>
-        <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
-          比重が大きい人ほど、精算後の可処分所得が多く残ります（例 1:1 で均等）。
-        </p>
-        {loading ? (
-          <Spinner />
-        ) : (
-          <form onSubmit={saveWeights} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              {members.map((m) => (
-                <Field key={m.id} label={`${m.name} の比重`}>
+          {/* 表示名 */}
+          <form onSubmit={saveName} className="mt-5 space-y-4 border-t border-slate-200 pt-5 dark:border-slate-800">
+            <Field label="あなたの表示名" hint="20文字以内">
+              <Input
+                type="text"
+                required
+                maxLength={20}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="例: 太郎"
+              />
+            </Field>
+            <Button type="submit" disabled={savingName || !name.trim()} className="w-full">
+              {savingName ? "保存中..." : "表示名を保存"}
+            </Button>
+          </form>
+
+          {/* アカウントカラー */}
+          <div className="mt-5 border-t border-slate-200 pt-5 dark:border-slate-800">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-sm font-medium text-slate-600 dark:text-slate-300">アカウントカラー</span>
+              <span
+                className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium text-white"
+                style={{ backgroundColor: myColor || "#2563eb" }}
+              >
+                {name || me?.name}
+              </span>
+            </div>
+            <p className="mb-3 text-xs text-slate-400">
+              支出一覧の「支払った人」の表示色に使われます。{savingColor && "（保存中...）"}
+            </p>
+            <ColorSwatches value={myColor} onSelect={saveColor} />
+          </div>
+
+          {/* ログインID変更 */}
+          <form onSubmit={saveLoginId} className="mt-5 space-y-3 border-t border-slate-200 pt-5 dark:border-slate-800">
+            <Field label="ログインID" hint="ログインに使うID（英数字と . _ - / 32文字以内）">
+              <Input
+                type="text"
+                required
+                autoComplete="username"
+                value={loginId}
+                onChange={(e) => setLoginId(e.target.value)}
+              />
+            </Field>
+            <Button type="submit" variant="secondary" disabled={savingLoginId || !loginId.trim()} className="w-full">
+              {savingLoginId ? "保存中..." : "ログインIDを変更"}
+            </Button>
+          </form>
+
+          {/* パスワード変更 */}
+          <form onSubmit={savePassword} className="mt-5 space-y-3 border-t border-slate-200 pt-5 dark:border-slate-800">
+            <Field label="現在のパスワード">
+              <Input type="password" required autoComplete="current-password" value={curPw} onChange={(e) => setCurPw(e.target.value)} />
+            </Field>
+            <Field label="新しいパスワード" hint="8文字以上">
+              <Input type="password" required autoComplete="new-password" value={newPw} onChange={(e) => setNewPw(e.target.value)} />
+            </Field>
+            <Field label="新しいパスワード（確認）">
+              <Input type="password" required autoComplete="new-password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} />
+            </Field>
+            <Button type="submit" variant="secondary" disabled={savingPw || !curPw || !newPw} className="w-full">
+              {savingPw ? "保存中..." : "パスワードを変更"}
+            </Button>
+          </form>
+
+          {session.demo && (
+            <div className="mt-4 rounded-xl bg-amber-50 p-3 dark:bg-amber-950/30">
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                デモモードで動作中です。編集内容はこの端末にのみ保存されます。
+              </p>
+              <Button variant="secondary" onClick={resetDemo} className="mt-3 w-full">
+                デモデータをリセット
+              </Button>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* 右カラム: 精算・表示に関する設定 */}
+      <div className="flex flex-col gap-4">
+        {/* 精算設定（精算比重 + 締め日） */}
+        <Card>
+          <SectionTitle>精算設定</SectionTitle>
+          {loading || closing.loading ? (
+            <Spinner />
+          ) : (
+            <form onSubmit={saveSettlement} className="space-y-6">
+              {/* 精算比重 */}
+              <div className="space-y-3">
+                <div>
+                  <h3 className="text-sm font-medium text-slate-700 dark:text-slate-200">精算比重</h3>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                    比重が大きい人ほど、精算後の可処分所得が多く残ります（例 1:1 で均等）。
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {members.map((m) => (
+                    <Field key={m.id} label={`${m.name} の比重`}>
+                      <NumberInput
+                        required
+                        value={weights[m.id] ?? ""}
+                        onChange={(v) => setWeights((p) => ({ ...p, [m.id]: v }))}
+                        className="text-center tabular-nums"
+                      />
+                    </Field>
+                  ))}
+                </div>
+              </div>
+
+              {/* 締め日 */}
+              <div className="space-y-3 border-t border-slate-200 pt-5 dark:border-slate-800">
+                <div>
+                  <h3 className="text-sm font-medium text-slate-700 dark:text-slate-200">締め日</h3>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                    毎月この日を起算日として精算期間を区切ります。例: <span className="font-medium">15</span> なら
+                    「前月15日〜当月14日」に記録した支出を当月の精算に計上します。<span className="font-medium">1</span> は暦月どおり（1日〜末日）。
+                  </p>
+                </div>
+                <Field label="締め日" hint="1〜31（29〜31は存在しない月では末日に丸め）">
                   <NumberInput
                     required
-                    value={weights[m.id] ?? ""}
-                    onChange={(v) => setWeights((p) => ({ ...p, [m.id]: v }))}
+                    value={closingDay}
+                    onChange={setClosingDay}
                     className="text-center tabular-nums"
                   />
                 </Field>
-              ))}
-            </div>
-            <Button type="submit" disabled={busy} className="w-full">
-              {busy ? "保存中..." : "比重を保存"}
-            </Button>
-          </form>
-        )}
-      </Card>
+              </div>
 
-      {/* 締め日 */}
-      <Card>
-        <SectionTitle>締め日</SectionTitle>
-        <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
-          毎月この日を起算日として精算期間を区切ります。例: <span className="font-medium">15</span> なら
-          「前月15日〜当月14日」に記録した支出を当月の精算に計上します。<span className="font-medium">1</span> は暦月どおり（1日〜末日）。
-        </p>
-        {closing.loading ? (
-          <Spinner />
-        ) : (
-          <form onSubmit={saveClosingDay} className="space-y-4">
-            <Field label="締め日" hint="1〜31（29〜31は存在しない月では末日に丸め）">
-              <NumberInput
-                required
-                value={closingDay}
-                onChange={setClosingDay}
-                className="text-center tabular-nums"
-              />
-            </Field>
-            <Button type="submit" disabled={savingClosing} className="w-full">
-              {savingClosing ? "保存中..." : "締め日を保存"}
-            </Button>
-          </form>
-        )}
-      </Card>
+              <Button type="submit" disabled={savingSettlement} className="w-full">
+                {savingSettlement ? "保存中..." : "精算設定を保存"}
+              </Button>
+            </form>
+          )}
+        </Card>
 
-      {/* テーマ */}
-      <Card>
-        <SectionTitle>テーマ</SectionTitle>
-        <ThemeSegmented mode={theme.mode} onChange={theme.setMode} />
-        <p className="mt-3 text-xs text-slate-400">
-          「自動」を選ぶと端末（OS）の設定に合わせて切り替わります。
-        </p>
-      </Card>
+        {/* テーマ */}
+        <Card>
+          <SectionTitle>テーマ</SectionTitle>
+          <ThemeSegmented mode={theme.mode} onChange={theme.setMode} />
+          <p className="mt-3 text-xs text-slate-400">
+            「自動」を選ぶと端末（OS）の設定に合わせて切り替わります。
+          </p>
+        </Card>
+      </div>
+      </div>
 
-      {/* アカウント */}
-      <Card>
-        <SectionTitle>アカウント</SectionTitle>
-        <dl className="space-y-2 text-sm">
-          <div className="flex justify-between gap-4">
-            <dt className="shrink-0 text-slate-400">アカウントID</dt>
-            <dd className="truncate font-mono text-xs text-slate-500">{account.data?.accountId ?? "—"}</dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="shrink-0 text-slate-400">API</dt>
-            <dd className="truncate font-mono text-xs text-slate-500">
-              {session.demo ? "デモモード（モック）" : apiBase() || "—"}
-            </dd>
-          </div>
-        </dl>
-
-        {/* ログインID変更 */}
-        <form onSubmit={saveLoginId} className="mt-5 space-y-3 border-t border-slate-200 pt-5 dark:border-slate-800">
-          <Field label="ログインID" hint="ログインに使うID（英数字と . _ - / 32文字以内）">
-            <Input
-              type="text"
-              required
-              autoComplete="username"
-              value={loginId}
-              onChange={(e) => setLoginId(e.target.value)}
-            />
-          </Field>
-          <Button type="submit" variant="secondary" disabled={savingLoginId || !loginId.trim()} className="w-full">
-            {savingLoginId ? "保存中..." : "ログインIDを変更"}
-          </Button>
-        </form>
-
-        {/* パスワード変更 */}
-        <form onSubmit={savePassword} className="mt-5 space-y-3 border-t border-slate-200 pt-5 dark:border-slate-800">
-          <Field label="現在のパスワード">
-            <Input type="password" required autoComplete="current-password" value={curPw} onChange={(e) => setCurPw(e.target.value)} />
-          </Field>
-          <Field label="新しいパスワード" hint="8文字以上">
-            <Input type="password" required autoComplete="new-password" value={newPw} onChange={(e) => setNewPw(e.target.value)} />
-          </Field>
-          <Field label="新しいパスワード（確認）">
-            <Input type="password" required autoComplete="new-password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} />
-          </Field>
-          <Button type="submit" variant="secondary" disabled={savingPw || !curPw || !newPw} className="w-full">
-            {savingPw ? "保存中..." : "パスワードを変更"}
-          </Button>
-        </form>
-
-        {session.demo && (
-          <div className="mt-4 rounded-xl bg-amber-50 p-3 dark:bg-amber-950/30">
-            <p className="text-xs text-amber-700 dark:text-amber-300">
-              デモモードで動作中です。編集内容はこの端末にのみ保存されます。
-            </p>
-            <Button variant="secondary" onClick={resetDemo} className="mt-3 w-full">
-              デモデータをリセット
-            </Button>
-          </div>
-        )}
-        <Button variant="danger" onClick={onLogout} className="mt-4 w-full">
-          <LogoutIcon className="h-5 w-5" />
-          ログアウト
-        </Button>
-      </Card>
+      {/* ログアウト（設定画面の最下部に独立配置） */}
+      <Button variant="secondary" onClick={onLogout} className="w-full">
+        <LogoutIcon className="h-5 w-5" />
+        ログアウト
+      </Button>
     </div>
   );
 }
