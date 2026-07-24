@@ -72,4 +72,7 @@ type SettingsRepository interface {
 	GetMemberProfiles(ctx context.Context) (map[domain.MemberID]MemberProfile, error)
 	SaveMemberName(ctx context.Context, id domain.MemberID, name string) error
 	SaveMemberColor(ctx context.Context, id domain.MemberID, color string) error
+	// GetClosingDay は設定済みの締め日を返す。未設定の場合は ok=false。
+	GetClosingDay(ctx context.Context) (day domain.ClosingDay, ok bool, err error)
+	SaveClosingDay(ctx context.Context, day domain.ClosingDay) error
 }

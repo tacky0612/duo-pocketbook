@@ -55,6 +55,8 @@ func NewRouter(h *Handler, auth *Authenticator, allowedOrigins []string, opt Rou
 	mux.Handle("DELETE /recurring-expenses/{id}", authed(h.DeleteRecurringExpense))
 	mux.Handle("GET /settings/weight", authed(h.GetWeight))
 	mux.Handle("PUT /settings/weight", authed(h.UpdateWeight))
+	mux.Handle("GET /settings/closing-day", authed(h.GetClosingDay))
+	mux.Handle("PUT /settings/closing-day", authed(h.UpdateClosingDay))
 
 	// ローカル開発用: フロントエンドの静的配信
 	if opt.StaticDir != "" {

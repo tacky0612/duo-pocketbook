@@ -53,7 +53,7 @@ func newTestServer(t *testing.T) (*httptest.Server, [2]testAccount) {
 		couple,
 		auth,
 		account,
-		application.NewExpenseUsecase(couple, expenseRepo, nil),
+		application.NewExpenseUsecase(couple, expenseRepo, settingsRepo, nil),
 		application.NewSettlementUsecase(couple, expenseRepo, incomeRepo, recurringRepo, settingsRepo, statusRepo),
 		application.NewSettingsUsecase(couple, settingsRepo),
 		application.NewRecurringExpenseUsecase(couple, recurringRepo),

@@ -4,7 +4,7 @@ import { session } from "../lib/session";
 import { useAsync } from "../hooks";
 import { Card, SectionTitle, Field, Input, NumberInput, Button, Spinner } from "../components/ui";
 import { SunIcon, MoonIcon, SettingsIcon, LogoutIcon, type IconComponent } from "../components/Icons";
-import type { AccountResponse, MemberView, ScreenProps, Theme, ThemeMode, WeightsResponse } from "../types";
+import type { AccountResponse, ClosingDayResponse, MemberView, ScreenProps, Theme, ThemeMode, WeightsResponse } from "../types";
 
 interface SettingsScreenProps extends ScreenProps {
   theme: Theme;
@@ -97,7 +97,10 @@ function ThemeSegmented({ mode, onChange }: ThemeSegmentedProps) {
 export default function SettingsScreen({ members, me, theme, notify, onError, onLogout, onMemberUpdated }: SettingsScreenProps) {
   const { loading, data, error, reload } = useAsync<WeightsResponse>(() => api<WeightsResponse>("GET", "/settings/weight"), []);
   const account = useAsync<AccountResponse>(() => api<AccountResponse>("GET", "/account"), []);
+  const closing = useAsync<ClosingDayResponse>(() => api<ClosingDayResponse>("GET", "/settings/closing-day"), []);
   const [weights, setWeights] = useState<Record<string, string>>({});
+  const [closingDay, setClosingDay] = useState("1");
+  const [savingClosing, setSavingClosing] = useState(false);
   const [name, setName] = useState(me?.name || "");
   const [savingName, setSavingName] = useState(false);
   const [savingColor, setSavingColor] = useState(false);
@@ -125,8 +128,13 @@ export default function SettingsScreen({ members, me, theme, notify, onError, on
     if (account.data) setLoginId(account.data.loginId);
   }, [account.data]);
 
+  useEffect(() => {
+    if (closing.data) setClosingDay(String(closing.data.closingDay));
+  }, [closing.data]);
+
   if (error) onError(error);
   if (account.error) onError(account.error);
+  if (closing.error) onError(closing.error);
 
   const saveLoginId = async (ev: FormEvent<HTMLFormElement>) => {
     ev.preventDefault();
@@ -186,6 +194,20 @@ export default function SettingsScreen({ members, me, theme, notify, onError, on
       onError(err);
     } finally {
       setSavingColor(false);
+    }
+  };
+
+  const saveClosingDay = async (ev: FormEvent<HTMLFormElement>) => {
+    ev.preventDefault();
+    setSavingClosing(true);
+    try {
+      await api("PUT", "/settings/closing-day", { closingDay: Number(closingDay) });
+      notify("締め日を保存しました");
+      closing.reload();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setSavingClosing(false);
     }
   };
 
@@ -278,6 +300,32 @@ export default function SettingsScreen({ members, me, theme, notify, onError, on
             </div>
             <Button type="submit" disabled={busy} className="w-full">
               {busy ? "保存中..." : "比重を保存"}
+            </Button>
+          </form>
+        )}
+      </Card>
+
+      {/* 締め日 */}
+      <Card>
+        <SectionTitle>締め日</SectionTitle>
+        <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+          毎月この日を起算日として精算期間を区切ります。例: <span className="font-medium">15</span> なら
+          「前月15日〜当月14日」に記録した支出を当月の精算に計上します。<span className="font-medium">1</span> は暦月どおり（1日〜末日）。
+        </p>
+        {closing.loading ? (
+          <Spinner />
+        ) : (
+          <form onSubmit={saveClosingDay} className="space-y-4">
+            <Field label="締め日" hint="1〜31（29〜31は存在しない月では末日に丸め）">
+              <NumberInput
+                required
+                value={closingDay}
+                onChange={setClosingDay}
+                className="text-center tabular-nums"
+              />
+            </Field>
+            <Button type="submit" disabled={savingClosing} className="w-full">
+              {savingClosing ? "保存中..." : "締め日を保存"}
             </Button>
           </form>
         )}

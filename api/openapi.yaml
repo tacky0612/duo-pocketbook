@@ -12,6 +12,12 @@ components:
           example: 太郎
           type: string
       type: object
+    web.closingDayDTO:
+      properties:
+        closingDay:
+          example: 15
+          type: integer
+      type: object
     web.errorBody:
       properties:
         code:
@@ -998,6 +1004,65 @@ paths:
       summary: 固定費の更新
       tags:
       - recurring-expenses
+  /settings/closing-day:
+    get:
+      description: 精算期間の起算日。未設定時は 1（暦月どおり）。
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.closingDayDTO'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: 締め日の取得
+      tags:
+      - settings
+    put:
+      description: '1〜31 を指定する。例: 15 なら (前月)15日〜(当月)14日を当月分として計上する。1 は暦月どおり。29〜31
+        は存在しない月では末日に丸める。'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/web.closingDayDTO'
+                description: 締め日
+                summary: body
+        description: 締め日
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.closingDayDTO'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: 締め日の更新
+      tags:
+      - settings
   /settings/weight:
     get:
       description: 未設定時は 1:1。

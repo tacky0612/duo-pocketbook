@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/tacky0612/duo-pocketbook/internal/domain"
 )
@@ -101,7 +100,11 @@ func (u *SettlementUsecase) GetSettlement(ctx context.Context, month string) (*d
 	if err != nil {
 		return nil, fmt.Errorf("収入の取得に失敗しました: %w", err)
 	}
-	expenses, err := u.expenses.FindByMonth(ctx, ym)
+	closingDay, err := currentClosingDay(ctx, u.settings)
+	if err != nil {
+		return nil, err
+	}
+	expenses, err := expensesForSettlementMonth(ctx, u.expenses, ym, closingDay)
 	if err != nil {
 		return nil, fmt.Errorf("支出の取得に失敗しました: %w", err)
 	}
@@ -123,11 +126,12 @@ func (u *SettlementUsecase) GetSettlement(ctx context.Context, month string) (*d
 		return nil, err
 	}
 	return domain.CalculateSettlement(domain.SettlementInput{
-		Month:    ym,
-		Couple:   couple,
-		Incomes:  incomes,
-		Expenses: expenses,
-		Weight:   weight,
+		Month:      ym,
+		Couple:     couple,
+		Incomes:    incomes,
+		Expenses:   expenses,
+		Weight:     weight,
+		ClosingDay: closingDay,
 	})
 }
 
@@ -176,6 +180,30 @@ func monthIndex(ym domain.YearMonth) int {
 
 // prevMonth は1か月前の YearMonth を返す。
 func prevMonth(ym domain.YearMonth) domain.YearMonth {
-	t := time.Date(ym.Year(), ym.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, -1, 0)
-	return domain.YearMonthOf(t)
+	return ym.Prev()
+}
+
+// expensesForSettlementMonth は精算月 ym に計上すべき支出を返す。
+//
+// 締め日=1（暦月どおり）なら該当月パーティションをそのまま返す。締め日 D>=2 のときは、
+// 精算期間が暦月をまたぐ（ym の前月の締め日以降 〜 ym の締め日前日）ため、暦月 ym-1 と ym の
+// 2パーティションを取得し、各支出の精算月が ym と一致するものだけを返す。
+// 支出は暦月（支出日の年月）をキーに保存されるため、締め日を変更しても保存先は変わらない。
+func expensesForSettlementMonth(ctx context.Context, repo ExpenseRepository, ym domain.YearMonth, cd domain.ClosingDay) ([]domain.Expense, error) {
+	if cd <= domain.DefaultClosingDay {
+		return repo.FindByMonth(ctx, ym)
+	}
+	var out []domain.Expense
+	for _, cal := range [2]domain.YearMonth{ym.Prev(), ym} {
+		list, err := repo.FindByMonth(ctx, cal)
+		if err != nil {
+			return nil, err
+		}
+		for _, e := range list {
+			if cd.SettlementMonth(e.Date) == ym {
+				out = append(out, e)
+			}
+		}
+	}
+	return out, nil
 }

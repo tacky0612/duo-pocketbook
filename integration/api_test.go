@@ -292,3 +292,99 @@ func TestValidationErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestClosingDaySettlement(t *testing.T) {
+	waitForHealthy(t)
+	taro, taroID := login(t, "taro", "taro-password")
+	hanako, hanakoID := login(t, "hanako", "hanako-password")
+
+	// 締め日はグローバル設定。他テストへ影響しないよう終了時に既定(1)へ戻す。
+	defer func() {
+		if status, body := doJSON(t, http.MethodPut, "/settings/closing-day", taro, map[string]any{"closingDay": 1}); status != http.StatusOK {
+			t.Fatalf("closing-day reset status = %d, body = %s", status, body)
+		}
+	}()
+
+	// 締め日=15 に設定（6/15〜7/14 → 7月分）。他テストの月(2030年台)と衝突しない2035年で検証する。
+	status, body := doJSON(t, http.MethodPut, "/settings/closing-day", taro, map[string]any{"closingDay": 15})
+	if status != http.StatusOK {
+		t.Fatalf("closing-day put status = %d, body = %s", status, body)
+	}
+	var cd struct {
+		ClosingDay int `json:"closingDay"`
+	}
+	if err := json.Unmarshal(body, &cd); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if cd.ClosingDay != 15 {
+		t.Fatalf("closingDay = %d, want 15", cd.ClosingDay)
+	}
+
+	// 不正値は 400
+	if status, _ := doJSON(t, http.MethodPut, "/settings/closing-day", taro, map[string]any{"closingDay": 32}); status != http.StatusBadRequest {
+		t.Errorf("closing-day=32 status = %d, want 400", status)
+	}
+
+	reg := func(date string, yen int64) {
+		if status, body := doJSON(t, http.MethodPost, "/expenses", taro, map[string]any{
+			"paidBy": taroID, "amountYen": yen, "description": date, "date": date,
+		}); status != http.StatusCreated {
+			t.Fatalf("register(%s) status = %d, body = %s", date, status, body)
+		}
+	}
+	reg("2035-06-14", 1000) // 6月分（除外）
+	reg("2035-06-15", 2000) // 7月分（起算日）
+	reg("2035-07-14", 4000) // 7月分（締め前日）
+	reg("2035-07-15", 8000) // 8月分（除外）
+
+	// 支出一覧も締め期間で集計される（7月 = 6/15・7/14 の2件）
+	status, body = doJSON(t, http.MethodGet, "/expenses?month=2035-07", taro, nil)
+	if status != http.StatusOK {
+		t.Fatalf("list status = %d, body = %s", status, body)
+	}
+	var list struct {
+		Expenses []struct {
+			Date string `json:"date"`
+		} `json:"expenses"`
+	}
+	if err := json.Unmarshal(body, &list); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(list.Expenses) != 2 {
+		t.Fatalf("7月の支出件数 = %d, want 2 (body = %s)", len(list.Expenses), body)
+	}
+
+	// 8月には 7/15 分のみ
+	status, body = doJSON(t, http.MethodGet, "/expenses?month=2035-08", taro, nil)
+	if status != http.StatusOK {
+		t.Fatalf("list(8月) status = %d, body = %s", status, body)
+	}
+	list.Expenses = nil
+	if err := json.Unmarshal(body, &list); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(list.Expenses) != 1 || list.Expenses[0].Date != "2035-07-15" {
+		t.Errorf("8月の支出 = %+v, want [2035-07-15]", list.Expenses)
+	}
+
+	// 精算の合計支出は 2000+4000 = 6000
+	if status, _ := doJSON(t, http.MethodPut, "/months/2035-07/incomes/"+taroID, taro, map[string]any{"amountYen": 100000}); status != http.StatusOK {
+		t.Fatalf("income(taro) status = %d", status)
+	}
+	if status, _ := doJSON(t, http.MethodPut, "/months/2035-07/incomes/"+hanakoID, hanako, map[string]any{"amountYen": 100000}); status != http.StatusOK {
+		t.Fatalf("income(hanako) status = %d", status)
+	}
+	status, body = doJSON(t, http.MethodGet, "/months/2035-07/settlement", taro, nil)
+	if status != http.StatusOK {
+		t.Fatalf("settlement status = %d, body = %s", status, body)
+	}
+	var s struct {
+		TotalExpenseYen int64 `json:"totalExpenseYen"`
+	}
+	if err := json.Unmarshal(body, &s); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if s.TotalExpenseYen != 6000 {
+		t.Errorf("7月の合計支出 = %d, want 6000", s.TotalExpenseYen)
+	}
+}

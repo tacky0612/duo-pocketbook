@@ -113,6 +113,35 @@ func (u *SettingsUsecase) UpdateMemberColor(ctx context.Context, id domain.Membe
 	return nil
 }
 
+// GetClosingDay は現在の締め日を返す。未設定の場合はデフォルト（暦月どおり）を返す。
+func (u *SettingsUsecase) GetClosingDay(ctx context.Context) (domain.ClosingDay, error) {
+	return currentClosingDay(ctx, u.settings)
+}
+
+// UpdateClosingDay は締め日（1〜31）を更新する。
+func (u *SettingsUsecase) UpdateClosingDay(ctx context.Context, day int) (domain.ClosingDay, error) {
+	cd, err := domain.NewClosingDay(day)
+	if err != nil {
+		return 0, err
+	}
+	if err := u.settings.SaveClosingDay(ctx, cd); err != nil {
+		return 0, fmt.Errorf("締め日の保存に失敗しました: %w", err)
+	}
+	return cd, nil
+}
+
+// currentClosingDay は設定済みの締め日、未設定ならデフォルト（暦月どおり）を返す。
+func currentClosingDay(ctx context.Context, settings SettingsRepository) (domain.ClosingDay, error) {
+	cd, ok, err := settings.GetClosingDay(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("締め日の取得に失敗しました: %w", err)
+	}
+	if ok {
+		return cd, nil
+	}
+	return domain.DefaultClosingDay, nil
+}
+
 // UpdateWeightInput は比重更新の入力。メンバーIDごとの比重を指定する。
 type UpdateWeightInput struct {
 	Weights map[domain.MemberID]int64
