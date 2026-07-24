@@ -45,6 +45,7 @@ func newTestServer(t *testing.T) (*httptest.Server, [2]testAccount) {
 	expenseRepo := memory.NewExpenseRepository()
 	incomeRepo := memory.NewIncomeRepository()
 	recurringRepo := memory.NewRecurringExpenseRepository()
+	directRepo := memory.NewDirectTransferRepository()
 	settingsRepo := memory.NewSettingsRepository()
 	statusRepo := memory.NewSettlementStatusRepository()
 
@@ -54,9 +55,10 @@ func newTestServer(t *testing.T) (*httptest.Server, [2]testAccount) {
 		auth,
 		account,
 		application.NewExpenseUsecase(couple, expenseRepo, settingsRepo, nil),
-		application.NewSettlementUsecase(couple, expenseRepo, incomeRepo, recurringRepo, settingsRepo, statusRepo),
+		application.NewSettlementUsecase(couple, expenseRepo, incomeRepo, recurringRepo, directRepo, settingsRepo, statusRepo),
 		application.NewSettingsUsecase(couple, settingsRepo),
 		application.NewRecurringExpenseUsecase(couple, recurringRepo),
+		application.NewDirectTransferUsecase(couple, directRepo),
 	)
 	srv := httptest.NewServer(web.NewRouter(handler, auth, []string{"*"}, web.RouterOption{}))
 	t.Cleanup(srv.Close)

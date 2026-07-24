@@ -6,7 +6,7 @@
 
 import { ApiError } from "../lib/apiClient";
 import { settlementMonthOf } from "../lib/month";
-import type { DemoIncome, Expense, Member, RecurringExpense, Settlement, Weights } from "../types";
+import type { DemoIncome, DirectTransfer, Expense, Member, RecurringExpense, Settlement, Transfer, Weights } from "../types";
 
 export { settlementMonthOf };
 
@@ -17,6 +17,7 @@ export interface SettlementInput {
   incomes: DemoIncome[];
   expenses: Expense[];
   recurring: RecurringExpense[];
+  directTransfers: DirectTransfer[];
   closingDay: number;
 }
 
@@ -33,6 +34,13 @@ function roundDiv(num: number, den: number): number {
 
 // computeSettlement は対象月の精算結果（DTO 相当）を返す。
 // 両メンバーの収入が未入力の場合は INCOME_NOT_READY を投げる。
+// transferBetween は a→b の符号付き金額から Transfer を組み立てる（0 は null）。
+function transferBetween(aId: string, bId: string, signed: number): Transfer | null {
+  if (signed > 0) return { from: aId, to: bId, amountYen: signed };
+  if (signed < 0) return { from: bId, to: aId, amountYen: -signed };
+  return null;
+}
+
 export function computeSettlement({
   month,
   members,
@@ -40,6 +48,7 @@ export function computeSettlement({
   incomes,
   expenses,
   recurring,
+  directTransfers,
   closingDay,
 }: SettlementInput): ComputedSettlement {
   const [a, b] = members;
@@ -72,20 +81,29 @@ export function computeSettlement({
   const netA = incomeA - (paid[a.id] || 0);
   const netB = incomeB - (paid[b.id] || 0);
 
-  // t > 0 なら a → b、t < 0 なら b → a への振込。
+  // t > 0 なら a → b、t < 0 なら b → a への精算振込（比重按分）。
   const t = roundDiv(wB * netA - wA * netB, wA + wB);
 
-  let transfer: ComputedSettlement["transfer"] = null;
-  if (t > 0) transfer = { from: a.id, to: b.id, amountYen: t };
-  else if (t < 0) transfer = { from: b.id, to: a.id, amountYen: -t };
+  // 立替精算は比重按分に含めず、a→b の純額 d として集計する。
+  let d = 0;
+  let totalDirect = 0;
+  for (const dt of directTransfers) {
+    if (dt.from === a.id) d += dt.amountYen;
+    else d -= dt.amountYen;
+    totalDirect += dt.amountYen;
+  }
 
   return {
     month,
     totalExpenseYen: total,
+    // 可処分所得は共有支出の比重按分結果のみを反映する（立替精算は別枠）。
     members: [
       { id: a.id, name: a.name, weight: wA, incomeYen: incomeA, paidExpenseYen: paid[a.id] || 0, disposableYen: netA - t },
       { id: b.id, name: b.name, weight: wB, incomeYen: incomeB, paidExpenseYen: paid[b.id] || 0, disposableYen: netB + t },
     ],
-    transfer,
+    transfer: transferBetween(a.id, b.id, t + d),
+    settlementTransfer: transferBetween(a.id, b.id, t),
+    directTransfer: transferBetween(a.id, b.id, d),
+    totalDirectTransferYen: totalDirect,
   };
 }
