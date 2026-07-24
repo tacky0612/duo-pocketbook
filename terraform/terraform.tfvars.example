@@ -1,12 +1,11 @@
 # terraform.tfvars にコピーして値を設定する（terraform.tfvars はコミットしない）
 
-member1_id   = "taro"
-member1_name = "太郎"
+# 表示名（member*_name）は設定しない。アプリ側の既定値（太郎/花子）を使い、変更は画面から行う。
+member1_id = "taro"
 # go run ./cmd/hashpw '<password>' で生成
 member1_password_hash = "$2a$10$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 member2_id            = "hanako"
-member2_name          = "花子"
 member2_password_hash = "$2a$10$yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
 
 # openssl rand -base64 48 などで生成
@@ -24,3 +23,15 @@ client_key = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 # コスト監視の通知先メール（任意）。設定すると月$1超過でBudgetsが通知。空なら作成しない
 budget_alert_email = ""
+
+# --- Cloudflare（案1: Access で実行元を制限）。使う場合のみ設定 ---
+# 認証は環境変数 CLOUDFLARE_API_TOKEN で渡す（tfvars には書かない）
+enable_cloudflare     = false
+cloudflare_account_id = "" # Cloudflare ダッシュボード右サイドで確認
+cloudflare_zone_id    = "" # ゾーン
+app_domain            = "example.test" # アプリを載せるサブドメイン
+client_emails         = ["you@example.com", "partner@example.com"]
+pages_project_name    = "duo-pocketbook"
+github_owner          = "tacky0612"
+github_repo           = "duo-pocketbook"
+# client_key は上で設定した値を Worker の秘密ヘッダにも再利用する

@@ -72,12 +72,11 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
+      # 表示名(MEMBER*_NAME)は設定しない。未設定時はアプリ側の既定値（太郎/花子）を使う。
       TABLE_NAME            = aws_dynamodb_table.main.name
       MEMBER1_ID            = var.member1_id
-      MEMBER1_NAME          = var.member1_name
       MEMBER1_PASSWORD_HASH = var.member1_password_hash
       MEMBER2_ID            = var.member2_id
-      MEMBER2_NAME          = var.member2_name
       MEMBER2_PASSWORD_HASH = var.member2_password_hash
       JWT_SECRET            = var.jwt_secret
       ALLOWED_ORIGINS       = join(",", var.allowed_origins)

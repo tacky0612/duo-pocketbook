@@ -50,11 +50,8 @@
         <mxCell id="cfPages" value="Cloudflare Pages&lt;br&gt;SPA配信" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE9D6;strokeColor=#F6821F;fontSize=10;" vertex="1" parent="1">
           <mxGeometry x="315" y="250" width="270" height="52" as="geometry" />
         </mxCell>
-        <mxCell id="cfRoute" value="ルーティング&lt;br&gt;/api/* → Function URL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE9D6;strokeColor=#F6821F;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="315" y="355" width="270" height="52" as="geometry" />
-        </mxCell>
-        <mxCell id="cfTransform" value="Transform Rule&lt;br&gt;X-Client-Key を注入" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE9D6;strokeColor=#F6821F;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="315" y="435" width="270" height="52" as="geometry" />
+        <mxCell id="cfWorker" value="Worker&lt;br&gt;/api/* → Function URL・X-Client-Key 注入" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE9D6;strokeColor=#F6821F;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="315" y="390" width="270" height="56" as="geometry" />
         </mxCell>
 
         <!-- AWS 内（公式 aws4・リソース間の矢印なし） -->
@@ -84,13 +81,10 @@
         <mxCell id="e2" value="SPA配信" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontSize=10;" edge="1" parent="1" source="cfAccess" target="cfPages">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e3" value="② fetch /api/*" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontSize=10;" edge="1" parent="1" source="cfPages" target="cfRoute">
+        <mxCell id="e3" value="② fetch /api/*" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontSize=10;" edge="1" parent="1" source="cfPages" target="cfWorker">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e4" value="秘密ヘッダ付与" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontSize=10;" edge="1" parent="1" source="cfRoute" target="cfTransform">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e5" value="③ オリジンへ転送" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontSize=10;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="cfTransform" target="fnUrl">
+        <mxCell id="e5" value="③ /api除去・ヘッダ付与して転送" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontSize=10;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="cfWorker" target="fnUrl">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 

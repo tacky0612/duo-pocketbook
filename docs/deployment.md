@@ -62,6 +62,43 @@ make build-lambda && terraform -chdir=terraform apply
 
 `source_code_hash` によりzipが変わったときだけLambdaが更新される。
 
+## CI/CD とシークレット管理（GitHub Actions で apply）
+
+**通常はこちらを推奨**（上のローカル apply は代替）。apply を GitHub Actions で行い、シークレットはローカルの `terraform.tfvars` ではなく **GitHub 側で一元管理**する。
+
+**構成**
+- **AWS 認証**: GitHub OIDC → IAM ロール。長期アクセスキーを保存しない。
+- **state**: S3 リモートバックエンド（暗号化・バージョニング・非公開、S3 ネイティブロック `use_lockfile`）。state には機密が平文で入るため必須。
+- **トリガー**: PR で `terraform plan`（結果を PR にコメント）、apply は手動実行（`workflow_dispatch`）＋ `production` Environment 承認。
+- ワークフロー: `.github/workflows/terraform.yml`
+
+**シークレット / 変数の置き場所**
+
+| 値 | 置き場所 |
+|---|---|
+| AWS 資格情報 | OIDC（保存しない）。ロールARN → Secrets `AWS_ROLE_ARN` |
+| `CLOUDFLARE_API_TOKEN` | Secrets |
+| `jwt_secret` / `member1_password_hash` / `member2_password_hash` / `client_key` | Secrets（`JWT_SECRET` 等）→ `TF_VAR_*` |
+| `client_emails`（JSON配列文字列） / `budget_alert_email` / `cloudflare_account_id` / `cloudflare_zone_id` | Secrets → `TF_VAR_*` |
+| `member*_id` / `member*_name` | Variables（非機密）→ `TF_VAR_*` |
+| `TF_STATE_BUCKET` | Variables |
+| 非機密の設定（region, app_domain, github_owner/repo, enable_cloudflare 等） | リポジトリの `terraform/prod.auto.tfvars` |
+
+**初回セットアップ**
+1. ブートストラップ（state バケット＋GitHub OIDC＋CIロール）をローカルで一度だけ apply:
+   ```bash
+   terraform -chdir=terraform/bootstrap init
+   terraform -chdir=terraform/bootstrap apply \
+     -var 'state_bucket_name=duo-pocketbook-tfstate-xxxxxxxx' \
+     -var 'github_owner=tacky0612' -var 'github_repo=duo-pocketbook'
+   ```
+   出力 `ci_role_arn` → Secrets `AWS_ROLE_ARN`、`state_bucket` → Variables `TF_STATE_BUCKET`。
+2. GitHub の Secrets / Variables を上表に従い設定。生成例: `JWT_SECRET`=`openssl rand -base64 48`、`MEMBERn_PASSWORD_HASH`=`go run ./cmd/hashpw '<pw>'`、`CLIENT_KEY`=`openssl rand -hex 24`、`CLIENT_EMAILS`=`["you@example.com","partner@example.com"]`。
+3. `production` Environment を作成し必須レビュアーを設定（apply の承認ゲート）。
+4. PR を出すと plan がコメントされる。apply は Actions タブの `Terraform` ワークフローを手動実行（承認後に適用）。
+
+> ローカル apply する場合は `terraform init -backend-config=backend.hcl`（`backend.hcl.example` 参照）の上、機密を `terraform.tfvars`（gitignore 済み）に置く。state は共有 S3 を使うため、ローカルと CI の二重適用に注意（原則 CI 経由に統一）。
+
 ## フロントエンドのデプロイ（GitHub Pages）
 
 1. リポジトリの **Settings → Pages → Source** を「GitHub Actions」に設定する
@@ -111,20 +148,54 @@ flowchart LR
 ### 仕組み
 - **同一ドメイン**（例 `app.example.com`）で SPA(`/`) と API(`/api/*`) を配信。同一オリジンなので Access の Cookie が効き、SPA からの `fetch` も認証が通る（別ドメインだとクロスオリジンで Cookie が乗らず Access が使えない）。
 - **未認証遮断**: ドメイン全体を Access のポリシーでクライアント2人のメールのみ許可。未認証は Cloudflare エッジで弾かれ、オリジン（Function URL）に到達しない。
-- **直叩き封じ**: 生の Function URL を直接叩く迂回を防ぐため、Cloudflare が**サーバ側で秘密ヘッダ `X-Client-Key` を注入**し、Lambda 側の `CLIENT_KEY` 検証で不一致を 403 にする（既存のクライアントキー機構を流用）。**秘密はブラウザに置かず Cloudflare が付与**するため、`VITE_CLIENT_KEY` は設定しない。
+- **直叩き封じ**: 生の Function URL を直接叩く迂回を防ぐため、**Cloudflare Worker が `/api/*` を Function URL へ転送する際に秘密ヘッダ `X-Client-Key` を注入**し、Lambda 側の `CLIENT_KEY` 検証で不一致を 403 にする（既存のクライアントキー機構を流用）。**秘密はブラウザに置かず Worker が付与**するため、Pages ビルドに `VITE_CLIENT_KEY` は設定しない。
+- **DNS は Cloudflare**: Access / Pages / Workers ルートは Cloudflare エッジ経由が前提のため、ドメインのネームサーバを Cloudflare に向ける（**Route53 では不可**。無料プランはゾーン単位でネームサーバ委任）。
 
-### セットアップ手順（Cloudflare ダッシュボード）
-1. ドメインを Cloudflare に追加（無料プラン）。
-2. **Cloudflare Pages** でフロントをデプロイ: リポジトリを連携し、ルートディレクトリ `frontend`、ビルドコマンド `npm run build`、出力 `dist`、ビルド環境変数 `VITE_API_BASE=/api` を設定。`app.example.com` を割り当てる。
-3. **DNS / ルーティング**: 同ドメインの `/api/*` を Lambda Function URL へ転送する（Pages の Function/Redirect か、Cloudflare のオリジンルール/Worker で `/api` を除去して Function URL のホストへプロキシ）。
-4. **Access アプリケーション**: `app.example.com` を対象に作成し、ポリシーでクライアント2人のメール（Google / One-time PIN 等）を allow。
-5. **秘密ヘッダ注入**: Transform Rules（Modify Request Header）で、オリジンへ送るリクエストに `X-Client-Key: <ランダムな秘密>` を追加。
-6. **Lambda 側**: `terraform.tfvars` の `client_key` に同じ秘密を設定して `apply`。`allowed_origins` は同一オリジン運用のため実質不要（設定しても害はない）。
-7. フロントの `apiBase` はビルド時 `VITE_API_BASE=/api` により固定され、ログイン画面の「APIのURL」入力欄は非表示になる。
+### Terraform で管理する（`terraform/cloudflare.tf`）
+Cloudflare の Access・ルーティング（Worker）・Pages・DNS は Terraform で管理する。`enable_cloudflare = true` のときのみ作成される（既定 false）。
 
-> 補足: より堅牢にするなら、秘密ヘッダの代わりに Cloudflare Access が付与する `Cf-Access-Jwt-Assertion` を Lambda で JWKS 検証する方式もある（実装追加が必要）。2人利用では秘密ヘッダ方式で十分。
+#### 事前に手動で必要なこと（Cloudflare ダッシュボード・一度きり）
+順序: ゾーン Active → ID 取得 → トークン発行 → Zero Trust 初期化 → GitHub 連携認可。
+
+1. **ドメイン追加（ゾーン作成）**: Add a site → `tacky0612.net` → Free。表示された Cloudflare のネームサーバ2つを、レジストラ側で設定。ゾーンが **Active** になるのを待つ。
+2. **Account ID / Zone ID 取得**: `tacky0612.net` の Overview 右下「API」欄。→ Secrets `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_ZONE_ID`。
+3. **API トークン発行**: My Profile → API Tokens → Create Custom Token。権限:
+   - Account: Cloudflare Pages = Edit / Access: Apps and Policies = Edit / Workers Scripts = Edit
+   - Zone: DNS = Edit / Workers Routes = Edit（対象ゾーン `tacky0612.net`）
+
+   → Secrets `CLOUDFLARE_API_TOKEN`。
+4. **Zero Trust（Access）初期化**: 左メニュー Zero Trust → チーム名（例 `tacky0612` → `tacky0612.cloudflareaccess.com`）を決定 → Free プラン（最大50ユーザー・$0）。ログインは既定の One-time PIN（メール）でよい。※未初期化だと Access アプリ作成が失敗することがある。
+5. **Pages の GitHub 連携を認可**: Workers & Pages → Create → Pages → Connect to Git で GitHub App を `duo-pocketbook` に許可（プロジェクト作成は不要。認可のみ。未認可だと `cloudflare_pages_project` の `source.github` が失敗）。
+
+取得した3値は GitHub Secrets に設定する（CI から使う）:
+```bash
+gh secret set CLOUDFLARE_ACCOUNT_ID --body "<Account ID>"
+gh secret set CLOUDFLARE_ZONE_ID    --body "<Zone ID>"
+gh secret set CLOUDFLARE_API_TOKEN  --body "<APIトークン>"
+```
+
+**Terraform（`terraform.tfvars`）**
+```hcl
+enable_cloudflare     = true
+cloudflare_account_id = "xxxxxxxx"
+cloudflare_zone_id    = "yyyyyyyy" # ゾーン tacky0612.net の Zone ID（親ドメイン）
+app_domain            = "duo-pocketbook.tacky0612.net" # アプリを載せるサブドメイン
+client_emails         = ["you@example.com", "partner@example.com"]
+github_owner          = "tacky0612"
+github_repo           = "duo-pocketbook"
+client_key            = "<Lambda と同じ秘密。Worker が X-Client-Key として注入する>"
+```
+```bash
+export CLOUDFLARE_API_TOKEN=...
+make build-lambda
+terraform -chdir=terraform apply
+```
+
+作成されるもの: Worker（`/api/*`→Function URL 転送＋`X-Client-Key`注入）とルート、Access アプリ＋ポリシー（メールOTP・許可メールのみ）、Pages プロジェクト＋独自ドメイン（ビルド環境変数 `VITE_API_BASE=/api`）、DNS レコード（`app_domain`→`<project>.pages.dev`・プロキシ）。
+
+> Pages の実ビルド/デプロイは Pages 側（Git 連携）で実行される。フロントの `apiBase` は `VITE_API_BASE=/api` により固定され、ログイン画面の「APIのURL」入力欄は非表示になる。
 >
-> GitHub Pages を維持したまま実行元を絞りたい場合は、API のみ Cloudflare プロキシ＋無料 WAF/レート制限＋秘密ヘッダで代替できる（Access による SSO は使わず、認証はアプリの JWT のまま）。
+> 補足: より堅牢にするなら、秘密ヘッダの代わりに Cloudflare Access が付与する `Cf-Access-Jwt-Assertion` を Lambda で JWKS 検証する方式もある（実装追加が必要）。2人利用では秘密ヘッダ方式で十分。
 
 ## セキュリティ上の注意
 
