@@ -92,8 +92,18 @@ export default function App() {
   }, [me]);
 
   // 画面を切り替えたら、現在のスクロール位置にかかわらず切り替え先を最上部から表示する。
+  // iOS(WebKit) ではスクロールの実体が documentElement か body かが状況で変わり、
+  // window.scrollTo だけでは動かないことがある。両方をリセットし、遷移直後の
+  // レイアウト未確定に備えて次フレームでも実行する。
   useEffect(() => {
-    window.scrollTo(0, 0);
+    const reset = () => {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    };
+    reset();
+    const id = requestAnimationFrame(reset);
+    return () => cancelAnimationFrame(id);
   }, [screen]);
 
   if (!me) {
