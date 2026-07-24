@@ -40,11 +40,20 @@ build/
 
 # Terraform (init/plan/apply で生成されるもの)
 terraform/.terraform/
+terraform/**/.terraform/
 terraform/*.tfstate
 terraform/*.tfstate.*
+terraform/**/*.tfstate
+terraform/**/*.tfstate.*
 terraform/*.tfplan
+terraform/tfplan
+terraform/plan.txt
 terraform/*.tfvars
 !terraform/terraform.tfvars.example
+# 非機密の設定はコミットする（機密は含めない）
+!terraform/prod.auto.tfvars
+# backend の実値（bucket 名）はローカル専用。CI は -backend-config で渡す
+terraform/backend.hcl
 terraform/crash.log
 terraform/crash.*.log
 # 注: .terraform.lock.hcl はプロバイダのバージョン固定のためコミットする

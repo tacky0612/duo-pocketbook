@@ -13,6 +13,7 @@
 | [data-model.md](data-model.md) | DynamoDB シングルテーブル設計 |
 | [development.md](development.md) | ローカル開発・テストの手順 |
 | [deployment.md](deployment.md) | AWS / GitHub Pages へのデプロイ手順と無料枠の制約 |
+| [secrets.md](secrets.md) | 運用に必要なシークレット／変数の一覧と管理方法 |
 
 ## 技術スタック
 
