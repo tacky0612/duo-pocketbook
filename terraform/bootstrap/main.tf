@@ -102,7 +102,12 @@ data "aws_iam_policy_document" "assume" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_owner}/${var.github_repo}:*"]
+      # GitHub の OIDC は sub に不変の数値ID（owner@ID/repo@ID）を含める新形式でも発行される。
+      # 旧形式・新形式の両方にマッチさせる（数値IDはワイルドカード。owner@・repo@ で前方一致を固定）。
+      values = [
+        "repo:${var.github_owner}/${var.github_repo}:*",
+        "repo:${var.github_owner}@*/${var.github_repo}@*:*",
+      ]
     }
   }
 }
