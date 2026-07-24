@@ -29,11 +29,15 @@ type Settlement struct {
 
 // SettlementInput は精算計算への入力。
 type SettlementInput struct {
-	Month    YearMonth
-	Couple   Couple
-	Incomes  []MonthlyIncome // 両メンバー分が揃っている必要がある
-	Expenses []Expense       // 対象月の共有支出
+	Month   YearMonth
+	Couple  Couple
+	Incomes []MonthlyIncome // 両メンバー分が揃っている必要がある
+	// Expenses は対象精算月に計上する共有支出。締め日設定により暦月をまたぐ場合がある。
+	Expenses []Expense
 	Weight   Weight
+	// ClosingDay は締め日。支出が対象月に属するかの検証に使う。
+	// ゼロ値は暦月どおり（DefaultClosingDay と同じ）として扱う。
+	ClosingDay ClosingDay
 }
 
 // CalculateSettlement は精算額を計算するドメインサービス。
@@ -77,7 +81,7 @@ func CalculateSettlement(in SettlementInput) (*Settlement, error) {
 	paid := map[MemberID]Money{}
 	var total Money
 	for _, e := range in.Expenses {
-		if e.Month() != in.Month {
+		if in.ClosingDay.SettlementMonth(e.Date) != in.Month {
 			return nil, fmt.Errorf("%w: 対象月以外の支出が含まれています: %s", ErrValidation, e.ID)
 		}
 		if !in.Couple.Contains(e.PaidBy) {

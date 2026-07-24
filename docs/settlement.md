@@ -74,10 +74,24 @@ t = (20,000 - 100,000) / 2 = -40,000
 - **両メンバーの収入が未入力**の場合は `ErrIncomeNotReady` を返し、APIは `409 INCOME_NOT_READY` を返す
 - 対象月以外の支出・収入が混入した場合、不明なメンバーが含まれる場合は `ErrValidation`
 
+## 締め日
+
+精算の対象期間はデフォルトで暦月（1日〜末日）だが、**締め日**（`/settings/closing-day`、`SETTINGS/CLOSINGDAY`）で起算日を変更できる。
+
+- 締め日 D を設定すると、精算月 M の期間は「(M-1)月 D日 〜 M月 (D-1)日」になる。
+  - 例: 締め日=15 → **7月の精算 = 6/15〜7/14** に記録した支出を計上する。
+- 締め日=1（デフォルト）は暦月どおり（シフトなし）。
+- 範囲は 1〜31。29〜31 はその日が存在しない月（2月など）では**その月の末日に丸める**（例: 締め日31・2月は28日/29日が起算）。
+- 対象は支出のみ。収入・精算済みフラグ・固定費は月単位の設定なので締め日の影響を受けない（固定費は各精算月にそのまま計上）。
+- 支出一覧・精算・履歴のいずれも同じ締め期間で集計する（画面間で金額・件数が一致する）。
+
+ドメインの `ClosingDay.SettlementMonth(date)`（`internal/domain/closing.go`）が支出日→精算月の対応を担い、`CalculateSettlement` は `SettlementInput.ClosingDay` で対象月に属するかを検証する。保存レイヤーでの扱い（暦月キーのまま2パーティションを集計）は [data-model.md](data-model.md#締め日は保存先を変えない暦月キーのまま集計時に期間で絞る) を参照。
+
 ## テスト
 
-`internal/domain/settlement_test.go` にテーブルテストがある:
+`internal/domain/settlement_test.go`（精算計算）と `internal/domain/closing_test.go`（締め日→精算月の対応）にテーブルテストがある:
 
 ```bash
 go test -run TestCalculateSettlement ./internal/domain/...
+go test -run TestClosingDay ./internal/domain/...
 ```

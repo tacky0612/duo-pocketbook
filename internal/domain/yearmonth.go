@@ -42,6 +42,18 @@ func (ym YearMonth) Year() int { return ym.year }
 // Month は月を返す。
 func (ym YearMonth) Month() time.Month { return ym.month }
 
+// Next は翌月の YearMonth を返す。
+func (ym YearMonth) Next() YearMonth {
+	t := time.Date(ym.year, ym.month, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 1, 0)
+	return YearMonthOf(t)
+}
+
+// Prev は前月の YearMonth を返す。
+func (ym YearMonth) Prev() YearMonth {
+	t := time.Date(ym.year, ym.month, 1, 0, 0, 0, 0, time.UTC).AddDate(0, -1, 0)
+	return YearMonthOf(t)
+}
+
 // String は "2006-01" 形式の文字列を返す。
 func (ym YearMonth) String() string {
 	return fmt.Sprintf("%04d-%02d", ym.year, int(ym.month))

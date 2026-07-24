@@ -174,10 +174,12 @@ func (r *SettlementStatusRepository) SetSettled(_ context.Context, month domain.
 
 // SettingsRepository は application.SettingsRepository のインメモリ実装。
 type SettingsRepository struct {
-	mu       sync.RWMutex
-	weight   domain.Weight
-	set      bool
-	profiles map[domain.MemberID]application.MemberProfile
+	mu            sync.RWMutex
+	weight        domain.Weight
+	set           bool
+	profiles      map[domain.MemberID]application.MemberProfile
+	closingDay    domain.ClosingDay
+	closingDaySet bool
 }
 
 // NewSettingsRepository は空の SettingsRepository を生成する。
@@ -229,6 +231,22 @@ func (r *SettingsRepository) SaveWeight(_ context.Context, weight domain.Weight)
 	defer r.mu.Unlock()
 	r.weight = weight
 	r.set = true
+	return nil
+}
+
+// GetClosingDay は設定済みの締め日を返す。
+func (r *SettingsRepository) GetClosingDay(_ context.Context) (domain.ClosingDay, bool, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.closingDay, r.closingDaySet, nil
+}
+
+// SaveClosingDay は締め日を保存する。
+func (r *SettingsRepository) SaveClosingDay(_ context.Context, day domain.ClosingDay) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.closingDay = day
+	r.closingDaySet = true
 	return nil
 }
 

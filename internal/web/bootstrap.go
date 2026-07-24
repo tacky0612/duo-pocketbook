@@ -64,7 +64,7 @@ func BuildHandler(ctx context.Context, cfg config.Config, opt RouterOption) (htt
 		couple,
 		auth,
 		account,
-		application.NewExpenseUsecase(couple, expenseRepo, nil),
+		application.NewExpenseUsecase(couple, expenseRepo, settings, nil),
 		application.NewSettlementUsecase(couple, expenseRepo, incomeRepo, recurringRepo, settings, statusRepo),
 		application.NewSettingsUsecase(couple, settings),
 		application.NewRecurringExpenseUsecase(couple, recurringRepo),

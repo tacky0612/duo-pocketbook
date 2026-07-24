@@ -108,6 +108,9 @@ export interface RecurringExpensesResponse {
 export interface WeightsResponse {
   weights: Weights;
 }
+export interface ClosingDayResponse {
+  closingDay: number;
+}
 export interface SettlementStatusResponse {
   month: YearMonth;
   settled: boolean;
@@ -183,4 +186,6 @@ export interface DemoDb {
   recurring: RecurringExpense[];
   incomes: DemoIncome[];
   settled: Record<YearMonth, boolean>;
+  /** 締め日（精算期間の起算日。1=暦月どおり）。1〜31。 */
+  closingDay: number;
 }
