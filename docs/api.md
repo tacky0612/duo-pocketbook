@@ -51,6 +51,10 @@ TOKEN=$(curl -s -X POST $BASE/login \
 | `GET /recurring-expenses` | 固定費の一覧 |
 | `PUT /recurring-expenses/{id}` | 固定費の更新 |
 | `DELETE /recurring-expenses/{id}` | 固定費の削除 |
+| `POST /direct-transfers` | 立替精算の登録（`month` 空で毎月継続・指定でその月のみの単発） |
+| `GET /direct-transfers?month=YYYY-MM` | 指定月に適用される立替精算の一覧（継続分＋当月単発分） |
+| `PUT /direct-transfers/{id}` | 立替精算の更新（送金元・金額・内容。継続/単発と対象月は不変） |
+| `DELETE /direct-transfers/{id}` | 立替精算の削除 |
 | `GET /settings/weight` | 精算比重の取得（未設定時 1:1） |
 | `PUT /settings/weight` | 精算比重の更新 |
 | `GET /settings/closing-day` | 締め日の取得（未設定時 1＝暦月どおり） |
@@ -77,7 +81,7 @@ curl -X PUT $BASE/months/2026-07/incomes/hanako -H "Authorization: Bearer $TOKEN
 curl $BASE/months/2026-07/settlement -H "Authorization: Bearer $TOKEN"
 ```
 
-精算レスポンスの例:
+精算レスポンスの例（立替精算 太郎→花子 3,000円 を含む月）:
 
 ```json
 {
@@ -88,13 +92,19 @@ curl $BASE/months/2026-07/settlement -H "Authorization: Bearer $TOKEN"
     {"id": "taro",   "name": "太郎", "weight": 1, "incomeYen": 100000, "paidExpenseYen": 20000, "disposableYen": 55000},
     {"id": "hanako", "name": "花子", "weight": 1, "incomeYen": 50000,  "paidExpenseYen": 20000, "disposableYen": 55000}
   ],
-  "transfer": {"from": "taro", "to": "hanako", "amountYen": 25000}
+  "transfer":           {"from": "taro", "to": "hanako", "amountYen": 28000},
+  "settlementTransfer": {"from": "taro", "to": "hanako", "amountYen": 25000},
+  "directTransfer":     {"from": "taro", "to": "hanako", "amountYen": 3000},
+  "totalDirectTransferYen": 3000
 }
 ```
 
-`transfer` が `null` の場合は精算不要。`settled` は `PUT /months/{month}/settlement/status` で更新する精算済みフラグ（振込を実施したかどうかの記録用で、精算計算そのものには影響しない）。
+- `transfer` は実際に振り込む金額で、**比重按分の精算分 `settlementTransfer` と立替精算分 `directTransfer` を合算**したもの。いずれも `null` の場合は不要。
+- `settlementTransfer` / `directTransfer` は内訳（方向が逆になることもある）。`disposableYen`（精算後の可処分所得）は**共有支出の比重按分のみを反映**し、立替精算は含めない。
+- `totalDirectTransferYen` は当月に適用された立替精算の総額（方向を問わない絶対額の合計）。
+- `settled` は `PUT /months/{month}/settlement/status` で更新する精算済みフラグ（振込を実施したかどうかの記録用で、精算計算そのものには影響しない）。
 
-固定費（`recurring-expenses`）が登録されている場合、精算計算時に対象月の共有支出として自動的に合算される。
+固定費（`recurring-expenses`）が登録されている場合、精算計算時に対象月の共有支出として自動的に合算される。立替精算（`direct-transfers`）は共有支出とは別枠で、比重按分せずに振込額へそのまま加算される（詳細は [settlement.md](settlement.md#立替精算共有支出とは別枠の送金)）。
 
 ## エラーレスポンス
 

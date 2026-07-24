@@ -202,6 +202,94 @@ func TestCalculateSettlementDisposableRatio(t *testing.T) {
 	}
 }
 
+func testDirectTransfer(t *testing.T, id string, from, to domain.MemberID, amount domain.Money, month domain.YearMonth) domain.DirectTransfer {
+	t.Helper()
+	dt, err := domain.NewDirectTransfer(id, from, to, amount, "立替精算", month)
+	if err != nil {
+		t.Fatalf("NewDirectTransfer: %v", err)
+	}
+	return dt
+}
+
+func TestCalculateSettlementWithDirectTransfers(t *testing.T) {
+	// 比重1:1、夫(収入10万・支出2万)、妻(収入5万・支出2万) → 精算のみなら夫→妻2.5万。
+	// これに夫→妻5000（継続）と妻→夫2000（当月単発）の立替精算を加える。
+	// 精算分: 夫→妻 25000 / 立替精算純額: 夫→妻 (5000-2000)=3000 / 合計: 夫→妻 28000。
+	month := testMonth(t)
+	got, err := domain.CalculateSettlement(domain.SettlementInput{
+		Month:  month,
+		Couple: testCouple(t),
+		Incomes: []domain.MonthlyIncome{
+			testIncome(t, husband, 100_000),
+			testIncome(t, wife, 50_000),
+		},
+		Expenses: []domain.Expense{
+			testExpense(t, "e1", husband, 20_000),
+			testExpense(t, "e2", wife, 20_000),
+		},
+		DirectTransfers: []domain.DirectTransfer{
+			testDirectTransfer(t, "dtr_a", husband, wife, 5_000, domain.YearMonth{}),
+			testDirectTransfer(t, month.String()+"_b", wife, husband, 2_000, month),
+		},
+		Weight: testWeight(t, 1, 1),
+	})
+	if err != nil {
+		t.Fatalf("CalculateSettlement: %v", err)
+	}
+
+	if got.SettlementTransfer == nil || got.SettlementTransfer.From != husband || got.SettlementTransfer.Amount != 25_000 {
+		t.Errorf("SettlementTransfer = %+v, want 夫→妻 25000", got.SettlementTransfer)
+	}
+	if got.DirectTransfer == nil || got.DirectTransfer.From != husband || got.DirectTransfer.Amount != 3_000 {
+		t.Errorf("DirectTransfer = %+v, want 夫→妻 3000", got.DirectTransfer)
+	}
+	if got.Transfer == nil || got.Transfer.From != husband || got.Transfer.Amount != 28_000 {
+		t.Errorf("Transfer = %+v, want 夫→妻 28000", got.Transfer)
+	}
+	if got.TotalDirectTransfer != 7_000 {
+		t.Errorf("TotalDirectTransfer = %s, want 7000", got.TotalDirectTransfer)
+	}
+	// 可処分所得は共有支出の比重按分結果のまま（立替精算は含めない）→ ともに55000。
+	for _, m := range got.Members {
+		if m.Disposable != 55_000 {
+			t.Errorf("%s の可処分所得 = %s, want 55000（立替精算は含めない）", m.Member.ID, m.Disposable)
+		}
+	}
+}
+
+func TestCalculateSettlementDirectTransfersCancelOut(t *testing.T) {
+	// 立替精算が相殺され純額0のとき、精算分のみが振込になる。
+	month := testMonth(t)
+	got, err := domain.CalculateSettlement(domain.SettlementInput{
+		Month:  month,
+		Couple: testCouple(t),
+		Incomes: []domain.MonthlyIncome{
+			testIncome(t, husband, 80_000),
+			testIncome(t, wife, 80_000),
+		},
+		DirectTransfers: []domain.DirectTransfer{
+			testDirectTransfer(t, "dtr_a", husband, wife, 5_000, domain.YearMonth{}),
+			testDirectTransfer(t, "dtr_b", wife, husband, 5_000, domain.YearMonth{}),
+		},
+		Weight: testWeight(t, 1, 1),
+	})
+	if err != nil {
+		t.Fatalf("CalculateSettlement: %v", err)
+	}
+	if got.SettlementTransfer != nil {
+		t.Errorf("SettlementTransfer = %+v, want nil", got.SettlementTransfer)
+	}
+	if got.DirectTransfer != nil {
+		t.Errorf("DirectTransfer = %+v, want nil（純額0）", got.DirectTransfer)
+	}
+	if got.Transfer != nil {
+		t.Errorf("Transfer = %+v, want nil", got.Transfer)
+	}
+	if got.TotalDirectTransfer != 10_000 {
+		t.Errorf("TotalDirectTransfer = %s, want 10000", got.TotalDirectTransfer)
+	}
+}
+
 func TestCalculateSettlementIncomeNotReady(t *testing.T) {
 	_, err := domain.CalculateSettlement(domain.SettlementInput{
 		Month:  testMonth(t),

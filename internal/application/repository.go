@@ -40,6 +40,18 @@ type RecurringExpenseRepository interface {
 	Delete(ctx context.Context, id domain.RecurringExpenseID) error
 }
 
+// DirectTransferRepository は立替精算（共有支出とは別の A→B 送金）の永続化を担う。
+// 単発は精算月ごと、継続は単一パーティションに保持する。
+type DirectTransferRepository interface {
+	Save(ctx context.Context, dt domain.DirectTransfer) error
+	FindByID(ctx context.Context, id domain.DirectTransferID) (domain.DirectTransfer, error)
+	// FindRecurring は毎月継続の立替精算をすべて返す。
+	FindRecurring(ctx context.Context) ([]domain.DirectTransfer, error)
+	// FindByMonth は指定精算月の単発の立替精算を返す（継続分は含まない）。
+	FindByMonth(ctx context.Context, month domain.YearMonth) ([]domain.DirectTransfer, error)
+	Delete(ctx context.Context, id domain.DirectTransferID) error
+}
+
 // MemberProfile はメンバーごとの上書き可能なプロフィール（表示名・カラー）。
 // 未設定の項目は空文字になる。
 type MemberProfile struct {

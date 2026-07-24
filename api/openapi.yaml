@@ -18,6 +18,41 @@ components:
           example: 15
           type: integer
       type: object
+    web.directTransferDTO:
+      properties:
+        amountYen:
+          example: 5000
+          type: integer
+        description:
+          example: 立替の返済
+          type: string
+        from:
+          example: acct_9f3c1a2b7d4e5f60
+          type: string
+        id:
+          example: 2026-07_a1b2c3d4e5f6a7b8a1b2c3d4e5f6a7b8
+          type: string
+        month:
+          example: 2026-07
+          type: string
+        recurring:
+          example: false
+          type: boolean
+        to:
+          example: acct_1a2b3c4d5e6f7a8b
+          type: string
+      type: object
+    web.directTransfersResponse:
+      properties:
+        directTransfers:
+          items:
+            $ref: '#/components/schemas/web.directTransferDTO'
+          type: array
+          uniqueItems: false
+        month:
+          example: 2026-07
+          type: string
+      type: object
     web.errorBody:
       properties:
         code:
@@ -171,6 +206,22 @@ components:
           type: array
           uniqueItems: false
       type: object
+    web.registerDirectTransferRequest:
+      properties:
+        amountYen:
+          example: 5000
+          type: integer
+        description:
+          example: 立替の返済
+          type: string
+        from:
+          example: acct_9f3c1a2b7d4e5f60
+          type: string
+        month:
+          description: Month は空文字なら毎月継続、"YYYY-MM" ならその精算月のみの単発として登録する。
+          example: 2026-07
+          type: string
+      type: object
     web.registerExpenseRequest:
       properties:
         amountYen:
@@ -243,6 +294,8 @@ components:
       type: object
     web.settlementResponse:
       properties:
+        directTransfer:
+          $ref: '#/components/schemas/web.transferDTO'
         members:
           items:
             $ref: '#/components/schemas/web.settlementMemberDTO'
@@ -254,6 +307,12 @@ components:
         settled:
           example: false
           type: boolean
+        settlementTransfer:
+          $ref: '#/components/schemas/web.transferDTO'
+        totalDirectTransferYen:
+          description: TotalDirectTransferYen は当月に適用された立替精算の総額（方向を問わない絶対額の合計）。
+          example: 5000
+          type: integer
         totalExpenseYen:
           example: 40000
           type: integer
@@ -276,6 +335,7 @@ components:
           type: boolean
       type: object
     web.transferDTO:
+      description: DirectTransfer は立替精算の純額のみの振込。0円なら null。
       properties:
         amountYen:
           example: 25000
@@ -432,6 +492,156 @@ paths:
       summary: パスワードの変更
       tags:
       - account
+  /direct-transfers:
+    get:
+      description: 指定精算月に適用される立替精算（毎月継続分＋当月単発分）を返す。
+      parameters:
+      - description: 対象月（YYYY-MM）
+        in: query
+        name: month
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.directTransfersResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: 立替精算の一覧
+      tags:
+      - direct-transfers
+    post:
+      description: 共有支出とは別に、送金元から他方へ渡す金額を登録する。比重按分に含めず、振込額へそのまま加算される。month が空なら毎月継続、指定するとその精算月のみの単発。
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/web.registerDirectTransferRequest'
+                description: 立替精算
+                summary: body
+        description: 立替精算
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.directTransferDTO'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: 立替精算の登録
+      tags:
+      - direct-transfers
+  /direct-transfers/{id}:
+    delete:
+      parameters:
+      - description: 立替精算ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: 削除成功
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Not Found
+      security:
+      - BearerAuth: []
+      summary: 立替精算の削除
+      tags:
+      - direct-transfers
+    put:
+      description: 送金元・金額・内容を更新する。継続/単発の別と対象月は変更できない（変更するには削除して再登録する）。
+      parameters:
+      - description: 立替精算ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/web.registerDirectTransferRequest'
+                description: 立替精算
+                summary: body
+        description: 立替精算
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.directTransferDTO'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Not Found
+      security:
+      - BearerAuth: []
+      summary: 立替精算の更新
+      tags:
+      - direct-transfers
   /expenses:
     get:
       description: 日付降順で返す。

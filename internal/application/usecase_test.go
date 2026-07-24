@@ -21,6 +21,7 @@ type fixture struct {
 	settlement *application.SettlementUsecase
 	settings   *application.SettingsUsecase
 	recurring  *application.RecurringExpenseUsecase
+	direct     *application.DirectTransferUsecase
 }
 
 func newFixture(t *testing.T) fixture {
@@ -35,14 +36,16 @@ func newFixture(t *testing.T) fixture {
 	expenseRepo := memory.NewExpenseRepository()
 	incomeRepo := memory.NewIncomeRepository()
 	recurringRepo := memory.NewRecurringExpenseRepository()
+	directRepo := memory.NewDirectTransferRepository()
 	settingsRepo := memory.NewSettingsRepository()
 	statusRepo := memory.NewSettlementStatusRepository()
 	now := func() time.Time { return time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC) }
 	return fixture{
 		expenses:   application.NewExpenseUsecase(couple, expenseRepo, settingsRepo, now),
-		settlement: application.NewSettlementUsecase(couple, expenseRepo, incomeRepo, recurringRepo, settingsRepo, statusRepo),
+		settlement: application.NewSettlementUsecase(couple, expenseRepo, incomeRepo, recurringRepo, directRepo, settingsRepo, statusRepo),
 		settings:   application.NewSettingsUsecase(couple, settingsRepo),
 		recurring:  application.NewRecurringExpenseUsecase(couple, recurringRepo),
+		direct:     application.NewDirectTransferUsecase(couple, directRepo),
 	}
 }
 
@@ -362,6 +365,110 @@ func TestRecurringExpenseAffectsSettlement(t *testing.T) {
 	}
 	if got.Transfer != nil {
 		t.Errorf("削除後 Transfer = %+v, want nil", got.Transfer)
+	}
+}
+
+func TestDirectTransferAffectsSettlement(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	// 収入同額・支出なし → 精算のみなら0円。ここに立替精算を加える。
+	if _, err := f.settlement.InputIncome(ctx, "2026-07", husband, 100_000); err != nil {
+		t.Fatalf("InputIncome: %v", err)
+	}
+	if _, err := f.settlement.InputIncome(ctx, "2026-07", wife, 100_000); err != nil {
+		t.Fatalf("InputIncome: %v", err)
+	}
+
+	// 継続: 夫→妻 5000。全月に自動加算される。
+	rec, err := f.direct.Register(ctx, application.RegisterDirectTransferInput{
+		From: husband, AmountYen: 5_000, Description: "毎月のお小遣い",
+	})
+	if err != nil {
+		t.Fatalf("Register(継続): %v", err)
+	}
+	if !rec.IsRecurring() {
+		t.Errorf("継続登録が recurring でない: %+v", rec)
+	}
+	if rec.To != wife {
+		t.Errorf("To = %s, want %s（送金元でない方が自動導出される）", rec.To, wife)
+	}
+
+	// 単発: 妻→夫 2000（2026-07 のみ）。
+	if _, err := f.direct.Register(ctx, application.RegisterDirectTransferInput{
+		From: wife, AmountYen: 2_000, Description: "立替の返済", Month: "2026-07",
+	}); err != nil {
+		t.Fatalf("Register(単発): %v", err)
+	}
+
+	// 一覧: 継続＋当月単発の2件。
+	list, err := f.direct.ListForMonth(ctx, "2026-07")
+	if err != nil || len(list) != 2 {
+		t.Fatalf("ListForMonth(2026-07) = %v (len %d), err %v", list, len(list), err)
+	}
+
+	// 精算: 支出なしで収入同額 → 精算分0。立替精算純額 夫→妻 (5000-2000)=3000。
+	got, err := f.settlement.GetSettlement(ctx, "2026-07")
+	if err != nil {
+		t.Fatalf("GetSettlement: %v", err)
+	}
+	if got.SettlementTransfer != nil {
+		t.Errorf("SettlementTransfer = %+v, want nil", got.SettlementTransfer)
+	}
+	if got.Transfer == nil || got.Transfer.From != husband || got.Transfer.To != wife || got.Transfer.Amount != 3_000 {
+		t.Errorf("Transfer = %+v, want taro→hanako 3000", got.Transfer)
+	}
+
+	// 単発は別月には効かない。継続分のみで 夫→妻 5000。
+	if _, err := f.settlement.InputIncome(ctx, "2026-08", husband, 100_000); err != nil {
+		t.Fatalf("InputIncome(8月): %v", err)
+	}
+	if _, err := f.settlement.InputIncome(ctx, "2026-08", wife, 100_000); err != nil {
+		t.Fatalf("InputIncome(8月): %v", err)
+	}
+	aug, err := f.settlement.GetSettlement(ctx, "2026-08")
+	if err != nil {
+		t.Fatalf("GetSettlement(8月): %v", err)
+	}
+	if aug.Transfer == nil || aug.Transfer.From != husband || aug.Transfer.Amount != 5_000 {
+		t.Errorf("8月 Transfer = %+v, want taro→hanako 5000（継続分のみ）", aug.Transfer)
+	}
+
+	// 継続を削除すると全月の精算から外れる。
+	if err := f.direct.Delete(ctx, rec.ID); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	got, err = f.settlement.GetSettlement(ctx, "2026-07")
+	if err != nil {
+		t.Fatalf("GetSettlement: %v", err)
+	}
+	// 継続削除後は単発 妻→夫 2000 のみ残る。
+	if got.Transfer == nil || got.Transfer.From != wife || got.Transfer.To != husband || got.Transfer.Amount != 2_000 {
+		t.Errorf("継続削除後 Transfer = %+v, want hanako→taro 2000", got.Transfer)
+	}
+}
+
+func TestDirectTransferValidation(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	if _, err := f.direct.Register(ctx, application.RegisterDirectTransferInput{
+		From: "unknown", AmountYen: 1000, Description: "x",
+	}); !errors.Is(err, domain.ErrValidation) {
+		t.Errorf("不明メンバー: err = %v, want ErrValidation", err)
+	}
+	if _, err := f.direct.Register(ctx, application.RegisterDirectTransferInput{
+		From: husband, AmountYen: 0, Description: "x",
+	}); !errors.Is(err, domain.ErrValidation) {
+		t.Errorf("金額0: err = %v, want ErrValidation", err)
+	}
+	if _, err := f.direct.Register(ctx, application.RegisterDirectTransferInput{
+		From: husband, AmountYen: 1000, Description: "x", Month: "bad-month",
+	}); !errors.Is(err, domain.ErrValidation) {
+		t.Errorf("不正な月: err = %v, want ErrValidation", err)
+	}
+	if err := f.direct.Delete(ctx, "dtr_missing"); !errors.Is(err, application.ErrNotFound) {
+		t.Errorf("存在しない削除: err = %v, want ErrNotFound", err)
 	}
 }
 

@@ -12,6 +12,8 @@
 | 月次収入 | `MONTH#<yyyy-MM>` | `INCOME#<memberID>` | `MemberID`, `AmountYen` |
 | 精算済みフラグ | `MONTH#<yyyy-MM>` | `STATUS` | `Settled`（bool） |
 | 固定費 | `RECURRING` | `<固定費ID>` | `PaidBy`, `AmountYen`, `Description` |
+| 立替精算（継続） | `DIRECTTRANSFER#RECURRING` | `<立替精算ID>` | `FromID`, `ToID`, `AmountYen`, `Description`, `Month`(空文字) |
+| 立替精算（単発） | `DIRECTTRANSFER#<yyyy-MM>` | `<立替精算ID>` | `FromID`, `ToID`, `AmountYen`, `Description`, `Month`(YYYY-MM) |
 | 精算比重 | `SETTINGS` | `WEIGHT` | `Weights`（memberID→比重のマップ） |
 | 締め日 | `SETTINGS` | `CLOSINGDAY` | `Day`（1〜31。精算期間の起算日。未設定時は1＝暦月どおり） |
 | メンバープロフィール | `SETTINGS` | `PROFILE#<memberID>` | `MemberID`, `Name`, `Color`（上書き設定。未設定項目は保存されない） |
@@ -28,6 +30,15 @@
 支出IDは `<yyyy-MM>_<ランダム16バイトhex>` 形式（例: `2026-07_75cbcdf9...`）。ドメイン層の `ExpenseID.Month()` でIDから対象月を取り出せるため、`DELETE /expenses/{id}` のようにIDしか渡されない操作でも **GSIやScanなしで** パーティションを特定して `GetItem`/`DeleteItem` できる。
 
 固定費は特定の月に紐づかず単一パーティション（`PK=RECURRING`）に保存される。精算時（`SettlementUsecase`）に `RecurringExpense.AsExpenseFor(month)` で対象月の支出として実体化され、IDは `<yyyy-MM>_recurring-<固定費ID>` 形式になる（DynamoDBには保存されず、精算計算の入力としてのみ生成される）。
+
+### 立替精算は継続と単発でパーティションを分ける
+
+立替精算（共有支出とは別の A→B 送金。[settlement.md](settlement.md#立替精算共有支出とは別枠の送金)）は、**毎月継続**か**特定月のみの単発**かでパーティションを分けて保存する。
+
+- 継続: `PK=DIRECTTRANSFER#RECURRING`、ID は `dtr_<hex>`。全精算月に自動加算されるため単一パーティションに集約する（固定費と同じ考え方）。
+- 単発: `PK=DIRECTTRANSFER#<精算月>`、ID は `<yyyy-MM>_<hex>`。IDに精算月を内包するため、`GET`/`DELETE` のようにIDしか渡されない操作でも `DirectTransferID.Month()`（`internal/domain/direct_transfer.go`）でパーティションを特定でき、GSIやScanが不要。
+
+単発は支出と違い**日付ではなく精算月に直接ひも付く**（締め日の影響を受けない）。ある精算月に適用する立替精算は「継続分（`DIRECTTRANSFER#RECURRING`）＋当月単発分（`DIRECTTRANSFER#<月>`）」の2パーティションを取得して合算する。
 
 ### 締め日は保存先を変えない（暦月キーのまま集計時に期間で絞る）
 
@@ -46,6 +57,9 @@
 | 固定費の登録/更新 | `PutItem`（`PK=RECURRING`） |
 | 固定費の取得/削除 | `GetItem` / `DeleteItem` |
 | 固定費の一覧 | `Query (PK = RECURRING)` |
+| 立替精算の登録/更新 | `PutItem`（継続 `PK=DIRECTTRANSFER#RECURRING` / 単発 `PK=DIRECTTRANSFER#<月>`） |
+| 立替精算の取得/削除 | `GetItem` / `DeleteItem`（IDから継続か単発の月を導出してキー構築） |
+| 立替精算の月別一覧 | `Query`（`DIRECTTRANSFER#RECURRING` と `DIRECTTRANSFER#<月>` の2パーティション） |
 | 比重の取得/更新 | `GetItem` / `PutItem`（固定キー） |
 | 締め日の取得/更新 | `GetItem` / `PutItem`（`PK=SETTINGS, SK=CLOSINGDAY`） |
 | 締め期間の支出集計 | `Query`（暦月 `M-1` と `M` の2パーティション）→ 締め日で `M` 分を抽出。締め日=1 は `M` のみ |

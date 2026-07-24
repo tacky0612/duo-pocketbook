@@ -4,7 +4,7 @@
 // 精算・履歴が自然に見える。各オブジェクトのフィールド名は実 API（Go ハンドラの
 // json タグ）に厳密一致させている（amountYen / paidBy / incomeYen など）。
 
-import type { DemoDb, DemoIncome, Expense, MemberId, MemberView, RecurringExpense } from "../types";
+import type { DemoDb, DemoIncome, DirectTransfer, Expense, MemberId, MemberView, RecurringExpense } from "../types";
 
 // デモの2アカウント。id はログインに使い、color は支出一覧のバッジ色に使う。
 const MEMBERS: MemberView[] = [
@@ -56,6 +56,26 @@ export function seedData(): DemoDb {
   // 月次収入
   const inc = (month: string, memberId: MemberId, amountYen: number): DemoIncome => ({ month, memberId, amountYen });
 
+  // 立替精算（共有支出とは別の A→B 送金。比重按分せず振込額へ加算）
+  const dtr = (from: MemberId, to: MemberId, amountYen: number, description: string): DirectTransfer => ({
+    id: `dtr_${nextHex()}`,
+    from,
+    to,
+    amountYen,
+    description,
+    recurring: true,
+    month: "",
+  });
+  const dtOnce = (month: string, from: MemberId, to: MemberId, amountYen: number, description: string): DirectTransfer => ({
+    id: `${month}_${nextHex()}`,
+    from,
+    to,
+    amountYen,
+    description,
+    recurring: false,
+    month,
+  });
+
   return {
     members: MEMBERS.map((m) => ({ ...m })),
     weights: { taro: 1, hanako: 1 },
@@ -76,6 +96,12 @@ export function seedData(): DemoDb {
       rec("rent", "taro", 90000, "家賃"),
       rec("utility", "hanako", 12000, "光熱費"),
       rec("subscription", "hanako", 3000, "サブスク"),
+    ],
+    directTransfers: [
+      // 毎月継続: アカウントB → アカウントA へお小遣い
+      dtr("hanako", "taro", 10000, "お小遣い"),
+      // 今月だけ: アカウントA → アカウントB へ立替の返済
+      dtOnce(m0, "taro", "hanako", 3000, "立替の返済"),
     ],
     incomes: [
       inc(m0, "taro", 320000),
