@@ -1,6 +1,8 @@
 # API 利用ガイド
 
-正式な契約は OpenAPI 定義 [`api/openapi.yaml`](../api/openapi.yaml) を参照。ここでは利用の流れを説明する。
+正式な契約は OpenAPI 定義 [`api/openapi.yaml`](../api/openapi.yaml)（OpenAPI 3.1）を参照。ここでは利用の流れを説明する。
+
+> `api/openapi.yaml` は **Go コードが正（source of truth）**。`internal/web` のハンドラに付けた [swag](https://github.com/swaggo/swag) 注釈と DTO 型から `make openapi` で自動生成する（**手で編集しない**）。API を変更したらハンドラの注釈・DTO を直して `make openapi` を実行する。CI の `openapi-check` ジョブが未再生成を検出する。
 
 ## ベースURL
 
@@ -122,4 +124,4 @@ curl $BASE/months/2026-07/settlement -H "Authorization: Bearer $TOKEN"
 
 ## 外部ツール連携
 
-`api/openapi.yaml` を Swagger UI / Postman / openapi-generator 等に読み込めばクライアントを自動生成できる。API を変更する場合は必ずこの定義も更新すること。
+`api/openapi.yaml` を Swagger UI / Postman / openapi-generator 等に読み込めばクライアントを自動生成できる。この定義は Go コードから `make openapi` で生成されるため、API を変更したら注釈・DTO を直して再生成すること（[api.md 冒頭](#api-利用ガイド)参照）。

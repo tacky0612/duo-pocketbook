@@ -1,4 +1,4 @@
-.PHONY: build test test-integration up down fmt vet lint frontend build-lambda hash clean docs-validate
+.PHONY: build test test-integration up down fmt vet lint frontend build-lambda hash clean docs-validate openapi openapi-check
 
 ## バックエンドのビルド
 build:
@@ -41,6 +41,19 @@ build-lambda:
 	mkdir -p build
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -o build/bootstrap ./cmd/lambda
 	cd build && zip -q lambda.zip bootstrap
+
+## OpenAPI 定義の生成（Goコードの注釈・DTO型が正。api/openapi.yaml は手で編集しない）
+openapi:
+	go tool swag init -g openapi.go -d internal/web -o api --ot yaml --parseInternal --v3.1
+	mv api/swagger.yaml api/openapi.yaml
+
+## OpenAPI 定義がコードと同期しているか検証（CI 用。差分があれば失敗）
+openapi-check: openapi
+	@if ! git diff --quiet -- api/openapi.yaml; then \
+		echo "api/openapi.yaml が最新ではありません。'make openapi' を実行してコミットしてください:"; \
+		git --no-pager diff -- api/openapi.yaml; \
+		exit 1; \
+	fi
 
 ## ドキュメント内のMermaid図の構文検証
 docs-validate:
