@@ -1,0 +1,105 @@
+name: Terraform
+
+on:
+  pull_request:
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch: # 手動実行で apply
+
+permissions:
+  id-token: write # AWS OIDC
+  contents: read
+  pull-requests: write # plan 結果を PR にコメント
+
+env:
+  AWS_REGION: ap-northeast-1
+  TF_STATE_KEY: duo-pocketbook/terraform.tfstate
+  # 機密は GitHub Secrets、非機密の識別子は GitHub Variables から TF_VAR_* で注入する
+  TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
+  TF_VAR_member1_password_hash: ${{ secrets.MEMBER1_PASSWORD_HASH }}
+  TF_VAR_member2_password_hash: ${{ secrets.MEMBER2_PASSWORD_HASH }}
+  TF_VAR_client_key: ${{ secrets.CLIENT_KEY }}
+  TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+  TF_VAR_client_emails: ${{ secrets.CLIENT_EMAILS }} # 例: ["a@example.com","b@example.com"]
+  TF_VAR_budget_alert_email: ${{ secrets.BUDGET_ALERT_EMAIL }}
+  TF_VAR_member1_id: ${{ secrets.MEMBER1_ID }}
+  TF_VAR_member2_id: ${{ secrets.MEMBER2_ID }}
+  # 表示名(member*_name)はアプリ側の既定値（太郎/花子）を使うため注入しない
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+jobs:
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build Lambda package
+        run: make build-lambda
+      - uses: hashicorp/setup-terraform@v3
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Terraform init
+        working-directory: terraform
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=${TF_STATE_KEY}" \
+            -backend-config="region=${AWS_REGION}"
+      - name: Terraform fmt
+        working-directory: terraform
+        run: terraform fmt -check -recursive
+      - name: Terraform validate
+        working-directory: terraform
+        run: terraform validate -no-color
+      - name: Terraform plan
+        id: plan
+        working-directory: terraform
+        run: terraform plan -no-color -input=false -out=tfplan 2>&1 | tee plan.txt
+      - name: Comment plan on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let plan = fs.readFileSync('terraform/plan.txt', 'utf8');
+            if (plan.length > 60000) plan = plan.slice(0, 60000) + '\n... (truncated)';
+            const body = `#### Terraform Plan\n\`\`\`\n${plan}\n\`\`\``;
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });
+
+  apply:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: production # 承認（必須レビュアー）でゲートする
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build Lambda package
+        run: make build-lambda
+      - uses: hashicorp/setup-terraform@v3
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Terraform init
+        working-directory: terraform
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=${TF_STATE_KEY}" \
+            -backend-config="region=${AWS_REGION}"
+      - name: Terraform apply
+        working-directory: terraform
+        run: terraform apply -no-color -input=false -auto-approve

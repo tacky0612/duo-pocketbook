@@ -110,7 +110,6 @@ cd frontend && npm run build      # tsc --noEmit → vite build
 | 変数 | 必須 | 説明 |
 |---|---|---|
 | `MEMBER1_ID` / `MEMBER2_ID` | ✅ | メンバーID（ログインID） |
-| `MEMBER1_NAME` / `MEMBER2_NAME` | | 表示名（省略時はID） |
 | `MEMBERn_PASSWORD_HASH` | ※ | bcryptハッシュ（本番用。`go run ./cmd/hashpw` で生成） |
 | `MEMBERn_PASSWORD` | ※ | 平文パスワード（ローカル専用）。※どちらか一方が必須 |
 | `JWT_SECRET` | ✅ | JWT署名シークレット |

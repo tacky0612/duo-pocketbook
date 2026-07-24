@@ -1,0 +1,7 @@
+# backend.hcl にコピーして値を設定し、`terraform init -backend-config=backend.hcl` で使う。
+# CI（GitHub Actions）では -backend-config フラグで GitHub Variables から渡すため backend.hcl は不要。
+# bucket 名はグローバル一意。bootstrap（terraform/bootstrap）で作成した state バケット名を指定する。
+
+bucket = "duo-pocketbook-tfstate-xxxxxxxx"
+key    = "duo-pocketbook/terraform.tfstate"
+region = "ap-northeast-1"
