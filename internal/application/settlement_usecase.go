@@ -23,13 +23,14 @@ type SettlementUsecase struct {
 	expenses  ExpenseRepository
 	incomes   IncomeRepository
 	recurring RecurringExpenseRepository
+	transfers DirectTransferRepository
 	settings  SettingsRepository
 	status    SettlementStatusRepository
 }
 
 // NewSettlementUsecase は SettlementUsecase を生成する。
-func NewSettlementUsecase(couple domain.Couple, expenses ExpenseRepository, incomes IncomeRepository, recurring RecurringExpenseRepository, settings SettingsRepository, status SettlementStatusRepository) *SettlementUsecase {
-	return &SettlementUsecase{couple: couple, expenses: expenses, incomes: incomes, recurring: recurring, settings: settings, status: status}
+func NewSettlementUsecase(couple domain.Couple, expenses ExpenseRepository, incomes IncomeRepository, recurring RecurringExpenseRepository, transfers DirectTransferRepository, settings SettingsRepository, status SettlementStatusRepository) *SettlementUsecase {
+	return &SettlementUsecase{couple: couple, expenses: expenses, incomes: incomes, recurring: recurring, transfers: transfers, settings: settings, status: status}
 }
 
 // IsSettled は対象月が精算済みかを返す。
@@ -116,6 +117,16 @@ func (u *SettlementUsecase) GetSettlement(ctx context.Context, month string) (*d
 	for _, r := range recurring {
 		expenses = append(expenses, r.AsExpenseFor(ym))
 	}
+	// 立替精算（毎月継続分＋当月単発分）を集める。比重按分には含めず振込額へ加算する。
+	directRecurring, err := u.transfers.FindRecurring(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("立替精算の取得に失敗しました: %w", err)
+	}
+	directOneOff, err := u.transfers.FindByMonth(ctx, ym)
+	if err != nil {
+		return nil, fmt.Errorf("立替精算の取得に失敗しました: %w", err)
+	}
+	directTransfers := append(directRecurring, directOneOff...)
 	weight, err := currentWeight(ctx, u.settings, u.couple)
 	if err != nil {
 		return nil, err
@@ -126,12 +137,13 @@ func (u *SettlementUsecase) GetSettlement(ctx context.Context, month string) (*d
 		return nil, err
 	}
 	return domain.CalculateSettlement(domain.SettlementInput{
-		Month:      ym,
-		Couple:     couple,
-		Incomes:    incomes,
-		Expenses:   expenses,
-		Weight:     weight,
-		ClosingDay: closingDay,
+		Month:           ym,
+		Couple:          couple,
+		Incomes:         incomes,
+		Expenses:        expenses,
+		DirectTransfers: directTransfers,
+		Weight:          weight,
+		ClosingDay:      closingDay,
 	})
 }
 

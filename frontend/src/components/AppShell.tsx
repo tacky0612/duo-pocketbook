@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import MonthSelector from "./MonthSelector";
 import Wordmark from "./Wordmark";
-import { ScaleIcon, DownloadIcon, UploadIcon, RepeatIcon, HistoryIcon, SettingsIcon, FileTextIcon, type IconComponent } from "./Icons";
+import { ScaleIcon, DownloadIcon, UploadIcon, RepeatIcon, SendIcon, HistoryIcon, SettingsIcon, FileTextIcon, type IconComponent } from "./Icons";
 import type { ScreenName } from "../types";
 
 interface NavItem {
@@ -16,6 +16,7 @@ export const NAV: NavItem[] = [
   { key: "income", label: "収入", icon: DownloadIcon, monthScoped: true },
   { key: "expense", label: "支出", icon: UploadIcon, monthScoped: true },
   { key: "recurring", label: "固定費", icon: RepeatIcon, monthScoped: false },
+  { key: "directTransfer", label: "立替精算", icon: SendIcon, monthScoped: true },
   { key: "history", label: "履歴", icon: HistoryIcon, monthScoped: false },
   { key: "settings", label: "設定", icon: SettingsIcon, monthScoped: false },
 ];

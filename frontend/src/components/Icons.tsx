@@ -152,6 +152,16 @@ export const ArrowRightIcon: IconComponent = (p) => (
   </Svg>
 );
 
+// 双方向の送金（左右の矢印）を表すアイコン。
+export const SendIcon: IconComponent = (p) => (
+  <Svg {...p}>
+    <path d="M8 3 4 7l4 4" />
+    <path d="M4 7h16" />
+    <path d="m16 21 4-4-4-4" />
+    <path d="M20 17H4" />
+  </Svg>
+);
+
 export const CheckIcon: IconComponent = (p) => (
   <Svg {...p}>
     <path d="M20 6 9 17l-5-5" />

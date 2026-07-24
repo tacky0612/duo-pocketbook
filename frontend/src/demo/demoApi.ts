@@ -16,6 +16,7 @@ interface DemoBody {
   name?: string;
   color?: string;
   paidBy?: string;
+  from?: string;
   amountYen?: number;
   description?: string;
   date?: string;
@@ -25,6 +26,7 @@ interface DemoBody {
   currentPassword?: string;
   newPassword?: string;
   closingDay?: number;
+  month?: string;
 }
 
 // --- エラーヘルパー（apiClient の ApiError 形状に合わせる） ---
@@ -64,6 +66,11 @@ function listExpenses(db: DemoDb, month: string): ExpensesResponse {
   return { month, expenses };
 }
 
+// 対象精算月に適用される立替精算（毎月継続分＋当月単発分）。
+function directTransfersFor(db: DemoDb, month: string): DemoDb["directTransfers"] {
+  return (db.directTransfers ?? []).filter((dt) => dt.recurring || dt.month === month);
+}
+
 // 対象月の精算（settled フラグ付き）。収入未入力なら computeSettlement が INCOME_NOT_READY を投げる。
 function settlementOf(db: DemoDb, month: string): Settlement {
   const s = computeSettlement({
@@ -73,6 +80,7 @@ function settlementOf(db: DemoDb, month: string): Settlement {
     incomes: db.incomes,
     expenses: db.expenses,
     recurring: db.recurring,
+    directTransfers: directTransfersFor(db, month),
     closingDay: db.closingDay ?? 1,
   });
   return { ...s, settled: Boolean(db.settled[month]) };
@@ -85,6 +93,8 @@ export async function demoApi(method: HttpMethod, path: string, body?: unknown):
   const q = new URLSearchParams(queryStr || "");
   const b = (body ?? {}) as DemoBody;
   const db = store.get();
+  // この機能より前に保存された localStorage には directTransfers が無いため補う。
+  if (!db.directTransfers) db.directTransfers = [];
   const key = `${method} ${rawPath}`;
 
   let mm: RegExpMatchArray | null;
@@ -240,6 +250,60 @@ export async function demoApi(method: HttpMethod, path: string, body?: unknown):
     const idx = db.recurring.findIndex((r) => r.id === mm![1]);
     if (idx < 0) notFound("固定費が見つかりません");
     db.recurring.splice(idx, 1);
+    store.save();
+    return null;
+  }
+
+  // --- 立替精算 ---
+  if (key === "GET /direct-transfers") {
+    const month = q.get("month");
+    if (!month) validation("month は必須です");
+    // 継続を先に、単発を後に。各グループ内は内容の昇順。
+    const applicable = directTransfersFor(db, month).slice();
+    const byDesc = (x: typeof applicable[number], y: typeof applicable[number]) =>
+      x.description < y.description ? -1 : x.description > y.description ? 1 : 0;
+    const recurring = applicable.filter((t) => t.recurring).sort(byDesc);
+    const oneOff = applicable.filter((t) => !t.recurring).sort(byDesc);
+    return { month, directTransfers: [...recurring, ...oneOff] };
+  }
+  if (key === "POST /direct-transfers") {
+    if (!b.description) validation("内容は必須です");
+    if (!b.amountYen || b.amountYen <= 0) validation("金額は1円以上で入力してください");
+    const fromId = b.from ?? "";
+    const to = db.members.find((m) => m.id !== fromId);
+    if (!to) validation("不明なメンバーです");
+    const recurring = !b.month;
+    const item = {
+      id: recurring ? `dtr_${randHex()}` : `${b.month}_${randHex()}`,
+      from: fromId,
+      to: to.id,
+      amountYen: b.amountYen,
+      description: b.description,
+      recurring,
+      month: recurring ? "" : b.month!,
+    };
+    db.directTransfers.push(item);
+    store.save();
+    return item;
+  }
+  if (method === "PUT" && (mm = rawPath.match(/^\/direct-transfers\/([^/]+)$/))) {
+    const item = db.directTransfers.find((t) => t.id === mm![1]);
+    if (!item) notFound("立替精算が見つかりません");
+    if (b.from != null) {
+      const to = db.members.find((m) => m.id !== b.from);
+      if (!to) validation("不明なメンバーです");
+      item.from = b.from;
+      item.to = to.id;
+    }
+    if (b.amountYen != null) item.amountYen = b.amountYen;
+    if (b.description != null) item.description = b.description;
+    store.save();
+    return item;
+  }
+  if (method === "DELETE" && (mm = rawPath.match(/^\/direct-transfers\/([^/]+)$/))) {
+    const idx = db.directTransfers.findIndex((t) => t.id === mm![1]);
+    if (idx < 0) notFound("立替精算が見つかりません");
+    db.directTransfers.splice(idx, 1);
     store.save();
     return null;
   }

@@ -5,13 +5,14 @@ import { useAsync } from "../hooks";
 import { Card, Spinner, Button, Empty } from "../components/ui";
 import { ArrowRightIcon, CheckIcon } from "../components/Icons";
 import Celebration from "../components/Celebration";
-import type { Expense, ExpensesResponse, MemberId, RecurringExpense, RecurringExpensesResponse, ScreenProps, Settlement } from "../types";
+import type { DirectTransfer, DirectTransfersResponse, Expense, ExpensesResponse, MemberId, RecurringExpense, RecurringExpensesResponse, ScreenProps, Settlement, Transfer } from "../types";
 
 interface SettlementData {
   settlement: Settlement | null;
   settlementError: ApiError | null;
   expenses: Expense[];
   recurring: RecurringExpense[];
+  directTransfers: DirectTransfer[];
 }
 
 interface SettlementItem {
@@ -27,10 +28,11 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
   const [celebrating, setCelebrating] = useState(false);
 
   const { loading, data, error, reload } = useAsync<SettlementData>(async () => {
-    // 支出・固定費は収入の有無に関わらず表示したいので先に取得する。
-    const [expensesRes, recurringRes] = await Promise.all([
+    // 支出・固定費・立替精算は収入の有無に関わらず表示したいので先に取得する。
+    const [expensesRes, recurringRes, directRes] = await Promise.all([
       api<ExpensesResponse>("GET", `/expenses?month=${month}`),
       api<RecurringExpensesResponse>("GET", "/recurring-expenses"),
+      api<DirectTransfersResponse>("GET", `/direct-transfers?month=${month}`),
     ]);
     // 精算は収入未入力だと 409 になるため、失敗しても他の表示は続ける。
     let settlement: Settlement | null = null;
@@ -45,6 +47,7 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
       settlementError,
       expenses: expensesRes.expenses,
       recurring: recurringRes.recurringExpenses,
+      directTransfers: directRes.directTransfers,
     };
   }, [month]);
 
@@ -62,7 +65,27 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
 
   const { settlement, settlementError } = data;
   const memberName = (id: MemberId) => members.find((m) => m.id === id)?.name || id;
+  const memberColor = (id: MemberId) => members.find((m) => m.id === id)?.color;
   const settled = Boolean(settlement?.settled);
+  // 立替精算が当月に適用されているか（金額ベース。相殺されても内訳は見せたい）。
+  const hasDirect = (settlement?.totalDirectTransferYen ?? 0) > 0;
+
+  // 内訳行: from → to amount（振込がなければ zeroLabel を表示）。
+  const transferRow = (label: string, t: Transfer | null, zeroLabel: string) => (
+    <div className="flex items-center justify-between gap-3 text-sm">
+      <span className="text-white/80">{label}</span>
+      {t ? (
+        <span className="inline-flex items-center gap-1.5 font-medium tabular-nums">
+          <span>{memberName(t.from)}</span>
+          <ArrowRightIcon className="h-4 w-4 text-white/70" />
+          <span>{memberName(t.to)}</span>
+          <span className="ml-1">{yen(t.amountYen)}</span>
+        </span>
+      ) : (
+        <span className="font-medium text-white/70">{zeroLabel}</span>
+      )}
+    </div>
+  );
 
   const setSettled = async (value: boolean, celebrate: boolean) => {
     setBusy(true);
@@ -119,7 +142,7 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
 
               {settlement.transfer ? (
                 <>
-                  <p className="text-center text-sm text-white/80">今月の精算</p>
+                  <p className="text-center text-sm text-white/80">今月の振込</p>
                   <div className="mt-3 flex items-center justify-center gap-3 text-lg font-semibold">
                     <span>{memberName(settlement.transfer.from)}</span>
                     <ArrowRightIcon className="h-5 w-5 text-white/70" />
@@ -129,14 +152,26 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
                     {yen(settlement.transfer.amountYen)}
                   </p>
                   <p className="mt-2 text-center text-xs text-white/80">
-                    振り込むと、ふたりの可処分所得が比重どおりになります
+                    {hasDirect
+                      ? "比重に応じた精算額に、立替精算を加えた合計です"
+                      : "振り込むと、ふたりの可処分所得が比重どおりになります"}
                   </p>
                 </>
               ) : (
                 <div className="flex flex-col items-center py-2">
                   <CheckIcon className="h-10 w-10" />
-                  <p className="mt-2 text-lg font-semibold">精算は不要です</p>
-                  <p className="text-sm text-white/80">今月はぴったり均衡しています 🎉</p>
+                  <p className="mt-2 text-lg font-semibold">振込は不要です</p>
+                  <p className="text-sm text-white/80">
+                    {hasDirect ? "精算分と立替精算が相殺されています 🎉" : "今月はぴったり均衡しています 🎉"}
+                  </p>
+                </div>
+              )}
+
+              {/* 内訳: 立替精算がある月は「精算 ＋ 立替精算」を明示する */}
+              {hasDirect && (
+                <div className="mt-4 space-y-2 rounded-xl bg-white/10 p-3">
+                  {transferRow("精算（比重按分）", settlement.settlementTransfer, "0円")}
+                  {transferRow("立替精算", settlement.directTransfer, "相殺（0円）")}
                 </div>
               )}
 
@@ -259,6 +294,44 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
           );
         })}
       </div>
+
+      {/* 立替精算の一覧（共有支出とは別の A→B 送金） */}
+      {data.directTransfers.length > 0 && (
+        <Card>
+          <h3 className="mb-3 text-sm font-semibold text-slate-500 dark:text-slate-400">立替精算</h3>
+          <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+            {data.directTransfers.map((t) => (
+              <li key={t.id} className="flex items-center gap-3 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-sm font-medium">{t.description || "（内容なし）"}</span>
+                    <span
+                      className={
+                        "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium " +
+                        (t.recurring
+                          ? "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
+                          : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400")
+                      }
+                    >
+                      {t.recurring ? "毎月" : "今月だけ"}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-400">
+                    <span style={{ color: memberColor(t.from) }} className="font-medium">
+                      {memberName(t.from)}
+                    </span>
+                    <ArrowRightIcon className="h-3.5 w-3.5" />
+                    <span style={{ color: memberColor(t.to) }} className="font-medium">
+                      {memberName(t.to)}
+                    </span>
+                  </div>
+                </div>
+                <span className="whitespace-nowrap text-sm font-semibold tabular-nums">{yen(t.amountYen)}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       {celebrating && <Celebration onDone={() => setCelebrating(false)} />}
     </div>

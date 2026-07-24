@@ -146,6 +146,70 @@ func (r *RecurringExpenseRepository) Delete(_ context.Context, id domain.Recurri
 	return nil
 }
 
+// DirectTransferRepository は application.DirectTransferRepository のインメモリ実装。
+type DirectTransferRepository struct {
+	mu    sync.RWMutex
+	items map[domain.DirectTransferID]domain.DirectTransfer
+}
+
+// NewDirectTransferRepository は空の DirectTransferRepository を生成する。
+func NewDirectTransferRepository() *DirectTransferRepository {
+	return &DirectTransferRepository{items: map[domain.DirectTransferID]domain.DirectTransfer{}}
+}
+
+// Save は立替精算を保存する。
+func (r *DirectTransferRepository) Save(_ context.Context, dt domain.DirectTransfer) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.items[dt.ID] = dt
+	return nil
+}
+
+// FindByID はIDで立替精算を取得する。
+func (r *DirectTransferRepository) FindByID(_ context.Context, id domain.DirectTransferID) (domain.DirectTransfer, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	dt, ok := r.items[id]
+	if !ok {
+		return domain.DirectTransfer{}, application.ErrNotFound
+	}
+	return dt, nil
+}
+
+// FindRecurring は毎月継続の立替精算をすべて返す。
+func (r *DirectTransferRepository) FindRecurring(_ context.Context) ([]domain.DirectTransfer, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var list []domain.DirectTransfer
+	for _, dt := range r.items {
+		if dt.IsRecurring() {
+			list = append(list, dt)
+		}
+	}
+	return list, nil
+}
+
+// FindByMonth は指定精算月の単発の立替精算を返す。
+func (r *DirectTransferRepository) FindByMonth(_ context.Context, month domain.YearMonth) ([]domain.DirectTransfer, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var list []domain.DirectTransfer
+	for _, dt := range r.items {
+		if !dt.IsRecurring() && dt.Month == month {
+			list = append(list, dt)
+		}
+	}
+	return list, nil
+}
+
+// Delete は立替精算を削除する。
+func (r *DirectTransferRepository) Delete(_ context.Context, id domain.DirectTransferID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.items, id)
+	return nil
+}
+
 // SettlementStatusRepository は application.SettlementStatusRepository のインメモリ実装。
 type SettlementStatusRepository struct {
 	mu      sync.RWMutex

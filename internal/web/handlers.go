@@ -22,6 +22,7 @@ type Handler struct {
 	settlement *application.SettlementUsecase
 	settings   *application.SettingsUsecase
 	recurring  *application.RecurringExpenseUsecase
+	direct     *application.DirectTransferUsecase
 }
 
 // NewHandler は Handler を生成する。
@@ -33,6 +34,7 @@ func NewHandler(
 	settlement *application.SettlementUsecase,
 	settings *application.SettingsUsecase,
 	recurring *application.RecurringExpenseUsecase,
+	direct *application.DirectTransferUsecase,
 ) *Handler {
 	return &Handler{
 		couple:     couple,
@@ -42,6 +44,7 @@ func NewHandler(
 		settlement: settlement,
 		settings:   settings,
 		recurring:  recurring,
+		direct:     direct,
 	}
 }
 
@@ -150,6 +153,33 @@ func toRecurringExpenseDTO(e domain.RecurringExpense) recurringExpenseDTO {
 		PaidBy:      string(e.PaidBy),
 		AmountYen:   int64(e.Amount),
 		Description: e.Description,
+	}
+}
+
+// directTransferDTO は立替精算。month が空文字なら毎月継続、値ありなら当該精算月のみの単発。
+type directTransferDTO struct {
+	ID          string `json:"id" example:"2026-07_a1b2c3d4e5f6a7b8a1b2c3d4e5f6a7b8"`
+	From        string `json:"from" example:"acct_9f3c1a2b7d4e5f60"`
+	To          string `json:"to" example:"acct_1a2b3c4d5e6f7a8b"`
+	AmountYen   int64  `json:"amountYen" example:"5000"`
+	Description string `json:"description" example:"立替の返済"`
+	Recurring   bool   `json:"recurring" example:"false"`
+	Month       string `json:"month" example:"2026-07"`
+}
+
+func toDirectTransferDTO(dt domain.DirectTransfer) directTransferDTO {
+	month := ""
+	if !dt.IsRecurring() {
+		month = dt.Month.String()
+	}
+	return directTransferDTO{
+		ID:          string(dt.ID),
+		From:        string(dt.From),
+		To:          string(dt.To),
+		AmountYen:   int64(dt.Amount),
+		Description: dt.Description,
+		Recurring:   dt.IsRecurring(),
+		Month:       month,
 	}
 }
 
@@ -610,8 +640,23 @@ type settlementResponse struct {
 	Month           string                `json:"month" example:"2026-07"`
 	TotalExpenseYen int64                 `json:"totalExpenseYen" example:"40000"`
 	Members         []settlementMemberDTO `json:"members"`
-	Transfer        *transferDTO          `json:"transfer"`
-	Settled         bool                  `json:"settled" example:"false"`
+	// Transfer は実際の振込（精算分＋立替精算分の合算）。0円なら null。
+	Transfer *transferDTO `json:"transfer"`
+	// SettlementTransfer は比重按分による精算分のみの振込。0円なら null。
+	SettlementTransfer *transferDTO `json:"settlementTransfer"`
+	// DirectTransfer は立替精算の純額のみの振込。0円なら null。
+	DirectTransfer *transferDTO `json:"directTransfer"`
+	// TotalDirectTransferYen は当月に適用された立替精算の総額（方向を問わない絶対額の合計）。
+	TotalDirectTransferYen int64 `json:"totalDirectTransferYen" example:"5000"`
+	Settled                bool  `json:"settled" example:"false"`
+}
+
+// toTransferDTO は domain.Transfer を DTO へ変換する（nil はそのまま nil）。
+func toTransferDTO(t *domain.Transfer) *transferDTO {
+	if t == nil {
+		return nil
+	}
+	return &transferDTO{From: string(t.From), To: string(t.To), AmountYen: int64(t.Amount)}
 }
 
 // GetSettlement godoc
@@ -640,9 +685,13 @@ func (h *Handler) GetSettlement(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp := settlementResponse{
-		Month:           s.Month.String(),
-		TotalExpenseYen: int64(s.TotalExpense),
-		Settled:         settled,
+		Month:                  s.Month.String(),
+		TotalExpenseYen:        int64(s.TotalExpense),
+		Transfer:               toTransferDTO(s.Transfer),
+		SettlementTransfer:     toTransferDTO(s.SettlementTransfer),
+		DirectTransfer:         toTransferDTO(s.DirectTransfer),
+		TotalDirectTransferYen: int64(s.TotalDirectTransfer),
+		Settled:                settled,
 	}
 	for _, m := range s.Members {
 		resp.Members = append(resp.Members, settlementMemberDTO{
@@ -653,13 +702,6 @@ func (h *Handler) GetSettlement(w http.ResponseWriter, r *http.Request) {
 			PaidExpenseYen: int64(m.PaidExpense),
 			DisposableYen:  int64(m.Disposable),
 		})
-	}
-	if s.Transfer != nil {
-		resp.Transfer = &transferDTO{
-			From:      string(s.Transfer.From),
-			To:        string(s.Transfer.To),
-			AmountYen: int64(s.Transfer.Amount),
-		}
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -770,6 +812,129 @@ func (h *Handler) ListRecurringExpenses(w http.ResponseWriter, r *http.Request) 
 func (h *Handler) DeleteRecurringExpense(w http.ResponseWriter, r *http.Request) {
 	id := domain.RecurringExpenseID(r.PathValue("id"))
 	if err := h.recurring.Delete(r.Context(), id); err != nil {
+		writeUsecaseError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type registerDirectTransferRequest struct {
+	From        string `json:"from" example:"acct_9f3c1a2b7d4e5f60"`
+	AmountYen   int64  `json:"amountYen" example:"5000"`
+	Description string `json:"description" example:"立替の返済"`
+	// Month は空文字なら毎月継続、"YYYY-MM" ならその精算月のみの単発として登録する。
+	Month string `json:"month" example:"2026-07"`
+}
+
+// RegisterDirectTransfer godoc
+//
+//	@Summary		立替精算の登録
+//	@Description	共有支出とは別に、送金元から他方へ渡す金額を登録する。比重按分に含めず、振込額へそのまま加算される。month が空なら毎月継続、指定するとその精算月のみの単発。
+//	@Tags			direct-transfers
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		registerDirectTransferRequest	true	"立替精算"
+//	@Success		201		{object}	directTransferDTO
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/direct-transfers [post]
+func (h *Handler) RegisterDirectTransfer(w http.ResponseWriter, r *http.Request) {
+	var req registerDirectTransferRequest
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	dt, err := h.direct.Register(r.Context(), application.RegisterDirectTransferInput{
+		From:        domain.MemberID(req.From),
+		AmountYen:   req.AmountYen,
+		Description: req.Description,
+		Month:       req.Month,
+	})
+	if err != nil {
+		writeUsecaseError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, toDirectTransferDTO(dt))
+}
+
+// UpdateDirectTransfer godoc
+//
+//	@Summary		立替精算の更新
+//	@Description	送金元・金額・内容を更新する。継続/単発の別と対象月は変更できない（変更するには削除して再登録する）。
+//	@Tags			direct-transfers
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string							true	"立替精算ID"
+//	@Param			body	body		registerDirectTransferRequest	true	"立替精算"
+//	@Success		200		{object}	directTransferDTO
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse
+//	@Failure		404		{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/direct-transfers/{id} [put]
+func (h *Handler) UpdateDirectTransfer(w http.ResponseWriter, r *http.Request) {
+	var req registerDirectTransferRequest
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	dt, err := h.direct.Update(r.Context(), domain.DirectTransferID(r.PathValue("id")), application.RegisterDirectTransferInput{
+		From:        domain.MemberID(req.From),
+		AmountYen:   req.AmountYen,
+		Description: req.Description,
+		Month:       req.Month,
+	})
+	if err != nil {
+		writeUsecaseError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toDirectTransferDTO(dt))
+}
+
+// directTransfersResponse は指定月に適用される立替精算一覧のレスポンス。
+type directTransfersResponse struct {
+	Month           string              `json:"month" example:"2026-07"`
+	DirectTransfers []directTransferDTO `json:"directTransfers"`
+}
+
+// ListDirectTransfers godoc
+//
+//	@Summary		立替精算の一覧
+//	@Description	指定精算月に適用される立替精算（毎月継続分＋当月単発分）を返す。
+//	@Tags			direct-transfers
+//	@Produce		json
+//	@Param			month	query		string	true	"対象月（YYYY-MM）"
+//	@Success		200		{object}	directTransfersResponse
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/direct-transfers [get]
+func (h *Handler) ListDirectTransfers(w http.ResponseWriter, r *http.Request) {
+	month := r.URL.Query().Get("month")
+	list, err := h.direct.ListForMonth(r.Context(), month)
+	if err != nil {
+		writeUsecaseError(w, err)
+		return
+	}
+	dtos := make([]directTransferDTO, 0, len(list))
+	for _, dt := range list {
+		dtos = append(dtos, toDirectTransferDTO(dt))
+	}
+	writeJSON(w, http.StatusOK, directTransfersResponse{Month: month, DirectTransfers: dtos})
+}
+
+// DeleteDirectTransfer godoc
+//
+//	@Summary		立替精算の削除
+//	@Tags			direct-transfers
+//	@Param			id	path	string	true	"立替精算ID"
+//	@Success		204	"削除成功"
+//	@Failure		401	{object}	errorResponse
+//	@Failure		404	{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/direct-transfers/{id} [delete]
+func (h *Handler) DeleteDirectTransfer(w http.ResponseWriter, r *http.Request) {
+	id := domain.DirectTransferID(r.PathValue("id"))
+	if err := h.direct.Delete(r.Context(), id); err != nil {
 		writeUsecaseError(w, err)
 		return
 	}

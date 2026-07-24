@@ -36,6 +36,17 @@ export interface RecurringExpense {
   description: string;
 }
 
+/** 立替精算（共有支出とは別の A→B 送金）。recurring=true は毎月継続、false は month の単発。 */
+export interface DirectTransfer {
+  id: string;
+  from: MemberId;
+  to: MemberId;
+  amountYen: number;
+  description: string;
+  recurring: boolean;
+  month: YearMonth; // 継続は空文字
+}
+
 export interface Income {
   memberId: MemberId;
   amountYen: number;
@@ -61,7 +72,14 @@ export interface Settlement {
   month: YearMonth;
   totalExpenseYen: number;
   members: MemberSettlement[];
+  /** 実際の振込（精算分＋立替精算分の合算）。0円なら null。 */
   transfer: Transfer | null;
+  /** 比重按分による精算分のみの振込。0円なら null。 */
+  settlementTransfer: Transfer | null;
+  /** 立替精算の純額のみの振込。0円なら null。 */
+  directTransfer: Transfer | null;
+  /** 当月に適用された立替精算の総額（方向を問わない絶対額の合計）。 */
+  totalDirectTransferYen: number;
   settled: boolean;
 }
 
@@ -105,6 +123,10 @@ export interface IncomeResponse {
 export interface RecurringExpensesResponse {
   recurringExpenses: RecurringExpense[];
 }
+export interface DirectTransfersResponse {
+  month: YearMonth;
+  directTransfers: DirectTransfer[];
+}
 export interface WeightsResponse {
   weights: Weights;
 }
@@ -138,6 +160,7 @@ export type ScreenName =
   | "income"
   | "expense"
   | "recurring"
+  | "directTransfer"
   | "history"
   | "settings";
 
@@ -184,6 +207,7 @@ export interface DemoDb {
   weights: Weights;
   expenses: Expense[];
   recurring: RecurringExpense[];
+  directTransfers: DirectTransfer[];
   incomes: DemoIncome[];
   settled: Record<YearMonth, boolean>;
   /** 締め日（精算期間の起算日。1=暦月どおり）。1〜31。 */
