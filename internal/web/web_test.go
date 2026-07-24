@@ -43,6 +43,7 @@ func newTestServer(t *testing.T) (*httptest.Server, [2]testAccount) {
 	}
 
 	expenseRepo := memory.NewExpenseRepository()
+	salaryRepo := memory.NewSalaryRepository()
 	incomeRepo := memory.NewIncomeRepository()
 	recurringRepo := memory.NewRecurringExpenseRepository()
 	directRepo := memory.NewDirectTransferRepository()
@@ -55,10 +56,11 @@ func newTestServer(t *testing.T) (*httptest.Server, [2]testAccount) {
 		auth,
 		account,
 		application.NewExpenseUsecase(couple, expenseRepo, settingsRepo, nil),
-		application.NewSettlementUsecase(couple, expenseRepo, incomeRepo, recurringRepo, directRepo, settingsRepo, statusRepo),
+		application.NewSettlementUsecase(couple, expenseRepo, salaryRepo, incomeRepo, recurringRepo, directRepo, settingsRepo, statusRepo),
 		application.NewSettingsUsecase(couple, settingsRepo),
 		application.NewRecurringExpenseUsecase(couple, recurringRepo),
 		application.NewDirectTransferUsecase(couple, directRepo),
+		application.NewIncomeUsecase(couple, incomeRepo),
 	)
 	srv := httptest.NewServer(web.NewRouter(handler, auth, []string{"*"}, web.RouterOption{}))
 	t.Cleanup(srv.Close)
@@ -205,19 +207,19 @@ func TestExpenseAndSettlementAPI(t *testing.T) {
 		t.Fatalf("len(expenses) = %d, want 2", len(list.Expenses))
 	}
 
-	// 収入が揃う前の精算は 409
+	// 給与が揃う前の精算は 409
 	resp, _ = doJSON(t, http.MethodGet, srv.URL+"/months/2026-07/settlement", taroToken, nil)
 	if resp.StatusCode != http.StatusConflict {
 		t.Errorf("status = %d, want 409", resp.StatusCode)
 	}
 
-	// 収入入力
-	if resp, body = doJSON(t, http.MethodPut, srv.URL+"/months/2026-07/incomes/"+taro.AccountID, taroToken, map[string]any{
+	// 給与入力
+	if resp, body = doJSON(t, http.MethodPut, srv.URL+"/months/2026-07/salaries/"+taro.AccountID, taroToken, map[string]any{
 		"amountYen": 100000,
 	}); resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", resp.StatusCode, body)
 	}
-	if resp, body = doJSON(t, http.MethodPut, srv.URL+"/months/2026-07/incomes/"+hanako.AccountID, hanakoToken, map[string]any{
+	if resp, body = doJSON(t, http.MethodPut, srv.URL+"/months/2026-07/salaries/"+hanako.AccountID, hanakoToken, map[string]any{
 		"amountYen": 50000,
 	}); resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", resp.StatusCode, body)

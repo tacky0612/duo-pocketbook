@@ -6,7 +6,7 @@
 
 import { ApiError } from "../lib/apiClient";
 import { settlementMonthOf } from "../lib/month";
-import type { DemoIncome, DirectTransfer, Expense, Member, RecurringExpense, Settlement, Transfer, Weights } from "../types";
+import type { DemoSalary, DirectTransfer, Expense, Income, Member, RecurringExpense, Settlement, Transfer, Weights } from "../types";
 
 export { settlementMonthOf };
 
@@ -14,7 +14,8 @@ export interface SettlementInput {
   month: string;
   members: Member[];
   weights: Weights;
-  incomes: DemoIncome[];
+  salaries: DemoSalary[];
+  incomes: Income[];
   expenses: Expense[];
   recurring: RecurringExpense[];
   directTransfers: DirectTransfer[];
@@ -45,6 +46,7 @@ export function computeSettlement({
   month,
   members,
   weights,
+  salaries,
   incomes,
   expenses,
   recurring,
@@ -55,15 +57,24 @@ export function computeSettlement({
   const wA = weights[a.id] ?? 1;
   const wB = weights[b.id] ?? 1;
 
-  const incomeOf = (id: string): number | null => {
-    const found = incomes.find((i) => i.month === month && i.memberId === id);
+  // 給与は各メンバー必須。揃っていなければ精算できない。
+  const salaryOf = (id: string): number | null => {
+    const found = salaries.find((i) => i.month === month && i.memberId === id);
     return found ? found.amountYen : null;
   };
-  const incomeA = incomeOf(a.id);
-  const incomeB = incomeOf(b.id);
-  if (incomeA == null || incomeB == null) {
-    throw new ApiError(`収入が未入力です (対象月: ${month})`, "INCOME_NOT_READY", 409);
+  const salaryA = salaryOf(a.id);
+  const salaryB = salaryOf(b.id);
+  if (salaryA == null || salaryB == null) {
+    throw new ApiError(`給与が未入力です (対象月: ${month})`, "INCOME_NOT_READY", 409);
   }
+
+  // 給与とは別の追加収入（毎月継続分＋当月単発分）を各メンバーの収入へ加算する。
+  const extraOf = (id: string): number =>
+    incomes
+      .filter((i) => i.memberId === id && (i.recurring || i.month === month))
+      .reduce((s, i) => s + i.amountYen, 0);
+  const incomeA = salaryA + extraOf(a.id);
+  const incomeB = salaryB + extraOf(b.id);
 
   // 対象月の支出に固定費を実体化して加算する（全月共通で毎月発生する共有支出）。
   const paid: Record<string, number> = { [a.id]: 0, [b.id]: 0 };

@@ -20,10 +20,22 @@ type ExpenseRepository interface {
 	Delete(ctx context.Context, id domain.ExpenseID) error
 }
 
-// IncomeRepository は月次収入の永続化を担う。
+// SalaryRepository は給与（メンバーごと・月ごとに1件の基本収入）の永続化を担う。
+type SalaryRepository interface {
+	Save(ctx context.Context, salary domain.Salary) error
+	FindByMonth(ctx context.Context, month domain.YearMonth) ([]domain.Salary, error)
+}
+
+// IncomeRepository は給与とは別の追加収入（内容付き・単発/継続）の永続化を担う。
+// 単発は精算月ごと、継続は単一パーティションに保持する。
 type IncomeRepository interface {
-	Save(ctx context.Context, income domain.MonthlyIncome) error
-	FindByMonth(ctx context.Context, month domain.YearMonth) ([]domain.MonthlyIncome, error)
+	Save(ctx context.Context, income domain.Income) error
+	FindByID(ctx context.Context, id domain.IncomeID) (domain.Income, error)
+	// FindRecurring は毎月継続の収入をすべて返す。
+	FindRecurring(ctx context.Context) ([]domain.Income, error)
+	// FindByMonth は指定精算月の単発の収入を返す（継続分は含まない）。
+	FindByMonth(ctx context.Context, month domain.YearMonth) ([]domain.Income, error)
+	Delete(ctx context.Context, id domain.IncomeID) error
 }
 
 // SettlementStatusRepository は月ごとの精算済みフラグの永続化を担う。

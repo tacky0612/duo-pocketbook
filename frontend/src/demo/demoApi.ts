@@ -71,13 +71,19 @@ function directTransfersFor(db: DemoDb, month: string): DemoDb["directTransfers"
   return (db.directTransfers ?? []).filter((dt) => dt.recurring || dt.month === month);
 }
 
-// 対象月の精算（settled フラグ付き）。収入未入力なら computeSettlement が INCOME_NOT_READY を投げる。
+// 対象精算月に適用される追加収入（毎月継続分＋当月単発分）。
+function incomesFor(db: DemoDb, month: string): DemoDb["incomes"] {
+  return (db.incomes ?? []).filter((i) => i.recurring || i.month === month);
+}
+
+// 対象月の精算（settled フラグ付き）。給与未入力なら computeSettlement が INCOME_NOT_READY を投げる。
 function settlementOf(db: DemoDb, month: string): Settlement {
   const s = computeSettlement({
     month,
     members: db.members,
     weights: db.weights,
-    incomes: db.incomes,
+    salaries: db.salaries ?? [],
+    incomes: db.incomes ?? [],
     expenses: db.expenses,
     recurring: db.recurring,
     directTransfers: directTransfersFor(db, month),
@@ -93,8 +99,16 @@ export async function demoApi(method: HttpMethod, path: string, body?: unknown):
   const q = new URLSearchParams(queryStr || "");
   const b = (body ?? {}) as DemoBody;
   const db = store.get();
-  // この機能より前に保存された localStorage には directTransfers が無いため補う。
+  // この機能より前に保存された localStorage には無いフィールドを補う。
   if (!db.directTransfers) db.directTransfers = [];
+  // 旧デモの incomes は「月次収入（=給与）」の形（id を持たない）だったため salaries へ移行する。
+  if (!db.salaries) {
+    const legacy = (db.incomes ?? []) as unknown as { month: string; memberId: string; amountYen: number }[];
+    db.salaries = legacy.filter((i) => i && !("id" in i)).map((i) => ({ month: i.month, memberId: i.memberId, amountYen: i.amountYen }));
+    db.incomes = [];
+    store.save();
+  }
+  if (!db.incomes) db.incomes = [];
   const key = `${method} ${rawPath}`;
 
   let mm: RegExpMatchArray | null;
@@ -165,26 +179,76 @@ export async function demoApi(method: HttpMethod, path: string, body?: unknown):
     return null;
   }
 
-  // --- 収入 ---
-  if (method === "PUT" && (mm = rawPath.match(/^\/months\/([^/]+)\/incomes\/([^/]+)$/))) {
+  // --- 給与 ---
+  if (method === "PUT" && (mm = rawPath.match(/^\/months\/([^/]+)\/salaries\/([^/]+)$/))) {
     const [, month, memberId] = mm;
     if (!db.members.some((m) => m.id === memberId)) validation("不明なメンバーです");
-    if (b.amountYen == null || b.amountYen < 0) validation("収入は0以上で入力してください");
-    let income = db.incomes.find((i) => i.month === month && i.memberId === memberId);
-    if (income) income.amountYen = b.amountYen;
+    if (b.amountYen == null || b.amountYen < 0) validation("給与は0以上で入力してください");
+    let salary = db.salaries.find((i) => i.month === month && i.memberId === memberId);
+    if (salary) salary.amountYen = b.amountYen;
     else {
-      income = { month, memberId, amountYen: b.amountYen };
-      db.incomes.push(income);
+      salary = { month, memberId, amountYen: b.amountYen };
+      db.salaries.push(salary);
     }
     store.save();
-    return { month, income: { memberId, amountYen: income.amountYen } };
+    return { month, salary: { memberId, amountYen: salary.amountYen } };
   }
-  if (method === "GET" && (mm = rawPath.match(/^\/months\/([^/]+)\/incomes$/))) {
+  if (method === "GET" && (mm = rawPath.match(/^\/months\/([^/]+)\/salaries$/))) {
     const month = mm[1];
-    const incomes = db.incomes
+    const salaries = db.salaries
       .filter((i) => i.month === month)
       .map((i) => ({ memberId: i.memberId, amountYen: i.amountYen }));
-    return { month, incomes };
+    return { month, salaries };
+  }
+
+  // --- 追加収入（複数件・単発/継続） ---
+  if (method === "GET" && rawPath === "/incomes") {
+    const month = q.get("month");
+    if (!month) validation("month は必須です");
+    // 継続を先に、単発を後に。各グループ内は内容の昇順。
+    const applicable = incomesFor(db, month).slice();
+    const byDesc = (x: typeof applicable[number], y: typeof applicable[number]) =>
+      x.description < y.description ? -1 : x.description > y.description ? 1 : 0;
+    const recurring = applicable.filter((i) => i.recurring).sort(byDesc);
+    const oneOff = applicable.filter((i) => !i.recurring).sort(byDesc);
+    return { month, incomes: [...recurring, ...oneOff] };
+  }
+  if (method === "POST" && rawPath === "/incomes") {
+    if (!b.description) validation("内容は必須です");
+    if (!b.amountYen || b.amountYen <= 0) validation("金額は1円以上で入力してください");
+    const memberId = b.memberId ?? "";
+    if (!db.members.some((m) => m.id === memberId)) validation("不明なメンバーです");
+    const recurring = !b.month;
+    const item = {
+      id: recurring ? `inc_${randHex()}` : `${b.month}_${randHex()}`,
+      memberId,
+      amountYen: b.amountYen,
+      description: b.description,
+      recurring,
+      month: recurring ? "" : b.month!,
+    };
+    db.incomes.push(item);
+    store.save();
+    return item;
+  }
+  if (method === "PUT" && (mm = rawPath.match(/^\/incomes\/([^/]+)$/))) {
+    const item = db.incomes.find((i) => i.id === mm![1]);
+    if (!item) notFound("収入が見つかりません");
+    if (b.memberId != null) {
+      if (!db.members.some((m) => m.id === b.memberId)) validation("不明なメンバーです");
+      item.memberId = b.memberId;
+    }
+    if (b.amountYen != null) item.amountYen = b.amountYen;
+    if (b.description != null) item.description = b.description;
+    store.save();
+    return item;
+  }
+  if (method === "DELETE" && (mm = rawPath.match(/^\/incomes\/([^/]+)$/))) {
+    const idx = db.incomes.findIndex((i) => i.id === mm![1]);
+    if (idx < 0) notFound("収入が見つかりません");
+    db.incomes.splice(idx, 1);
+    store.save();
+    return null;
   }
 
   // --- 精算 ---

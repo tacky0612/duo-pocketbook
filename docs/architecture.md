@@ -34,7 +34,8 @@ flowchart TD
 | `member.go` | `Member` / `Couple`（常にちょうど2人という制約を型で表現） |
 | `weight.go` | `Weight`（精算比重。正整数のみ） |
 | `expense.go` | `Expense`（共有支出）。IDは `<yyyy-MM>_<hex>` 形式で対象月を内包 |
-| `income.go` | `MonthlyIncome`（月次収入） |
+| `salary.go` | `Salary`（月次給与。メンバーごと・月ごとに1件。精算の可否判定に使う） |
+| `income.go` | `Income`（給与とは別の追加収入。内容付き・日付なし・継続/単発）。IDは継続 `inc_<hex>` / 単発 `<yyyy-MM>_<hex>` |
 | `recurring_expense.go` | `RecurringExpense`（固定費）。`AsExpenseFor` で対象月の共有支出として実体化する |
 | `direct_transfer.go` | `DirectTransfer`（立替精算）。共有支出とは別に A→B へ渡す金額。継続（毎月）と単発（特定月）がある |
 | `settlement.go` | **コアの精算計算** `CalculateSettlement`（固定費・立替精算を含む。→ [settlement.md](settlement.md)） |
@@ -42,10 +43,11 @@ flowchart TD
 
 ### アプリケーション層 — `internal/application/`
 
-ユースケース（アプリケーションとしての動作）を定義する。永続化は `repository.go` の**インターフェイス**（`ExpenseRepository` / `IncomeRepository` / `RecurringExpenseRepository` / `DirectTransferRepository` / `SettlementStatusRepository` / `SettingsRepository` / `AccountRepository`）経由でのみアクセスし、実装には依存しない。
+ユースケース（アプリケーションとしての動作）を定義する。永続化は `repository.go` の**インターフェイス**（`ExpenseRepository` / `SalaryRepository` / `IncomeRepository` / `RecurringExpenseRepository` / `DirectTransferRepository` / `SettlementStatusRepository` / `SettingsRepository` / `AccountRepository`）経由でのみアクセスし、実装には依存しない。
 
 - `ExpenseUsecase` — 支出の登録・更新・月別一覧（日付降順）・削除
-- `SettlementUsecase` — 収入の入力/取得、精算結果の計算、精算済みフラグの取得/更新、精算履歴の取得（固定費を対象月の支出として合算し、立替精算を振込額へ加算する）
+- `SettlementUsecase` — 給与の入力/取得、精算結果の計算、精算済みフラグの取得/更新、精算履歴の取得（給与＋追加収入を各メンバーの収入として合算し、固定費を対象月の支出として合算し、立替精算を振込額へ加算する）
+- `IncomeUsecase` — 追加収入の登録・更新・月別一覧・削除（継続/単発）
 - `RecurringExpenseUsecase` — 固定費の登録・更新・一覧・削除
 - `DirectTransferUsecase` — 立替精算の登録・更新・月別一覧・削除（継続/単発）
 - `SettingsUsecase` — 精算比重の取得/更新（未設定時はデフォルト1:1）、メンバー表示名/カラーの取得・上書き

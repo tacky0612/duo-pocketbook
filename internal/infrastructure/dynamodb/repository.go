@@ -14,7 +14,9 @@ import (
 const (
 	expensePKPrefix = "EXPENSE#"
 	monthPKPrefix   = "MONTH#"
-	incomeSKPrefix  = "INCOME#"
+	salarySKPrefix  = "SALARY#" // 給与: PK=MONTH#<month> / SK=SALARY#<memberID>
+	incomePKPrefix  = "INCOME#" // 追加収入: 単発 INCOME#<month> / 継続 INCOME#RECURRING
+	incomeRecurring = "RECURRING"
 	settingsPK      = "SETTINGS"
 	weightSK        = "WEIGHT"
 	profileSKPrefix = "PROFILE#"
@@ -30,6 +32,7 @@ const (
 // Repositories は DynamoDB 実装のリポジトリ群。
 type Repositories struct {
 	Expenses  *ExpenseRepository
+	Salaries  *SalaryRepository
 	Incomes   *IncomeRepository
 	Recurring *RecurringExpenseRepository
 	Direct    *DirectTransferRepository
@@ -42,6 +45,7 @@ type Repositories struct {
 func NewRepositories(client *dynamodb.Client, tableName string) Repositories {
 	return Repositories{
 		Expenses:  &ExpenseRepository{client: client, table: tableName},
+		Salaries:  &SalaryRepository{client: client, table: tableName},
 		Incomes:   &IncomeRepository{client: client, table: tableName},
 		Recurring: &RecurringExpenseRepository{client: client, table: tableName},
 		Direct:    &DirectTransferRepository{client: client, table: tableName},

@@ -4,7 +4,7 @@
 // 精算・履歴が自然に見える。各オブジェクトのフィールド名は実 API（Go ハンドラの
 // json タグ）に厳密一致させている（amountYen / paidBy / incomeYen など）。
 
-import type { DemoDb, DemoIncome, DirectTransfer, Expense, MemberId, MemberView, RecurringExpense } from "../types";
+import type { DemoDb, DemoSalary, DirectTransfer, Expense, Income, MemberId, MemberView, RecurringExpense } from "../types";
 
 // デモの2アカウント。id はログインに使い、color は支出一覧のバッジ色に使う。
 const MEMBERS: MemberView[] = [
@@ -53,8 +53,26 @@ export function seedData(): DemoDb {
     description,
   });
 
-  // 月次収入
-  const inc = (month: string, memberId: MemberId, amountYen: number): DemoIncome => ({ month, memberId, amountYen });
+  // 月次給与（毎月発生する基本の収入）
+  const sal = (month: string, memberId: MemberId, amountYen: number): DemoSalary => ({ month, memberId, amountYen });
+
+  // 追加収入（給与とは別。毎月継続 or 単発）
+  const incRec = (memberId: MemberId, amountYen: number, description: string): Income => ({
+    id: `inc_${nextHex()}`,
+    memberId,
+    amountYen,
+    description,
+    recurring: true,
+    month: "",
+  });
+  const incOnce = (month: string, memberId: MemberId, amountYen: number, description: string): Income => ({
+    id: `${month}_${nextHex()}`,
+    memberId,
+    amountYen,
+    description,
+    recurring: false,
+    month,
+  });
 
   // 立替精算（共有支出とは別の A→B 送金。比重按分せず振込額へ加算）
   const dtr = (from: MemberId, to: MemberId, amountYen: number, description: string): DirectTransfer => ({
@@ -103,13 +121,19 @@ export function seedData(): DemoDb {
       // 今月だけ: アカウントA → アカウントB へ立替の返済
       dtOnce(m0, "taro", "hanako", 3000, "立替の返済"),
     ],
+    salaries: [
+      sal(m0, "taro", 320000),
+      sal(m0, "hanako", 280000),
+      sal(m1, "taro", 320000),
+      sal(m1, "hanako", 260000),
+      sal(m2, "taro", 315000),
+      sal(m2, "hanako", 280000),
+    ],
     incomes: [
-      inc(m0, "taro", 320000),
-      inc(m0, "hanako", 280000),
-      inc(m1, "taro", 320000),
-      inc(m1, "hanako", 260000),
-      inc(m2, "taro", 315000),
-      inc(m2, "hanako", 280000),
+      // 毎月継続: アカウントA の副業収入
+      incRec("taro", 20000, "副業"),
+      // 今月だけ: アカウントB の臨時収入
+      incOnce(m0, "hanako", 15000, "臨時収入"),
     ],
     // 過去2か月は精算済み、今月は未精算にしておく
     settled: { [m1]: true, [m2]: true },

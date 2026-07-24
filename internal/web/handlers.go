@@ -23,6 +23,7 @@ type Handler struct {
 	settings   *application.SettingsUsecase
 	recurring  *application.RecurringExpenseUsecase
 	direct     *application.DirectTransferUsecase
+	income     *application.IncomeUsecase
 }
 
 // NewHandler は Handler を生成する。
@@ -35,6 +36,7 @@ func NewHandler(
 	settings *application.SettingsUsecase,
 	recurring *application.RecurringExpenseUsecase,
 	direct *application.DirectTransferUsecase,
+	income *application.IncomeUsecase,
 ) *Handler {
 	return &Handler{
 		couple:     couple,
@@ -45,6 +47,7 @@ func NewHandler(
 		settings:   settings,
 		recurring:  recurring,
 		direct:     direct,
+		income:     income,
 	}
 }
 
@@ -135,9 +138,35 @@ func toExpenseDTO(e domain.Expense) expenseDTO {
 	}
 }
 
-type incomeDTO struct {
+// salaryDTO はメンバーの月次給与（基本の収入）。
+type salaryDTO struct {
 	MemberID  string `json:"memberId" example:"acct_9f3c1a2b7d4e5f60"`
 	AmountYen int64  `json:"amountYen" example:"100000"`
+}
+
+// incomeDTO は給与とは別の追加収入。month が空文字なら毎月継続、値ありなら当該精算月のみの単発。
+type incomeDTO struct {
+	ID          string `json:"id" example:"2026-07_a1b2c3d4e5f6a7b8a1b2c3d4e5f6a7b8"`
+	MemberID    string `json:"memberId" example:"acct_9f3c1a2b7d4e5f60"`
+	AmountYen   int64  `json:"amountYen" example:"30000"`
+	Description string `json:"description" example:"副業"`
+	Recurring   bool   `json:"recurring" example:"false"`
+	Month       string `json:"month" example:"2026-07"`
+}
+
+func toIncomeDTO(inc domain.Income) incomeDTO {
+	month := ""
+	if !inc.IsRecurring() {
+		month = inc.Month.String()
+	}
+	return incomeDTO{
+		ID:          string(inc.ID),
+		MemberID:    string(inc.MemberID),
+		AmountYen:   int64(inc.Amount),
+		Description: inc.Description,
+		Recurring:   inc.IsRecurring(),
+		Month:       month,
+	}
 }
 
 type recurringExpenseDTO struct {
@@ -549,49 +578,152 @@ func (h *Handler) DeleteExpense(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-type inputIncomeRequest struct {
+type inputSalaryRequest struct {
 	AmountYen int64 `json:"amountYen" example:"100000"`
 }
 
-// incomeResponse は収入入力のレスポンス。
-type incomeResponse struct {
+// salaryResponse は給与入力のレスポンス。
+type salaryResponse struct {
 	Month  string    `json:"month" example:"2026-07"`
-	Income incomeDTO `json:"income"`
+	Salary salaryDTO `json:"salary"`
 }
 
-// InputIncome godoc
+// InputSalary godoc
 //
-//	@Summary		月次収入の入力（上書き）
-//	@Tags			incomes
+//	@Summary		月次給与の入力（上書き）
+//	@Description	精算の可否判定に使う基本の収入。メンバーごと・月ごとに1件。
+//	@Tags			salaries
 //	@Accept			json
 //	@Produce		json
 //	@Param			month		path		string				true	"対象月（YYYY-MM）"
 //	@Param			memberId	path		string				true	"メンバーID（AccountID）"
-//	@Param			body		body		inputIncomeRequest	true	"収入額"
-//	@Success		200			{object}	incomeResponse
+//	@Param			body		body		inputSalaryRequest	true	"給与額"
+//	@Success		200			{object}	salaryResponse
 //	@Failure		400			{object}	errorResponse
 //	@Failure		401			{object}	errorResponse
 //	@Security		BearerAuth
-//	@Router			/months/{month}/incomes/{memberId} [put]
-func (h *Handler) InputIncome(w http.ResponseWriter, r *http.Request) {
-	var req inputIncomeRequest
+//	@Router			/months/{month}/salaries/{memberId} [put]
+func (h *Handler) InputSalary(w http.ResponseWriter, r *http.Request) {
+	var req inputSalaryRequest
 	if !decodeBody(w, r, &req) {
 		return
 	}
-	income, err := h.settlement.InputIncome(
+	salary, err := h.settlement.InputSalary(
 		r.Context(), r.PathValue("month"), domain.MemberID(r.PathValue("memberId")), req.AmountYen,
 	)
 	if err != nil {
 		writeUsecaseError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, incomeResponse{
-		Month:  income.Month.String(),
-		Income: incomeDTO{MemberID: string(income.MemberID), AmountYen: int64(income.Amount)},
+	writeJSON(w, http.StatusOK, salaryResponse{
+		Month:  salary.Month.String(),
+		Salary: salaryDTO{MemberID: string(salary.MemberID), AmountYen: int64(salary.Amount)},
 	})
 }
 
-// incomesResponse は対象月の収入一覧のレスポンス。
+// salariesResponse は対象月の給与一覧のレスポンス。
+type salariesResponse struct {
+	Month    string      `json:"month" example:"2026-07"`
+	Salaries []salaryDTO `json:"salaries"`
+}
+
+// ListSalaries godoc
+//
+//	@Summary		月次給与の一覧
+//	@Tags			salaries
+//	@Produce		json
+//	@Param			month	path		string	true	"対象月（YYYY-MM）"
+//	@Success		200		{object}	salariesResponse
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/months/{month}/salaries [get]
+func (h *Handler) ListSalaries(w http.ResponseWriter, r *http.Request) {
+	list, err := h.settlement.GetSalaries(r.Context(), r.PathValue("month"))
+	if err != nil {
+		writeUsecaseError(w, err)
+		return
+	}
+	dtos := make([]salaryDTO, 0, len(list))
+	for _, salary := range list {
+		dtos = append(dtos, salaryDTO{MemberID: string(salary.MemberID), AmountYen: int64(salary.Amount)})
+	}
+	writeJSON(w, http.StatusOK, salariesResponse{Month: r.PathValue("month"), Salaries: dtos})
+}
+
+type registerIncomeRequest struct {
+	MemberID    string `json:"memberId" example:"acct_9f3c1a2b7d4e5f60"`
+	AmountYen   int64  `json:"amountYen" example:"30000"`
+	Description string `json:"description" example:"副業"`
+	// Month は空文字なら毎月継続、"YYYY-MM" ならその精算月のみの単発として登録する。
+	Month string `json:"month" example:"2026-07"`
+}
+
+// RegisterIncome godoc
+//
+//	@Summary		追加収入の登録
+//	@Description	給与とは別の収入（副業など）を登録する。給与と合算して精算に反映される。month が空なら毎月継続、指定するとその精算月のみの単発。日付は持たない。
+//	@Tags			incomes
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		registerIncomeRequest	true	"追加収入"
+//	@Success		201		{object}	incomeDTO
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/incomes [post]
+func (h *Handler) RegisterIncome(w http.ResponseWriter, r *http.Request) {
+	var req registerIncomeRequest
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	inc, err := h.income.Register(r.Context(), application.RegisterIncomeInput{
+		MemberID:    domain.MemberID(req.MemberID),
+		AmountYen:   req.AmountYen,
+		Description: req.Description,
+		Month:       req.Month,
+	})
+	if err != nil {
+		writeUsecaseError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, toIncomeDTO(inc))
+}
+
+// UpdateIncome godoc
+//
+//	@Summary		追加収入の更新
+//	@Description	メンバー・金額・内容を更新する。継続/単発の別と対象月は変更できない（変更するには削除して再登録する）。
+//	@Tags			incomes
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string					true	"収入ID"
+//	@Param			body	body		registerIncomeRequest	true	"追加収入"
+//	@Success		200		{object}	incomeDTO
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse
+//	@Failure		404		{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/incomes/{id} [put]
+func (h *Handler) UpdateIncome(w http.ResponseWriter, r *http.Request) {
+	var req registerIncomeRequest
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	inc, err := h.income.Update(r.Context(), domain.IncomeID(r.PathValue("id")), application.RegisterIncomeInput{
+		MemberID:    domain.MemberID(req.MemberID),
+		AmountYen:   req.AmountYen,
+		Description: req.Description,
+		Month:       req.Month,
+	})
+	if err != nil {
+		writeUsecaseError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toIncomeDTO(inc))
+}
+
+// incomesResponse は指定月に適用される追加収入一覧のレスポンス。
 type incomesResponse struct {
 	Month   string      `json:"month" example:"2026-07"`
 	Incomes []incomeDTO `json:"incomes"`
@@ -599,26 +731,47 @@ type incomesResponse struct {
 
 // ListIncomes godoc
 //
-//	@Summary		月次収入の一覧
+//	@Summary		追加収入の一覧
+//	@Description	指定精算月に適用される追加収入（毎月継続分＋当月単発分）を返す。
 //	@Tags			incomes
 //	@Produce		json
-//	@Param			month	path		string	true	"対象月（YYYY-MM）"
+//	@Param			month	query		string	true	"対象月（YYYY-MM）"
 //	@Success		200		{object}	incomesResponse
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse
 //	@Security		BearerAuth
-//	@Router			/months/{month}/incomes [get]
+//	@Router			/incomes [get]
 func (h *Handler) ListIncomes(w http.ResponseWriter, r *http.Request) {
-	list, err := h.settlement.GetIncomes(r.Context(), r.PathValue("month"))
+	month := r.URL.Query().Get("month")
+	list, err := h.income.ListForMonth(r.Context(), month)
 	if err != nil {
 		writeUsecaseError(w, err)
 		return
 	}
 	dtos := make([]incomeDTO, 0, len(list))
-	for _, income := range list {
-		dtos = append(dtos, incomeDTO{MemberID: string(income.MemberID), AmountYen: int64(income.Amount)})
+	for _, inc := range list {
+		dtos = append(dtos, toIncomeDTO(inc))
 	}
-	writeJSON(w, http.StatusOK, incomesResponse{Month: r.PathValue("month"), Incomes: dtos})
+	writeJSON(w, http.StatusOK, incomesResponse{Month: month, Incomes: dtos})
+}
+
+// DeleteIncome godoc
+//
+//	@Summary		追加収入の削除
+//	@Tags			incomes
+//	@Param			id	path	string	true	"収入ID"
+//	@Success		204	"削除成功"
+//	@Failure		401	{object}	errorResponse
+//	@Failure		404	{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/incomes/{id} [delete]
+func (h *Handler) DeleteIncome(w http.ResponseWriter, r *http.Request) {
+	id := domain.IncomeID(r.PathValue("id"))
+	if err := h.income.Delete(r.Context(), id); err != nil {
+		writeUsecaseError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 type settlementMemberDTO struct {
@@ -662,7 +815,7 @@ func toTransferDTO(t *domain.Transfer) *transferDTO {
 // GetSettlement godoc
 //
 //	@Summary		月次精算の取得
-//	@Description	比重に応じて双方の可処分所得が揃うよう振込額を算出する。収入が両者分そろっていない場合は 409（INCOME_NOT_READY）。
+//	@Description	比重に応じて双方の可処分所得が揃うよう振込額を算出する。給与が両者分そろっていない場合は 409（INCOME_NOT_READY）。
 //	@Tags			settlement
 //	@Produce		json
 //	@Param			month	path		string	true	"対象月（YYYY-MM）"

@@ -69,7 +69,9 @@ make build-lambda && terraform -chdir=terraform apply
 **構成**
 - **AWS 認証**: GitHub OIDC → IAM ロール。長期アクセスキーを保存しない。
 - **state**: S3 リモートバックエンド（暗号化・バージョニング・非公開、S3 ネイティブロック `use_lockfile`）。state には機密が平文で入るため必須。
-- **トリガー**: PR で `terraform plan`（結果を PR にコメント）、apply は手動実行（`workflow_dispatch`）＋ `production` Environment 承認。
+- **トリガー**: PR で `terraform plan`（結果を PR にコメント）。`main` への push（＝PR マージ含む）で `terraform apply` を自動実行し、`production` Environment 承認でゲートする。手動実行（`workflow_dispatch`）でも apply 可。
+  - Lambda は Go コードから生成した zip をデプロイする（`source_code_hash`）ため、plan/apply の対象は `terraform/**` に加えバックエンド（`internal/**`・`cmd/**`・`go.mod`・`go.sum`）の変更も含む。フロントエンド・ドキュメントのみの変更では起動しない。
+  - 同一 ref の実行は `concurrency` で直列化し、tfstate ロックの競合を避ける。
 - ワークフロー: `.github/workflows/terraform.yml`
 
 **シークレット / 変数の置き場所**
@@ -95,7 +97,7 @@ make build-lambda && terraform -chdir=terraform apply
    出力 `ci_role_arn` → Secrets `AWS_ROLE_ARN`、`state_bucket` → Variables `TF_STATE_BUCKET`。
 2. GitHub の Secrets / Variables を上表に従い設定。生成例: `JWT_SECRET`=`openssl rand -base64 48`、`ACCOUNTn_PASSWORD_HASH`=`go run ./cmd/hashpw '<pw>'`、`CLIENT_KEY`=`openssl rand -hex 24`、`CLIENT_EMAILS`=`["you@example.com","partner@example.com"]`。
 3. `production` Environment を作成し必須レビュアーを設定（apply の承認ゲート）。
-4. PR を出すと plan がコメントされる。apply は Actions タブの `Terraform` ワークフローを手動実行（承認後に適用）。
+4. PR を出すと plan がコメントされる。`main` へマージ（push）すると `terraform apply` が自動でトリガーされ、`production` Environment の承認後に適用される（Actions タブの `Terraform` ワークフローからの手動実行も可）。
 
 > ローカル apply する場合は `terraform init -backend-config=backend.hcl`（`backend.hcl.example` 参照）の上、機密を `terraform.tfvars`（gitignore 済み）に置く。state は共有 S3 を使うため、ローカルと CI の二重適用に注意（原則 CI 経由に統一）。
 

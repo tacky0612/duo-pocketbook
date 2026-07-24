@@ -47,9 +47,20 @@ export interface DirectTransfer {
   month: YearMonth; // 継続は空文字
 }
 
-export interface Income {
+/** 給与（毎月発生する基本の収入）。メンバーごと・月ごとに1件。精算の可否判定に使う。 */
+export interface Salary {
   memberId: MemberId;
   amountYen: number;
+}
+
+/** 給与とは別の追加収入（副業など）。recurring=true は毎月継続、false は month の単発。日付は持たない。 */
+export interface Income {
+  id: string;
+  memberId: MemberId;
+  amountYen: number;
+  description: string;
+  recurring: boolean;
+  month: YearMonth; // 継続は空文字
 }
 
 // --- 精算 ---
@@ -111,6 +122,14 @@ export interface MembersResponse {
 export interface ExpensesResponse {
   month: YearMonth;
   expenses: Expense[];
+}
+export interface SalariesResponse {
+  month: YearMonth;
+  salaries: Salary[];
+}
+export interface SalaryResponse {
+  month: YearMonth;
+  salary: Salary;
 }
 export interface IncomesResponse {
   month: YearMonth;
@@ -194,8 +213,8 @@ export interface Theme {
 }
 
 // --- デモモード ---
-/** デモの月次収入（内部保持用。month を持つ点が API の Income と異なる）。 */
-export interface DemoIncome {
+/** デモの月次給与（内部保持用。month を持つ点が API の Salary と異なる）。 */
+export interface DemoSalary {
   month: YearMonth;
   memberId: MemberId;
   amountYen: number;
@@ -208,7 +227,8 @@ export interface DemoDb {
   expenses: Expense[];
   recurring: RecurringExpense[];
   directTransfers: DirectTransfer[];
-  incomes: DemoIncome[];
+  salaries: DemoSalary[];
+  incomes: Income[];
   settled: Record<YearMonth, boolean>;
   /** 締め日（精算期間の起算日。1=暦月どおり）。1〜31。 */
   closingDay: number;

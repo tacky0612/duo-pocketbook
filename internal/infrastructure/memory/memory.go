@@ -61,40 +61,104 @@ func (r *ExpenseRepository) Delete(_ context.Context, id domain.ExpenseID) error
 	return nil
 }
 
-// IncomeRepository は application.IncomeRepository のインメモリ実装。
+// SalaryRepository は application.SalaryRepository のインメモリ実装。
+type SalaryRepository struct {
+	mu       sync.RWMutex
+	salaries map[string]domain.Salary // key: month + memberID
+}
+
+// NewSalaryRepository は空の SalaryRepository を生成する。
+func NewSalaryRepository() *SalaryRepository {
+	return &SalaryRepository{salaries: map[string]domain.Salary{}}
+}
+
+func salaryKey(month domain.YearMonth, id domain.MemberID) string {
+	return month.String() + "#" + string(id)
+}
+
+// Save は給与を保存（上書き）する。
+func (r *SalaryRepository) Save(_ context.Context, salary domain.Salary) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.salaries[salaryKey(salary.Month, salary.MemberID)] = salary
+	return nil
+}
+
+// FindByMonth は対象月の給与を返す。
+func (r *SalaryRepository) FindByMonth(_ context.Context, month domain.YearMonth) ([]domain.Salary, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var list []domain.Salary
+	for _, salary := range r.salaries {
+		if salary.Month == month {
+			list = append(list, salary)
+		}
+	}
+	return list, nil
+}
+
+// IncomeRepository は application.IncomeRepository のインメモリ実装（追加収入・複数件）。
 type IncomeRepository struct {
-	mu      sync.RWMutex
-	incomes map[string]domain.MonthlyIncome // key: month + memberID
+	mu    sync.RWMutex
+	items map[domain.IncomeID]domain.Income
 }
 
 // NewIncomeRepository は空の IncomeRepository を生成する。
 func NewIncomeRepository() *IncomeRepository {
-	return &IncomeRepository{incomes: map[string]domain.MonthlyIncome{}}
+	return &IncomeRepository{items: map[domain.IncomeID]domain.Income{}}
 }
 
-func incomeKey(month domain.YearMonth, id domain.MemberID) string {
-	return month.String() + "#" + string(id)
-}
-
-// Save は収入を保存（上書き）する。
-func (r *IncomeRepository) Save(_ context.Context, income domain.MonthlyIncome) error {
+// Save は収入を保存する。
+func (r *IncomeRepository) Save(_ context.Context, inc domain.Income) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.incomes[incomeKey(income.Month, income.MemberID)] = income
+	r.items[inc.ID] = inc
 	return nil
 }
 
-// FindByMonth は対象月の収入を返す。
-func (r *IncomeRepository) FindByMonth(_ context.Context, month domain.YearMonth) ([]domain.MonthlyIncome, error) {
+// FindByID はIDで収入を取得する。
+func (r *IncomeRepository) FindByID(_ context.Context, id domain.IncomeID) (domain.Income, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	var list []domain.MonthlyIncome
-	for _, income := range r.incomes {
-		if income.Month == month {
-			list = append(list, income)
+	inc, ok := r.items[id]
+	if !ok {
+		return domain.Income{}, application.ErrNotFound
+	}
+	return inc, nil
+}
+
+// FindRecurring は毎月継続の収入をすべて返す。
+func (r *IncomeRepository) FindRecurring(_ context.Context) ([]domain.Income, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var list []domain.Income
+	for _, inc := range r.items {
+		if inc.IsRecurring() {
+			list = append(list, inc)
 		}
 	}
 	return list, nil
+}
+
+// FindByMonth は指定精算月の単発の収入を返す。
+func (r *IncomeRepository) FindByMonth(_ context.Context, month domain.YearMonth) ([]domain.Income, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var list []domain.Income
+	for _, inc := range r.items {
+		if !inc.IsRecurring() && inc.Month == month {
+			list = append(list, inc)
+		}
+	}
+	return list, nil
+}
+
+// Delete は収入を削除する。
+func (r *IncomeRepository) Delete(_ context.Context, id domain.IncomeID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.items, id)
+	return nil
 }
 
 // RecurringExpenseRepository は application.RecurringExpenseRepository のインメモリ実装。

@@ -46,13 +46,29 @@ go test -run TestE2EFlow -tags=integration ./integration/...
 
 ### 統合テスト（ローカルに閉じたE2E）
 
-`integration/` 配下、`//go:build integration` タグで分離。Docker Compose で起動した実構成（Goアプリ + DynamoDB Local）へ **HTTP経由** でアクセスし、ログイン→支出登録→収入入力→精算検証のフローを検証する。**実AWSなど外部への通信は行わない**。
+`integration/` 配下、`//go:build integration` タグで分離。Docker Compose で起動した実構成（Goアプリ + DynamoDB Local）へ **HTTP経由** でアクセスし、各エンドポイントと精算フローを検証する。**実AWSなど外部への通信は行わない**。
 
 ```bash
 make up && make test-integration
 ```
 
-- テストデータの月は実行ごとにユニークな年月を使い、再実行時の干渉を避けている
+テストは機能ごとにファイルを分割している（共通ヘルパーは `integration_test.go`）:
+
+| ファイル | 対象 |
+|---|---|
+| `integration_test.go` | 共通ヘルパー（HTTP・ログイン・給与セット・月） |
+| `auth_test.go` | 認証・メンバー一覧・アカウント（ログインID/パスワード変更）・プロフィール更新 |
+| `expense_test.go` | 共有支出の CRUD（同月・別月移動を含む更新） |
+| `recurring_expense_test.go` | 固定費の CRUD と精算への反映 |
+| `salary_test.go` | 給与の入力・一覧・精算の可否（未入力で409）・基本精算 |
+| `income_test.go` | 追加収入の CRUD（更新含む）と精算への合算 |
+| `direct_transfer_test.go` | 立替精算の CRUD（更新含む）と精算への反映 |
+| `settlement_test.go` | 締め日集計・精算履歴・精算済みフラグ |
+| `settings_test.go` | 精算比重・締め日の設定 |
+| `validation_test.go` | 各エンドポイントの入力検証（400/404） |
+
+- 各実行は初期化された DynamoDB Local に対して1回だけ走る前提（CI・`make up` ともに毎回 up し直す）
+- 月スコープのデータはテストごとに別の月を使って干渉を避け、全月に影響するグローバル資源（固定費・比重・締め日・継続の立替精算/収入、アカウント資格情報）は各テスト内で必ず後始末する
 - 接続先は `BASE_URL` 環境変数で変更可能（デフォルト `http://localhost:8080`）
 
 ## ローカル環境の構成

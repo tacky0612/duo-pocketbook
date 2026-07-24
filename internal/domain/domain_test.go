@@ -110,16 +110,39 @@ func TestNewWeightValidation(t *testing.T) {
 	}
 }
 
-func TestNewMonthlyIncomeValidation(t *testing.T) {
+func TestNewSalaryValidation(t *testing.T) {
 	ym, _ := domain.ParseYearMonth("2026-07")
-	if _, err := domain.NewMonthlyIncome(ym, "taro", -1); !errors.Is(err, domain.ErrValidation) {
-		t.Errorf("負の収入: err = %v, want ErrValidation", err)
+	if _, err := domain.NewSalary(ym, "taro", -1); !errors.Is(err, domain.ErrValidation) {
+		t.Errorf("負の給与: err = %v, want ErrValidation", err)
 	}
-	if _, err := domain.NewMonthlyIncome(domain.YearMonth{}, "taro", 100); !errors.Is(err, domain.ErrValidation) {
+	if _, err := domain.NewSalary(domain.YearMonth{}, "taro", 100); !errors.Is(err, domain.ErrValidation) {
 		t.Errorf("年月なし: err = %v, want ErrValidation", err)
 	}
-	// 収入0円は有効（無収入の月もあり得る）
-	if _, err := domain.NewMonthlyIncome(ym, "taro", 0); err != nil {
-		t.Errorf("収入0円: err = %v, want nil", err)
+	// 給与0円は有効（無収入の月もあり得る）
+	if _, err := domain.NewSalary(ym, "taro", 0); err != nil {
+		t.Errorf("給与0円: err = %v, want nil", err)
+	}
+}
+
+func TestNewIncomeValidation(t *testing.T) {
+	ym, _ := domain.ParseYearMonth("2026-07")
+	id := string(domain.NewOneOffIncomeID(ym, "abc"))
+	if _, err := domain.NewIncome(id, "taro", 0, "副業", ym); !errors.Is(err, domain.ErrValidation) {
+		t.Errorf("金額0: err = %v, want ErrValidation", err)
+	}
+	if _, err := domain.NewIncome(id, "taro", 100, "", ym); !errors.Is(err, domain.ErrValidation) {
+		t.Errorf("内容なし: err = %v, want ErrValidation", err)
+	}
+	if _, err := domain.NewIncome("", "taro", 100, "副業", ym); !errors.Is(err, domain.ErrValidation) {
+		t.Errorf("IDなし: err = %v, want ErrValidation", err)
+	}
+	// 継続（月ゼロ値）は IsRecurring=true
+	rid := string(domain.NewRecurringIncomeID("abc"))
+	inc, err := domain.NewIncome(rid, "taro", 100, "副業", domain.YearMonth{})
+	if err != nil {
+		t.Fatalf("NewIncome(継続): %v", err)
+	}
+	if !inc.IsRecurring() {
+		t.Errorf("継続の収入が IsRecurring=false")
 	}
 }
