@@ -237,45 +237,6 @@ export default function SettingsScreen({ members, me, theme, notify, onError, on
 
   return (
     <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
-      {/* プロフィール（表示名・カラー） */}
-      <Card>
-        <SectionTitle>プロフィール</SectionTitle>
-        <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
-          アプリ内で表示されるあなたの名前とカラーです。
-        </p>
-        <form onSubmit={saveName} className="space-y-4">
-          <Field label="あなたの表示名" hint="20文字以内">
-            <Input
-              type="text"
-              required
-              maxLength={20}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="例: 太郎"
-            />
-          </Field>
-          <Button type="submit" disabled={savingName || !name.trim()} className="w-full">
-            {savingName ? "保存中..." : "表示名を保存"}
-          </Button>
-        </form>
-
-        <div className="mt-6 border-t border-slate-200 pt-5 dark:border-slate-800">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-600 dark:text-slate-300">アカウントカラー</span>
-            <span
-              className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium text-white"
-              style={{ backgroundColor: myColor || "#2563eb" }}
-            >
-              {name || me?.name}
-            </span>
-          </div>
-          <p className="mb-3 text-xs text-slate-400">
-            支出一覧の「支払った人」の表示色に使われます。{savingColor && "（保存中...）"}
-          </p>
-          <ColorSwatches value={myColor} onSelect={saveColor} />
-        </div>
-      </Card>
-
       {/* 精算比重 */}
       <Card>
         <SectionTitle>精算比重</SectionTitle>
@@ -340,9 +301,12 @@ export default function SettingsScreen({ members, me, theme, notify, onError, on
         </p>
       </Card>
 
-      {/* アカウント */}
+      {/* アカウント（プロフィール + アカウント設定を統合） */}
       <Card>
         <SectionTitle>アカウント</SectionTitle>
+        <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+          アプリ内で表示されるあなたの名前・カラーと、ログイン情報を管理します。
+        </p>
         <dl className="space-y-2 text-sm">
           <div className="flex justify-between gap-4">
             <dt className="shrink-0 text-slate-400">アカウントID</dt>
@@ -355,6 +319,40 @@ export default function SettingsScreen({ members, me, theme, notify, onError, on
             </dd>
           </div>
         </dl>
+
+        {/* 表示名 */}
+        <form onSubmit={saveName} className="mt-5 space-y-4 border-t border-slate-200 pt-5 dark:border-slate-800">
+          <Field label="あなたの表示名" hint="20文字以内">
+            <Input
+              type="text"
+              required
+              maxLength={20}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="例: 太郎"
+            />
+          </Field>
+          <Button type="submit" disabled={savingName || !name.trim()} className="w-full">
+            {savingName ? "保存中..." : "表示名を保存"}
+          </Button>
+        </form>
+
+        {/* アカウントカラー */}
+        <div className="mt-5 border-t border-slate-200 pt-5 dark:border-slate-800">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-600 dark:text-slate-300">アカウントカラー</span>
+            <span
+              className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium text-white"
+              style={{ backgroundColor: myColor || "#2563eb" }}
+            >
+              {name || me?.name}
+            </span>
+          </div>
+          <p className="mb-3 text-xs text-slate-400">
+            支出一覧の「支払った人」の表示色に使われます。{savingColor && "（保存中...）"}
+          </p>
+          <ColorSwatches value={myColor} onSelect={saveColor} />
+        </div>
 
         {/* ログインID変更 */}
         <form onSubmit={saveLoginId} className="mt-5 space-y-3 border-t border-slate-200 pt-5 dark:border-slate-800">

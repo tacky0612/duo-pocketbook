@@ -206,7 +206,7 @@ terraform -chdir=terraform apply
 - Function URL は `authorization_type = NONE` だが、`/health` と `/login` 以外は**アプリケーション側のJWT検証**で保護される
 - パスワードは bcrypt ハッシュのみをLambda環境変数に保存する（平文の `ACCOUNTn_PASSWORD` はローカル専用）
 - `terraform.tfvars` と tfstate には機微情報が含まれるためコミットしない（tfstateをリモート管理する場合はS3バックエンド等の暗号化を検討）
-- IAMはテーブル単位の最小権限（GetItem/PutItem/DeleteItem/Query のみ）
+- IAMはテーブル単位の最小権限（GetItem/PutItem/UpdateItem/DeleteItem/Query のみ）
 
 ## コスト監視
 
