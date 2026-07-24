@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "frontend/**"
+      - "api/openapi.yaml"
       - ".github/workflows/deploy-pages.yml"
   workflow_dispatch:
 

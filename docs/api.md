@@ -1,6 +1,8 @@
 # API 利用ガイド
 
-正式な契約は OpenAPI 定義 [`api/openapi.yaml`](../api/openapi.yaml) を参照。ここでは利用の流れを説明する。
+正式な契約は OpenAPI 定義 [`api/openapi.yaml`](../api/openapi.yaml)（OpenAPI 3.1）を参照。ここでは利用の流れを説明する。
+
+> `api/openapi.yaml` は **Go コードが正（source of truth）**。`internal/web` のハンドラに付けた [swag](https://github.com/swaggo/swag) 注釈と DTO 型から `make openapi` で自動生成する（**手で編集しない**）。API を変更したらハンドラの注釈・DTO を直して `make openapi` を実行する。CI の `openapi-check` ジョブが未再生成を検出する。
 
 ## ベースURL
 
@@ -112,6 +114,14 @@ curl $BASE/months/2026-07/settlement -H "Authorization: Bearer $TOKEN"
 
 `CLIENT_KEY` を設定して運用する場合、`/health` と CORS プリフライト（OPTIONS）を除く全リクエストに `X-Client-Key: <キー>` を付与する必要がある（不一致は 403 `FORBIDDEN`）。フロントエンドはビルド時の `VITE_CLIENT_KEY` から自動付与する。詳細は [デプロイガイド](./deployment.md) の「アクセス制限とコスト最適化」を参照。
 
+## ドキュメントページ（自動生成・ホスティング）
+
+`api/openapi.yaml` から **ReDoc** 形式の API ドキュメント HTML を生成し、フロントと同じ配信物に含めている。生成はフロントのビルド（`npm run build` → `npm run docs:api`、`@redocly/cli` の `build-docs`）に組み込まれており、GitHub Pages・Cloudflare Pages の両方へ自動デプロイされる。
+
+- 公開パス: **`/api-docs.html`**（例: `https://<username>.github.io/duo-pocketbook/api-docs.html`、Cloudflare 構成では `https://<app_domain>/api-docs.html`）
+- ローカル生成: `cd frontend && npm run docs:api`（`dist/api-docs.html` を出力）
+- 単体プレビュー: `npx @redocly/cli build-docs api/openapi.yaml -o /tmp/api-docs.html`
+
 ## 外部ツール連携
 
-`api/openapi.yaml` を Swagger UI / Postman / openapi-generator 等に読み込めばクライアントを自動生成できる。API を変更する場合は必ずこの定義も更新すること。
+`api/openapi.yaml` を Swagger UI / Postman / openapi-generator 等に読み込めばクライアントを自動生成できる。この定義は Go コードから `make openapi` で生成されるため、API を変更したら注釈・DTO を直して再生成すること（[api.md 冒頭](#api-利用ガイド)参照）。

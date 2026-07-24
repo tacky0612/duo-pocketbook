@@ -1,795 +1,1100 @@
-openapi: "3.0.3"
+components:
+  schemas:
+    web.accountDTO:
+      properties:
+        accountId:
+          example: acct_9f3c1a2b7d4e5f60
+          type: string
+        loginId:
+          example: taro
+          type: string
+        name:
+          example: 太郎
+          type: string
+      type: object
+    web.errorBody:
+      properties:
+        code:
+          example: VALIDATION_ERROR
+          type: string
+        message:
+          example: 'validation error: 金額は1円以上で入力してください'
+          type: string
+      type: object
+    web.errorResponse:
+      properties:
+        error:
+          $ref: '#/components/schemas/web.errorBody'
+      type: object
+    web.expenseDTO:
+      properties:
+        amountYen:
+          example: 20000
+          type: integer
+        createdAt:
+          example: "2026-07-01T09:00:00Z"
+          type: string
+        date:
+          example: "2026-07-01"
+          type: string
+        description:
+          example: 家賃
+          type: string
+        id:
+          example: 2026-07_a1b2c3d4e5f6a7b8a1b2c3d4e5f6a7b8
+          type: string
+        month:
+          example: 2026-07
+          type: string
+        paidBy:
+          example: acct_9f3c1a2b7d4e5f60
+          type: string
+      type: object
+    web.expensesResponse:
+      properties:
+        expenses:
+          items:
+            $ref: '#/components/schemas/web.expenseDTO'
+          type: array
+          uniqueItems: false
+        month:
+          example: 2026-07
+          type: string
+      type: object
+    web.healthResponse:
+      properties:
+        status:
+          example: ok
+          type: string
+      type: object
+    web.incomeDTO:
+      properties:
+        amountYen:
+          example: 100000
+          type: integer
+        memberId:
+          example: acct_9f3c1a2b7d4e5f60
+          type: string
+      type: object
+    web.incomeResponse:
+      properties:
+        income:
+          $ref: '#/components/schemas/web.incomeDTO'
+        month:
+          example: 2026-07
+          type: string
+      type: object
+    web.incomesResponse:
+      properties:
+        incomes:
+          items:
+            $ref: '#/components/schemas/web.incomeDTO'
+          type: array
+          uniqueItems: false
+        month:
+          example: 2026-07
+          type: string
+      type: object
+    web.inputIncomeRequest:
+      properties:
+        amountYen:
+          example: 100000
+          type: integer
+      type: object
+    web.loginRequest:
+      properties:
+        memberId:
+          description: ログインID（可変のユーザー名）
+          example: taro
+          type: string
+        password:
+          example: taro-password
+          type: string
+      type: object
+    web.loginResponse:
+      properties:
+        expiresAt:
+          example: "2026-08-23T03:29:55Z"
+          type: string
+        member:
+          $ref: '#/components/schemas/web.memberDTO'
+        token:
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+          type: string
+      type: object
+    web.memberDTO:
+      properties:
+        color:
+          example: '#FF8800'
+          type: string
+        id:
+          example: acct_9f3c1a2b7d4e5f60
+          type: string
+        name:
+          example: 太郎
+          type: string
+      type: object
+    web.membersResponse:
+      properties:
+        members:
+          items:
+            $ref: '#/components/schemas/web.memberDTO'
+          type: array
+          uniqueItems: false
+      type: object
+    web.recurringExpenseDTO:
+      properties:
+        amountYen:
+          example: 80000
+          type: integer
+        description:
+          example: 家賃
+          type: string
+        id:
+          example: recurring-a1b2c3d4
+          type: string
+        paidBy:
+          example: acct_9f3c1a2b7d4e5f60
+          type: string
+      type: object
+    web.recurringExpensesResponse:
+      properties:
+        recurringExpenses:
+          items:
+            $ref: '#/components/schemas/web.recurringExpenseDTO'
+          type: array
+          uniqueItems: false
+      type: object
+    web.registerExpenseRequest:
+      properties:
+        amountYen:
+          example: 20000
+          type: integer
+        date:
+          example: "2026-07-01"
+          type: string
+        description:
+          example: 家賃
+          type: string
+        paidBy:
+          example: acct_9f3c1a2b7d4e5f60
+          type: string
+      type: object
+    web.registerRecurringExpenseRequest:
+      properties:
+        amountYen:
+          example: 80000
+          type: integer
+        description:
+          example: 家賃
+          type: string
+        paidBy:
+          example: acct_9f3c1a2b7d4e5f60
+          type: string
+      type: object
+    web.settlementHistoryEntryDTO:
+      properties:
+        month:
+          example: 2026-07
+          type: string
+        settled:
+          example: true
+          type: boolean
+        totalExpenseYen:
+          example: 40000
+          type: integer
+        transfer:
+          $ref: '#/components/schemas/web.transferDTO'
+      type: object
+    web.settlementHistoryResponse:
+      properties:
+        entries:
+          items:
+            $ref: '#/components/schemas/web.settlementHistoryEntryDTO'
+          type: array
+          uniqueItems: false
+      type: object
+    web.settlementMemberDTO:
+      properties:
+        disposableYen:
+          example: 55000
+          type: integer
+        id:
+          example: acct_9f3c1a2b7d4e5f60
+          type: string
+        incomeYen:
+          example: 100000
+          type: integer
+        name:
+          example: 太郎
+          type: string
+        paidExpenseYen:
+          example: 20000
+          type: integer
+        weight:
+          example: 1
+          type: integer
+      type: object
+    web.settlementResponse:
+      properties:
+        members:
+          items:
+            $ref: '#/components/schemas/web.settlementMemberDTO'
+          type: array
+          uniqueItems: false
+        month:
+          example: 2026-07
+          type: string
+        settled:
+          example: false
+          type: boolean
+        totalExpenseYen:
+          example: 40000
+          type: integer
+        transfer:
+          $ref: '#/components/schemas/web.transferDTO'
+      type: object
+    web.settlementStatusRequest:
+      properties:
+        settled:
+          example: true
+          type: boolean
+      type: object
+    web.settlementStatusResponse:
+      properties:
+        month:
+          example: 2026-07
+          type: string
+        settled:
+          example: true
+          type: boolean
+      type: object
+    web.transferDTO:
+      properties:
+        amountYen:
+          example: 25000
+          type: integer
+        from:
+          example: acct_9f3c1a2b7d4e5f60
+          type: string
+        to:
+          example: acct_1a2b3c4d5e6f7a8b
+          type: string
+      type: object
+    web.updateLoginIDRequest:
+      properties:
+        loginId:
+          example: taro2
+          type: string
+      type: object
+    web.updateMemberRequest:
+      properties:
+        color:
+          example: '#FF8800'
+          type: string
+        name:
+          example: 太郎
+          type: string
+      type: object
+    web.updatePasswordRequest:
+      properties:
+        currentPassword:
+          example: taro-password
+          type: string
+        newPassword:
+          example: new-password-8+
+          type: string
+      type: object
+    web.weightsDTO:
+      properties:
+        weights:
+          additionalProperties:
+            type: integer
+          type: object
+      type: object
+  securitySchemes:
+    BearerAuth:
+      description: 'JWT を `Authorization: Bearer <token>` 形式で送る。'
+      in: header
+      name: Authorization
+      type: apiKey
+externalDocs:
+  description: ""
+  url: ""
 info:
-  title: duo-pocketbook API
-  description: |
+  description: |-
     クライアント2人で使う家計簿アプリケーションのAPI。
-
-    共有支出を2アカウントから登録し、月次で双方の収入を入力すると、
-    指定した比重で双方の可処分所得が揃うよう精算額（振込額）を算出します。
-
-    精算ロジック: 各メンバーの純額 net = 収入 - 立替済み共有支出 とし、
-    比重 wA:wB に対して A→B の振込額 t = (wB*netA - wA*netB) / (wA + wB) を
-    計算します（端数は四捨五入、負の場合はB→Aの振込）。
-    精算後は 可処分所得A/wA == 可処分所得B/wB が成り立ちます。
-
-    アクセス制限（任意）: バックエンドに CLIENT_KEY を設定して運用する場合、
-    `/health` と CORS プリフライトを除く全リクエストに `X-Client-Key` ヘッダ
-    （事前共有キー）が必要です。不一致は 403 (FORBIDDEN)。また `/login` は
-    IP単位のレート制限があり、超過時は 429 (RATE_LIMITED) を返します。
-  version: "1.0.0"
-servers:
-  - url: http://localhost:8080
-    description: ローカル環境 (Docker Compose)
-  - url: "{functionUrl}"
-    description: AWS Lambda Function URL
-    variables:
-      functionUrl:
-        default: https://example.lambda-url.ap-northeast-1.on.aws
-security:
-  - bearerAuth: []
+    共有支出を2アカウントから登録し、月次で双方の収入を入力すると、指定した比重で双方の可処分所得が揃うよう精算額（振込額）を算出します。
+    精算ロジック: 各メンバーの純額 net = 収入 - 立替済み共有支出 とし、比重 wA:wB に対して A→B の振込額 t = (wB*netA - wA*netB) / (wA + wB) を計算します（端数は四捨五入、負の場合はB→Aの振込）。精算後は 可処分所得A/wA == 可処分所得B/wB が成り立ちます。
+    認証: `POST /login` で JWT を取得し、以降は `Authorization: Bearer <token>` を付与します（memberId にはログインIDを渡す。JWT の subject は不変の AccountID）。
+    アクセス制限（任意）: バックエンドに CLIENT_KEY を設定して運用する場合、`/health` と CORS プリフライトを除く全リクエストに事前共有キー `X-Client-Key` ヘッダが必要です（不一致は 403 FORBIDDEN）。また `/login` は IP 単位のレート制限があり、超過時は 429 を返します。
+    サーバー: ローカルは http://localhost:8080、本番は AWS Lambda Function URL。
+  title: duo-pocketbook API
+  version: 1.0.0
+openapi: 3.1.0
 paths:
-  /health:
-    get:
-      summary: ヘルスチェック
-      security: []
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: ok
-  /login:
-    post:
-      summary: ログイン（JWT発行）
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [memberId, password]
-              properties:
-                memberId:
-                  type: string
-                  example: taro
-                password:
-                  type: string
-                  format: password
-      responses:
-        "200":
-          description: 認証成功
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  token:
-                    type: string
-                  member:
-                    $ref: "#/components/schemas/Member"
-                  expiresAt:
-                    type: string
-                    format: date-time
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-  /members:
-    get:
-      summary: メンバー一覧
-      description: 表示名・カラーの上書き設定（`PUT /members/{id}`）を反映した値を返す。
-      responses:
-        "200":
-          description: 2人のメンバー
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  members:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Member"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-  /members/{id}:
-    put:
-      summary: メンバーの表示名・カラーを更新
-      description: 指定した項目（`name`/`color`）のみを上書きする。省略した項目は変更しない。
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                color:
-                  type: string
-                  description: "\"#RRGGBB\" 形式"
-                  example: "#FF8800"
-      responses:
-        "200":
-          description: 更新後のメンバー
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Member"
-        "400":
-          $ref: "#/components/responses/ValidationError"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
   /account:
     get:
-      summary: 認証中アカウントの情報（不変のAccountID・可変のログインID・表示名）
+      description: 不変の AccountID・可変のログインID・表示名を返す。
       responses:
         "200":
-          description: アカウント情報
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Account"
+                $ref: '#/components/schemas/web.accountDTO'
+          description: OK
         "401":
-          $ref: "#/components/responses/Unauthorized"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: 認証中アカウントの情報
+      tags:
+      - account
   /account/login-id:
     put:
-      summary: ログインIDの変更
-      description: ログイン用の可変ユーザー名を変更する。AccountID は不変で変わらない。
+      description: ログイン用の可変ユーザー名を変更する。AccountID は不変で変わらない。英数字と . _ - のみ・32文字以内・2アカウントで重複不可。
       requestBody:
-        required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [loginId]
-              properties:
-                loginId:
-                  type: string
-                  description: 英数字と . _ - のみ・32文字以内。2アカウントで重複不可
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/web.updateLoginIDRequest'
+                description: 新しいログインID
+                summary: body
+        description: 新しいログインID
+        required: true
       responses:
         "200":
-          description: 変更後のアカウント情報
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Account"
+                $ref: '#/components/schemas/web.accountDTO'
+          description: OK
         "400":
-          $ref: "#/components/responses/ValidationError"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
         "401":
-          $ref: "#/components/responses/Unauthorized"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: ログインIDの変更
+      tags:
+      - account
   /account/password:
     put:
-      summary: パスワードの変更
-      description: 現在のパスワードを検証したうえで新しいパスワードに更新する。
+      description: 現在のパスワードを検証したうえで新しいパスワード（8文字以上）に更新する。
       requestBody:
-        required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [currentPassword, newPassword]
-              properties:
-                currentPassword:
-                  type: string
-                  format: password
-                newPassword:
-                  type: string
-                  format: password
-                  description: 8文字以上
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/web.updatePasswordRequest'
+                description: 現在と新しいパスワード
+                summary: body
+        description: 現在と新しいパスワード
+        required: true
       responses:
         "204":
           description: 変更成功
         "400":
-          $ref: "#/components/responses/ValidationError"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: 現在のパスワード不一致・新パスワードが要件未満
         "401":
-          $ref: "#/components/responses/Unauthorized"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: パスワードの変更
+      tags:
+      - account
   /expenses:
-    post:
-      summary: 共有支出の登録
-      requestBody:
+    get:
+      description: 日付降順で返す。
+      parameters:
+      - description: 対象月（YYYY-MM）
+        in: query
+        name: month
         required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.expensesResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: 共有支出の月別一覧
+      tags:
+      - expenses
+    post:
+      requestBody:
         content:
           application/json:
             schema:
-              type: object
-              required: [paidBy, amountYen, date]
-              properties:
-                paidBy:
-                  type: string
-                  description: 立て替えたメンバーのID
-                amountYen:
-                  type: integer
-                  format: int64
-                  minimum: 1
-                  description: 金額（円）
-                description:
-                  type: string
-                date:
-                  type: string
-                  format: date
-                  example: "2026-07-15"
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/web.registerExpenseRequest'
+                description: 支出
+                summary: body
+        description: 支出
+        required: true
       responses:
         "201":
-          description: 登録された支出
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Expense"
+                $ref: '#/components/schemas/web.expenseDTO'
+          description: Created
         "400":
-          $ref: "#/components/responses/ValidationError"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-    get:
-      summary: 共有支出の月別一覧（日付降順）
-      parameters:
-        - name: month
-          in: query
-          required: true
-          schema:
-            type: string
-            pattern: "^\\d{4}-\\d{2}$"
-            example: "2026-07"
-      responses:
-        "200":
-          description: 支出一覧
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  month:
-                    type: string
-                  expenses:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Expense"
-        "400":
-          $ref: "#/components/responses/ValidationError"
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
         "401":
-          $ref: "#/components/responses/Unauthorized"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: 共有支出の登録
+      tags:
+      - expenses
   /expenses/{id}:
-    put:
-      summary: 共有支出の更新
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [paidBy, amountYen, date]
-              properties:
-                paidBy:
-                  type: string
-                amountYen:
-                  type: integer
-                  format: int64
-                  minimum: 1
-                description:
-                  type: string
-                date:
-                  type: string
-                  format: date
-      responses:
-        "200":
-          description: 更新後の支出
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Expense"
-        "400":
-          $ref: "#/components/responses/ValidationError"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
     delete:
-      summary: 共有支出の削除
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - description: 支出ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
       responses:
         "204":
           description: 削除成功
         "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-  /months/{month}/incomes/{memberId}:
-    put:
-      summary: 月次収入の入力（上書き）
-      parameters:
-        - $ref: "#/components/parameters/Month"
-        - name: memberId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [amountYen]
-              properties:
-                amountYen:
-                  type: integer
-                  format: int64
-                  minimum: 0
-      responses:
-        "200":
-          description: 保存された収入
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  month:
-                    type: string
-                  income:
-                    $ref: "#/components/schemas/Income"
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Not Found
+      security:
+      - BearerAuth: []
+      summary: 共有支出の削除
+      tags:
+      - expenses
+    put:
+      parameters:
+      - description: 支出ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/web.registerExpenseRequest'
+                description: 支出
+                summary: body
+        description: 支出
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.expenseDTO'
+          description: OK
         "400":
-          $ref: "#/components/responses/ValidationError"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
         "401":
-          $ref: "#/components/responses/Unauthorized"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Not Found
+      security:
+      - BearerAuth: []
+      summary: 共有支出の更新
+      tags:
+      - expenses
+  /health:
+    get:
+      description: 認証・クライアントキー検証の対象外。
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.healthResponse'
+          description: OK
+      summary: ヘルスチェック
+      tags:
+      - system
+  /login:
+    post:
+      description: |-
+        ログインID・パスワードを検証してJWTを発行する。memberId にはログインID（可変）を渡す。
+        JWT の subject は不変の AccountID。IP単位のレート制限があり、超過時は 429 を返す。
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/web.loginRequest'
+                description: 認証情報
+                summary: body
+        description: 認証情報
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.loginResponse'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: ログインID/パスワード不一致
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: レート制限超過
+      summary: ログイン（JWT発行）
+      tags:
+      - auth
+  /members:
+    get:
+      description: 表示名・カラーの上書きを反映して2人のメンバーを返す。
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.membersResponse'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: メンバー一覧（2人）
+      tags:
+      - members
+  /members/{id}:
+    put:
+      description: 指定された項目のみ上書きする（省略した項目は変更しない）。
+      parameters:
+      - description: メンバーID（AccountID）
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/web.updateMemberRequest'
+                description: 更新内容
+                summary: body
+        description: 更新内容
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.memberDTO'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Not Found
+      security:
+      - BearerAuth: []
+      summary: メンバーの表示名・カラーの更新
+      tags:
+      - members
   /months/{month}/incomes:
     get:
-      summary: 月次収入の一覧
       parameters:
-        - $ref: "#/components/parameters/Month"
+      - description: 対象月（YYYY-MM）
+        in: path
+        name: month
+        required: true
+        schema:
+          type: string
       responses:
         "200":
-          description: 入力済み収入
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  month:
-                    type: string
-                  incomes:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Income"
+                $ref: '#/components/schemas/web.incomesResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
         "401":
-          $ref: "#/components/responses/Unauthorized"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: 月次収入の一覧
+      tags:
+      - incomes
+  /months/{month}/incomes/{memberId}:
+    put:
+      parameters:
+      - description: 対象月（YYYY-MM）
+        in: path
+        name: month
+        required: true
+        schema:
+          type: string
+      - description: メンバーID（AccountID）
+        in: path
+        name: memberId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/web.inputIncomeRequest'
+                description: 収入額
+                summary: body
+        description: 収入額
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.incomeResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: 月次収入の入力（上書き）
+      tags:
+      - incomes
   /months/{month}/settlement:
     get:
-      summary: 月次精算の取得
-      description: |
-        両メンバーの収入が入力済みの場合に精算結果を返します。
-        未入力の場合は 409 (INCOME_NOT_READY) を返します。
+      description: 比重に応じて双方の可処分所得が揃うよう振込額を算出する。収入が両者分そろっていない場合は 409（INCOME_NOT_READY）。
       parameters:
-        - $ref: "#/components/parameters/Month"
+      - description: 対象月（YYYY-MM）
+        in: path
+        name: month
+        required: true
+        schema:
+          type: string
       responses:
         "200":
-          description: 精算結果
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Settlement"
+                $ref: '#/components/schemas/web.settlementResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
         "401":
-          $ref: "#/components/responses/Unauthorized"
-        "409":
-          description: 収入が未入力
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: 収入未入力
+      security:
+      - BearerAuth: []
+      summary: 月次精算の取得
+      tags:
+      - settlement
   /months/{month}/settlement/status:
     put:
+      parameters:
+      - description: 対象月（YYYY-MM）
+        in: path
+        name: month
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/web.settlementStatusRequest'
+                description: 精算済みフラグ
+                summary: body
+        description: 精算済みフラグ
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.settlementStatusResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+      security:
+      - BearerAuth: []
       summary: 精算済みフラグの更新
-      parameters:
-        - $ref: "#/components/parameters/Month"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [settled]
-              properties:
-                settled:
-                  type: boolean
-      responses:
-        "200":
-          description: 更新後のフラグ
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  month:
-                    type: string
-                  settled:
-                    type: boolean
-        "400":
-          $ref: "#/components/responses/ValidationError"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-  /settlements/history:
-    get:
-      summary: 精算履歴の取得
-      description: 指定した年月の範囲（両端含む）の精算結果を新しい月順に返す。
-      parameters:
-        - name: from
-          in: query
-          required: true
-          schema:
-            type: string
-            pattern: "^\\d{4}-\\d{2}$"
-            example: "2026-01"
-        - name: to
-          in: query
-          required: true
-          schema:
-            type: string
-            pattern: "^\\d{4}-\\d{2}$"
-            example: "2026-07"
-      responses:
-        "200":
-          description: 精算履歴
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  entries:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        month:
-                          type: string
-                        settled:
-                          type: boolean
-                        totalExpenseYen:
-                          type: integer
-                          format: int64
-                        transfer:
-                          type: object
-                          nullable: true
-                          properties:
-                            from:
-                              type: string
-                            to:
-                              type: string
-                            amountYen:
-                              type: integer
-                              format: int64
-        "400":
-          $ref: "#/components/responses/ValidationError"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
+      tags:
+      - settlement
   /recurring-expenses:
+    get:
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.recurringExpensesResponse'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: 固定費の一覧
+      tags:
+      - recurring-expenses
     post:
-      summary: 固定費の登録
-      description: 特定の月に紐づかず、精算時に対象月の共有支出として実体化される。
       requestBody:
-        required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/RecurringExpenseInput"
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/web.registerRecurringExpenseRequest'
+                description: 固定費
+                summary: body
+        description: 固定費
+        required: true
       responses:
         "201":
-          description: 登録された固定費
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RecurringExpense"
+                $ref: '#/components/schemas/web.recurringExpenseDTO'
+          description: Created
         "400":
-          $ref: "#/components/responses/ValidationError"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-    get:
-      summary: 固定費の一覧
-      responses:
-        "200":
-          description: 固定費一覧
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  recurringExpenses:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/RecurringExpense"
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
         "401":
-          $ref: "#/components/responses/Unauthorized"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: 固定費の登録
+      tags:
+      - recurring-expenses
   /recurring-expenses/{id}:
-    put:
-      summary: 固定費の更新
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RecurringExpenseInput"
-      responses:
-        "200":
-          description: 更新後の固定費
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RecurringExpense"
-        "400":
-          $ref: "#/components/responses/ValidationError"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
     delete:
-      summary: 固定費の削除
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - description: 固定費ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
       responses:
         "204":
           description: 削除成功
         "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-  /settings/weight:
-    get:
-      summary: 精算比重の取得
-      responses:
-        "200":
-          description: 現在の比重（未設定時は1:1）
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Weights"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Not Found
+      security:
+      - BearerAuth: []
+      summary: 固定費の削除
+      tags:
+      - recurring-expenses
     put:
-      summary: 精算比重の更新
-      requestBody:
+      parameters:
+      - description: 固定費ID
+        in: path
+        name: id
         required: true
+        schema:
+          type: string
+      requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Weights"
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/web.registerRecurringExpenseRequest'
+                description: 固定費
+                summary: body
+        description: 固定費
+        required: true
       responses:
         "200":
-          description: 更新後の比重
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Weights"
+                $ref: '#/components/schemas/web.recurringExpenseDTO'
+          description: OK
         "400":
-          $ref: "#/components/responses/ValidationError"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
         "401":
-          $ref: "#/components/responses/Unauthorized"
-components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-    # 任意の事前共有キー（CLIENT_KEY 設定時のみ有効）。全リクエストに付与する。
-    clientKey:
-      type: apiKey
-      in: header
-      name: X-Client-Key
-  parameters:
-    Month:
-      name: month
-      in: path
-      required: true
-      schema:
-        type: string
-        pattern: "^\\d{4}-\\d{2}$"
-        example: "2026-07"
-  schemas:
-    Member:
-      type: object
-      properties:
-        id:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Not Found
+      security:
+      - BearerAuth: []
+      summary: 固定費の更新
+      tags:
+      - recurring-expenses
+  /settings/weight:
+    get:
+      description: 未設定時は 1:1。
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.weightsDTO'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: 精算比重の取得
+      tags:
+      - settings
+    put:
+      description: 各メンバーの比重（正整数）を memberID→比重 のマップで指定する。
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/web.weightsDTO'
+                description: 比重
+                summary: body
+        description: 比重
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.weightsDTO'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: 精算比重の更新
+      tags:
+      - settings
+  /settlements/history:
+    get:
+      description: from〜to（YYYY-MM）の精算履歴を新しい月順に返す。収入が揃っていない月は除外する。
+      parameters:
+      - description: 開始月（YYYY-MM）
+        in: query
+        name: from
+        required: true
+        schema:
           type: string
-          example: taro
-        name:
+      - description: 終了月（YYYY-MM）
+        in: query
+        name: to
+        required: true
+        schema:
           type: string
-          example: 太郎
-        color:
-          type: string
-          description: "\"#RRGGBB\" 形式。上書き未設定の場合は省略される。"
-          example: "#FF8800"
-    Account:
-      type: object
-      description: 認証中アカウント。accountId はアカウント作成時から不変、loginId はログイン用の可変ユーザー名。
-      properties:
-        accountId:
-          type: string
-          description: アカウントを一意に定める不変ID。JWT の subject。
-          example: acct_9f3c1a2b7d4e5f60
-        loginId:
-          type: string
-          description: ログインに用いる可変のユーザー名。
-          example: taro
-        name:
-          type: string
-          example: 太郎
-    Expense:
-      type: object
-      properties:
-        id:
-          type: string
-          example: 2026-07_a1b2c3d4e5f6a7b8a1b2c3d4e5f6a7b8
-        paidBy:
-          type: string
-        amountYen:
-          type: integer
-          format: int64
-        description:
-          type: string
-        date:
-          type: string
-          format: date
-        month:
-          type: string
-          example: "2026-07"
-        createdAt:
-          type: string
-          format: date-time
-    Income:
-      type: object
-      properties:
-        memberId:
-          type: string
-        amountYen:
-          type: integer
-          format: int64
-    RecurringExpenseInput:
-      type: object
-      required: [paidBy, amountYen, description]
-      properties:
-        paidBy:
-          type: string
-          description: 毎月立て替えるメンバーのID
-        amountYen:
-          type: integer
-          format: int64
-          minimum: 1
-        description:
-          type: string
-    RecurringExpense:
-      type: object
-      properties:
-        id:
-          type: string
-        paidBy:
-          type: string
-        amountYen:
-          type: integer
-          format: int64
-        description:
-          type: string
-    Weights:
-      type: object
-      properties:
-        weights:
-          type: object
-          additionalProperties:
-            type: integer
-            format: int64
-            minimum: 1
-          example:
-            taro: 1
-            hanako: 1
-    Settlement:
-      type: object
-      properties:
-        month:
-          type: string
-          example: "2026-07"
-        totalExpenseYen:
-          type: integer
-          format: int64
-        settled:
-          type: boolean
-          description: 精算済みフラグ（`PUT /months/{month}/settlement/status` で更新）
-        members:
-          type: array
-          items:
-            type: object
-            properties:
-              id:
-                type: string
-              name:
-                type: string
-              weight:
-                type: integer
-                format: int64
-              incomeYen:
-                type: integer
-                format: int64
-              paidExpenseYen:
-                type: integer
-                format: int64
-              disposableYen:
-                type: integer
-                format: int64
-                description: 精算後の可処分所得
-        transfer:
-          type: object
-          nullable: true
-          description: 精算に必要な振込。精算不要の場合は null。
-          properties:
-            from:
-              type: string
-            to:
-              type: string
-            amountYen:
-              type: integer
-              format: int64
-    Error:
-      type: object
-      properties:
-        error:
-          type: object
-          properties:
-            code:
-              type: string
-              enum:
-                - VALIDATION_ERROR
-                - UNAUTHORIZED
-                - FORBIDDEN
-                - NOT_FOUND
-                - INCOME_NOT_READY
-                - RATE_LIMITED
-                - INTERNAL
-            message:
-              type: string
-  responses:
-    ValidationError:
-      description: 入力値が不正
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/Error"
-    Unauthorized:
-      description: 認証エラー
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/Error"
-    NotFound:
-      description: 対象が存在しない
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/Error"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.settlementHistoryResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: 精算履歴の取得
+      tags:
+      - settlement
+servers:
+- url: /

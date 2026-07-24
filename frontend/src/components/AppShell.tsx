@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import MonthSelector from "./MonthSelector";
 import Wordmark from "./Wordmark";
-import { ScaleIcon, DownloadIcon, UploadIcon, RepeatIcon, HistoryIcon, SettingsIcon, type IconComponent } from "./Icons";
+import { ScaleIcon, DownloadIcon, UploadIcon, RepeatIcon, HistoryIcon, SettingsIcon, FileTextIcon, type IconComponent } from "./Icons";
 import type { ScreenName } from "../types";
 
 interface NavItem {
@@ -34,12 +34,12 @@ export default function AppShell({ screen, onNavigate, month, onMonthChange, chi
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100 lg:flex">
-      {/* サイドバー（PCのみ） */}
-      <aside className="hidden lg:flex lg:w-64 lg:shrink-0 lg:flex-col lg:border-r lg:border-slate-200 lg:bg-white dark:lg:border-slate-800 dark:lg:bg-slate-900">
-        <div className="flex h-16 items-center border-b border-slate-200 px-6 dark:border-slate-800">
+      {/* サイドバー（PCのみ）。ビューポート高に固定し、コンテンツが長くても最下部リンクが常に見えるようにする */}
+      <aside className="hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-64 lg:shrink-0 lg:flex-col lg:border-r lg:border-slate-200 lg:bg-white dark:lg:border-slate-800 dark:lg:bg-slate-900">
+        <div className="flex h-16 shrink-0 items-center border-b border-slate-200 px-6 dark:border-slate-800">
           <Wordmark className="text-xl text-slate-900 dark:text-white" subClassName="text-slate-400" />
         </div>
-        <nav className="flex flex-1 flex-col gap-1 p-3">
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
           {NAV.map(({ key, label, icon: Icon }) => {
             const on = key === screen;
             return (
@@ -58,6 +58,16 @@ export default function AppShell({ screen, onNavigate, month, onMonthChange, chi
               </button>
             );
           })}
+          {/* APIドキュメント（PC のサイドバー最下部。別タブで開く） */}
+          <a
+            href={`${import.meta.env.BASE_URL}api-docs.html`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-auto flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+          >
+            <FileTextIcon className="h-5 w-5" />
+            APIドキュメント
+          </a>
         </nav>
       </aside>
 

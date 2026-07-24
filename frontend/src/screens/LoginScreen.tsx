@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { api, defaultApiBase, FIXED_API_BASE } from "../lib/apiClient";
 import { session } from "../lib/session";
 import { Button, Field, Input } from "../components/ui";
-import { GlobeIcon, UserIcon, LockIcon, PlayIcon } from "../components/Icons";
+import { GlobeIcon, UserIcon, LockIcon, PlayIcon, GitHubIcon } from "../components/Icons";
 import Wordmark from "../components/Wordmark";
 import type { LoginResponse, Member } from "../types";
 
@@ -145,6 +145,19 @@ export default function LoginScreen({ onLoggedIn }: LoginScreenProps) {
             </>
           )}
         </form>
+
+        {/* GitHub リポジトリへのリンク */}
+        <div className="mt-6 text-center">
+          <a
+            href="https://github.com/tacky0612/duo-pocketbook"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 transition-colors hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+          >
+            <GitHubIcon className="h-4 w-4" />
+            GitHub リポジトリ
+          </a>
+        </div>
       </div>
     </div>
   );
