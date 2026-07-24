@@ -14,6 +14,22 @@ export interface SettlementInput {
   incomes: DemoIncome[];
   expenses: Expense[];
   recurring: RecurringExpense[];
+  closingDay: number;
+}
+
+// settlementMonthOf は支出日(YYYY-MM-DD)が属する精算月(YYYY-MM)を返す。
+// バックエンド domain.ClosingDay.SettlementMonth と同一ロジック。
+// 締め日=1（デフォルト）は暦月どおり。D>=2 は実効締め日 min(D, その月の日数) 以上の日を翌月分にする。
+export function settlementMonthOf(dateISO: string, closingDay: number): string {
+  const [y, m, d] = dateISO.split("-").map(Number);
+  const ym = (yy: number, mm: number) => `${yy}-${String(mm).padStart(2, "0")}`;
+  if (!closingDay || closingDay <= 1) return ym(y, m);
+  const daysInMonth = new Date(y, m, 0).getDate(); // m は1始まり。翌月0日＝当月末日
+  const eff = Math.min(closingDay, daysInMonth);
+  if (d >= eff) {
+    return m === 12 ? ym(y + 1, 1) : ym(y, m + 1);
+  }
+  return ym(y, m);
 }
 
 // settled を除いた精算結果（settled は呼び出し側でストアから付与する）。
@@ -36,6 +52,7 @@ export function computeSettlement({
   incomes,
   expenses,
   recurring,
+  closingDay,
 }: SettlementInput): ComputedSettlement {
   const [a, b] = members;
   const wA = weights[a.id] ?? 1;
@@ -55,7 +72,7 @@ export function computeSettlement({
   const paid: Record<string, number> = { [a.id]: 0, [b.id]: 0 };
   let total = 0;
   for (const e of expenses) {
-    if (e.month !== month) continue;
+    if (settlementMonthOf(e.date, closingDay) !== month) continue;
     paid[e.paidBy] = (paid[e.paidBy] || 0) + e.amountYen;
     total += e.amountYen;
   }

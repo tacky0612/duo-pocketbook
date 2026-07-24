@@ -6,7 +6,7 @@
 
 import { ApiError, type HttpMethod } from "../lib/apiClient";
 import { store } from "./store";
-import { computeSettlement } from "./settlement";
+import { computeSettlement, settlementMonthOf } from "./settlement";
 import type { DemoDb, ExpensesResponse, Settlement, Weights } from "../types";
 
 // デモが受け取り得るリクエストボディのフィールド（すべて任意）。
@@ -24,6 +24,7 @@ interface DemoBody {
   loginId?: string;
   currentPassword?: string;
   newPassword?: string;
+  closingDay?: number;
 }
 
 // --- エラーヘルパー（apiClient の ApiError 形状に合わせる） ---
@@ -54,10 +55,11 @@ function randHex(): string {
   return Math.random().toString(16).slice(2, 10);
 }
 
-// 支出DTO（一覧は日付降順）。
+// 支出DTO（一覧は日付降順）。締め日設定に応じて精算期間で集計する。
 function listExpenses(db: DemoDb, month: string): ExpensesResponse {
+  const cd = db.closingDay ?? 1;
   const expenses = db.expenses
-    .filter((e) => e.month === month)
+    .filter((e) => settlementMonthOf(e.date, cd) === month)
     .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
   return { month, expenses };
 }
@@ -71,6 +73,7 @@ function settlementOf(db: DemoDb, month: string): Settlement {
     incomes: db.incomes,
     expenses: db.expenses,
     recurring: db.recurring,
+    closingDay: db.closingDay ?? 1,
   });
   return { ...s, settled: Boolean(db.settled[month]) };
 }
@@ -255,6 +258,18 @@ export async function demoApi(method: HttpMethod, path: string, body?: unknown):
     db.weights = next;
     store.save();
     return { weights: { ...db.weights } };
+  }
+
+  // --- 締め日 ---
+  if (key === "GET /settings/closing-day") {
+    return { closingDay: db.closingDay ?? 1 };
+  }
+  if (key === "PUT /settings/closing-day") {
+    const day = Number(b.closingDay);
+    if (!Number.isInteger(day) || day < 1 || day > 31) validation("締め日は1〜31の範囲で指定してください");
+    db.closingDay = day;
+    store.save();
+    return { closingDay: db.closingDay };
   }
 
   // --- アカウント（デモ: 先頭メンバーをログイン中として扱う。永続化はしない） ---

@@ -87,5 +87,7 @@ export function seedData(): DemoDb {
     ],
     // 過去2か月は精算済み、今月は未精算にしておく
     settled: { [m1]: true, [m2]: true },
+    // 締め日は暦月どおり（1）を初期値にする
+    closingDay: 1,
   };
 }

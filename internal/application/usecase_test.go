@@ -39,7 +39,7 @@ func newFixture(t *testing.T) fixture {
 	statusRepo := memory.NewSettlementStatusRepository()
 	now := func() time.Time { return time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC) }
 	return fixture{
-		expenses:   application.NewExpenseUsecase(couple, expenseRepo, now),
+		expenses:   application.NewExpenseUsecase(couple, expenseRepo, settingsRepo, now),
 		settlement: application.NewSettlementUsecase(couple, expenseRepo, incomeRepo, recurringRepo, settingsRepo, statusRepo),
 		settings:   application.NewSettingsUsecase(couple, settingsRepo),
 		recurring:  application.NewRecurringExpenseUsecase(couple, recurringRepo),
@@ -534,5 +534,60 @@ func TestInputIncomeValidation(t *testing.T) {
 	}
 	if _, err := f.settlement.InputIncome(ctx, "2026-07", husband, -1); !errors.Is(err, domain.ErrValidation) {
 		t.Errorf("負の金額: err = %v, want ErrValidation", err)
+	}
+}
+
+func TestClosingDaySettlementPeriod(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	// 締め日=15: 6/15〜7/14 を7月分として計上する
+	if _, err := f.settings.UpdateClosingDay(ctx, 15); err != nil {
+		t.Fatalf("UpdateClosingDay: %v", err)
+	}
+
+	reg := func(date string, yen int64) {
+		if _, err := f.expenses.Register(ctx, application.RegisterExpenseInput{
+			PaidBy: husband, AmountYen: yen, Description: date, Date: date,
+		}); err != nil {
+			t.Fatalf("Register(%s): %v", date, err)
+		}
+	}
+	reg("2026-06-14", 1000) // 前月分（除外）
+	reg("2026-06-15", 2000) // 7月分（起算日）
+	reg("2026-07-14", 4000) // 7月分（締め前日）
+	reg("2026-07-15", 8000) // 8月分（除外）
+
+	// 支出一覧も締め期間で集計される
+	list, err := f.expenses.ListByMonth(ctx, "2026-07")
+	if err != nil {
+		t.Fatalf("ListByMonth: %v", err)
+	}
+	if len(list) != 2 {
+		t.Fatalf("7月の支出件数 = %d, want 2 (%+v)", len(list), list)
+	}
+
+	// 精算の合計支出は 2000+4000 = 6000
+	if _, err := f.settlement.InputIncome(ctx, "2026-07", husband, 100000); err != nil {
+		t.Fatalf("InputIncome: %v", err)
+	}
+	if _, err := f.settlement.InputIncome(ctx, "2026-07", wife, 100000); err != nil {
+		t.Fatalf("InputIncome: %v", err)
+	}
+	s, err := f.settlement.GetSettlement(ctx, "2026-07")
+	if err != nil {
+		t.Fatalf("GetSettlement: %v", err)
+	}
+	if int64(s.TotalExpense) != 6000 {
+		t.Errorf("7月の合計支出 = %d, want 6000", int64(s.TotalExpense))
+	}
+
+	// 8月には 7/15 分のみ計上される
+	aug, err := f.expenses.ListByMonth(ctx, "2026-08")
+	if err != nil {
+		t.Fatalf("ListByMonth(8月): %v", err)
+	}
+	if len(aug) != 1 || aug[0].Description != "2026-07-15" {
+		t.Errorf("8月の支出 = %+v, want [2026-07-15]", aug)
 	}
 }

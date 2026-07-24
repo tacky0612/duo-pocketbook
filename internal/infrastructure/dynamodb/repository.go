@@ -22,6 +22,7 @@ const (
 	settingsPK      = "SETTINGS"
 	weightSK        = "WEIGHT"
 	profileSKPrefix = "PROFILE#"
+	closingDaySK    = "CLOSINGDAY"
 	recurringPK     = "RECURRING"
 	statusSK        = "STATUS"
 	accountPK       = "ACCOUNT"
@@ -427,6 +428,12 @@ type profileItem struct {
 	Color    string `dynamodbav:"Color"`
 }
 
+type closingDayItem struct {
+	PK  string `dynamodbav:"PK"`
+	SK  string `dynamodbav:"SK"`
+	Day int    `dynamodbav:"Day"`
+}
+
 // GetWeight は設定済みの比重を返す。未設定の場合は ok=false。
 func (r *SettingsRepository) GetWeight(ctx context.Context) (domain.Weight, bool, error) {
 	out, err := r.client.GetItem(ctx, &dynamodb.GetItemInput{
@@ -469,6 +476,45 @@ func (r *SettingsRepository) SaveWeight(ctx context.Context, weight domain.Weigh
 		weights[string(id)] = v
 	}
 	item, err := attributevalue.MarshalMap(weightItem{PK: settingsPK, SK: weightSK, Weights: weights})
+	if err != nil {
+		return err
+	}
+	_, err = r.client.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: aws.String(r.table),
+		Item:      item,
+	})
+	return err
+}
+
+// GetClosingDay は設定済みの締め日を返す。未設定の場合は ok=false。
+func (r *SettingsRepository) GetClosingDay(ctx context.Context) (domain.ClosingDay, bool, error) {
+	out, err := r.client.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: aws.String(r.table),
+		Key: map[string]types.AttributeValue{
+			"PK": &types.AttributeValueMemberS{Value: settingsPK},
+			"SK": &types.AttributeValueMemberS{Value: closingDaySK},
+		},
+	})
+	if err != nil {
+		return 0, false, err
+	}
+	if out.Item == nil {
+		return 0, false, nil
+	}
+	var item closingDayItem
+	if err := attributevalue.UnmarshalMap(out.Item, &item); err != nil {
+		return 0, false, err
+	}
+	cd, err := domain.NewClosingDay(item.Day)
+	if err != nil {
+		return 0, false, err
+	}
+	return cd, true, nil
+}
+
+// SaveClosingDay は締め日を保存する。
+func (r *SettingsRepository) SaveClosingDay(ctx context.Context, day domain.ClosingDay) error {
+	item, err := attributevalue.MarshalMap(closingDayItem{PK: settingsPK, SK: closingDaySK, Day: day.Int()})
 	if err != nil {
 		return err
 	}

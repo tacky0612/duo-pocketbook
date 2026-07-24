@@ -53,6 +53,10 @@ TOKEN=$(curl -s -X POST $BASE/login \
 | `DELETE /recurring-expenses/{id}` | 固定費の削除 |
 | `GET /settings/weight` | 精算比重の取得（未設定時 1:1） |
 | `PUT /settings/weight` | 精算比重の更新 |
+| `GET /settings/closing-day` | 締め日の取得（未設定時 1＝暦月どおり） |
+| `PUT /settings/closing-day` | 締め日の更新（1〜31） |
+
+> **締め日と対象月**: 締め日（`/settings/closing-day`）を 2 以上に設定すると、`month=YYYY-MM` を扱うエンドポイント（支出一覧・精算・履歴）はその月を**締め期間**として集計する（例: 締め日15 なら 7月 = 6/15〜7/14）。支出自体は支出日の暦月をキーに保存され、締め日を変えても保存先は変わらない。詳細は [settlement.md](settlement.md#締め日)。
 
 ## 典型フロー
 

@@ -14,15 +14,16 @@ import (
 type ExpenseUsecase struct {
 	couple   domain.Couple
 	expenses ExpenseRepository
+	settings SettingsRepository
 	now      func() time.Time
 }
 
 // NewExpenseUsecase は ExpenseUsecase を生成する。
-func NewExpenseUsecase(couple domain.Couple, expenses ExpenseRepository, now func() time.Time) *ExpenseUsecase {
+func NewExpenseUsecase(couple domain.Couple, expenses ExpenseRepository, settings SettingsRepository, now func() time.Time) *ExpenseUsecase {
 	if now == nil {
 		now = time.Now
 	}
-	return &ExpenseUsecase{couple: couple, expenses: expenses, now: now}
+	return &ExpenseUsecase{couple: couple, expenses: expenses, settings: settings, now: now}
 }
 
 // RegisterExpenseInput は支出登録の入力。
@@ -84,13 +85,18 @@ func (u *ExpenseUsecase) Update(ctx context.Context, id domain.ExpenseID, in Reg
 	return updated, nil
 }
 
-// ListByMonth は対象月の共有支出を日付降順で返す。
+// ListByMonth は対象精算月の共有支出を日付降順で返す。
+// 締め日設定に応じて精算期間（暦月をまたぐ場合がある）で集計する。
 func (u *ExpenseUsecase) ListByMonth(ctx context.Context, month string) ([]domain.Expense, error) {
 	ym, err := domain.ParseYearMonth(month)
 	if err != nil {
 		return nil, err
 	}
-	list, err := u.expenses.FindByMonth(ctx, ym)
+	closingDay, err := currentClosingDay(ctx, u.settings)
+	if err != nil {
+		return nil, err
+	}
+	list, err := expensesForSettlementMonth(ctx, u.expenses, ym, closingDay)
 	if err != nil {
 		return nil, fmt.Errorf("支出の取得に失敗しました: %w", err)
 	}

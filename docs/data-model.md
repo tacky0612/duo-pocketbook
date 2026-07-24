@@ -13,6 +13,7 @@
 | 精算済みフラグ | `MONTH#<yyyy-MM>` | `STATUS` | `Settled`（bool） |
 | 固定費 | `RECURRING` | `<固定費ID>` | `PaidBy`, `AmountYen`, `Description` |
 | 精算比重 | `SETTINGS` | `WEIGHT` | `Weights`（memberID→比重のマップ） |
+| 締め日 | `SETTINGS` | `CLOSINGDAY` | `Day`（1〜31。精算期間の起算日。未設定時は1＝暦月どおり） |
 | メンバープロフィール | `SETTINGS` | `PROFILE#<memberID>` | `MemberID`, `Name`, `Color`（上書き設定。未設定項目は保存されない） |
 | アカウント | `ACCOUNT` | `ACCT#<accountID>` | `Slot`(1/2), `LoginID`, `PasswordHash`（bcrypt） |
 
@@ -28,6 +29,10 @@
 
 固定費は特定の月に紐づかず単一パーティション（`PK=RECURRING`）に保存される。精算時（`SettlementUsecase`）に `RecurringExpense.AsExpenseFor(month)` で対象月の支出として実体化され、IDは `<yyyy-MM>_recurring-<固定費ID>` 形式になる（DynamoDBには保存されず、精算計算の入力としてのみ生成される）。
 
+### 締め日は保存先を変えない（暦月キーのまま集計時に期間で絞る）
+
+支出は常に**支出日の暦月**（`EXPENSE#<暦月>`）に保存する。締め日（`SETTINGS/CLOSINGDAY`）は可変設定のため、これをIDやパーティションに焼き込むと締め日変更時に既存データが迷子になる。そこで締め日 D≥2 のとき、精算月 M の集計は暦月 `M-1` と `M` の2パーティションを取得し、各支出について `ClosingDay.SettlementMonth(支出日)==M` のものだけを採用する（`application.expensesForSettlementMonth`）。締め日=1 のときは暦月 M の1パーティションのみで従来どおり。これにより締め日を変更しても保存済みデータの再配置は不要で、集計だけが期間に追従する。
+
 ### アクセスパターン
 
 | 操作 | DynamoDB操作 |
@@ -42,6 +47,8 @@
 | 固定費の取得/削除 | `GetItem` / `DeleteItem` |
 | 固定費の一覧 | `Query (PK = RECURRING)` |
 | 比重の取得/更新 | `GetItem` / `PutItem`（固定キー） |
+| 締め日の取得/更新 | `GetItem` / `PutItem`（`PK=SETTINGS, SK=CLOSINGDAY`） |
+| 締め期間の支出集計 | `Query`（暦月 `M-1` と `M` の2パーティション）→ 締め日で `M` 分を抽出。締め日=1 は `M` のみ |
 | プロフィールの一覧 | `Query (PK = SETTINGS AND begins_with(SK, PROFILE#))` |
 | プロフィールの表示名/カラー更新 | `UpdateItem`（単一属性のみ更新し他の属性を維持） |
 | アカウントの一覧（起動時・認証時） | `Query (PK = ACCOUNT)` |
