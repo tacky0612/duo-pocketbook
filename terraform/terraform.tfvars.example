@@ -15,7 +15,8 @@ jwt_secret = "long-random-secret"
 allowed_origins = ["https://<username>.github.io"]
 
 # Lambda 予約同時実行数の上限（低く固定してコスト暴走を防ぐ）。2人利用なら2で十分
-reserved_concurrency = 2
+# -1 で未設定。正の値は同時実行上限(既定10の新規アカウント)を引き上げてから
+reserved_concurrency = -1
 
 # 正規クライアント識別用の事前共有キー。フロントの VITE_CLIENT_KEY と同じ値にする。
 # 例: openssl rand -hex 24 で生成。空なら無効。

@@ -3,8 +3,9 @@
 # コミットしない。CI では GitHub Secrets → 環境変数 TF_VAR_* で注入する（docs/deployment.md 参照）。
 # ローカルで apply する場合のみ terraform.tfvars（gitignore 済み）に機密値を置く。
 
-region               = "ap-northeast-1"
-reserved_concurrency = 2
+region = "ap-northeast-1"
+# 新規AWSアカウントは同時実行上限が10のため予約は無効(-1)。上限引き上げ後に正の値へ変更可
+reserved_concurrency = -1
 
 # Cloudflare（案1: Access で実行元制限）
 enable_cloudflare  = true

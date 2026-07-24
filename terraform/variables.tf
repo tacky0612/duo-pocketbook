@@ -60,9 +60,15 @@ variable "log_retention_days" {
 }
 
 variable "reserved_concurrency" {
-  description = "Lambdaの予約同時実行数（上限）。低く固定して、想定外のトラフィック（bot/DoS）でも実行時間コストが青天井にならないようにする。2人利用なら2で十分。-1で未設定（無制限）。"
+  description = <<-EOT
+    Lambdaの予約同時実行数（上限）。-1 で未設定（既定）。
+    正の値を設定するには、アカウントの同時実行上限（Service Quotas: Concurrent executions）が
+    「予約値 + 10」以上である必要がある。新規AWSアカウントは上限が 10 に絞られており、
+    その場合はどんな正の値でも設定できない（未予約分が最低10を下回るため）ので -1 のままにする。
+    上限を引き上げれば、コスト上限のために正の小さな値（例 2）に戻せる。
+  EOT
   type        = number
-  default     = 2
+  default     = -1
 }
 
 variable "client_key" {
