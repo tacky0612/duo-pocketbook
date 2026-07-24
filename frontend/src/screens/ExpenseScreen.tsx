@@ -121,7 +121,8 @@ export default function ExpenseScreen({ month, members, me, notify, onError }: S
               </Select>
             </Field>
             <Field label="日付">
-              <Input type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
+              {/* iOS Safari の date 入力はネイティブUIの固有幅で親をはみ出すため appearance-none で親幅に従わせる */}
+              <Input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="min-w-0 appearance-none" />
             </Field>
           </div>
           <div className="grid grid-cols-5 gap-3">
@@ -188,10 +189,12 @@ export default function ExpenseScreen({ month, members, me, notify, onError }: S
                         </Select>
                       </Field>
                       <Field label="日付">
+                        {/* iOS Safari の date 入力はネイティブUIの固有幅で親をはみ出すため appearance-none で親幅に従わせる */}
                         <Input
                           type="date" required
                           value={draft.date}
                           onChange={(ev) => setDraft((d) => (d ? { ...d, date: ev.target.value } : d))}
+                          className="min-w-0 appearance-none"
                         />
                       </Field>
                     </div>
