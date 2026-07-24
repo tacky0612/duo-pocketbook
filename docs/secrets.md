@@ -35,7 +35,7 @@
 |---|---|---|
 | `TF_STATE_BUCKET` | リモート state の S3 バケット名 | bootstrap 出力 `state_bucket` |
 
-> メンバーの表示名は変数/シークレットで持たず、**アプリ側の既定値（太郎 / 花子）** を使う（`internal/config/config.go`）。変更は画面の表示名編集から行う。
+> メンバーの表示名は変数/シークレットで持たず、**アプリ側の既定値（アカウントA / アカウントB）** を使う（`internal/config/config.go`）。変更は画面の表示名編集から行う。
 
 ## 3. GitHub Actions — GitHub Pages 用（`deploy-pages.yml`）
 GitHub Pages 版フロントをデプロイする場合のみ関係する。
@@ -57,7 +57,7 @@ Terraform や CI の前に一度用意するもの。
 ## 5. Lambda 実行時の環境変数（Terraform が設定）
 以下は Terraform が上記シークレットから **自動で** Lambda に設定する。手動設定は不要（参考）。
 
-`ACCOUNT1_LOGINID` / `ACCOUNT1_PASSWORD_HASH` / `ACCOUNT2_LOGINID` / `ACCOUNT2_PASSWORD_HASH` / `JWT_SECRET` / `CLIENT_KEY` / `TABLE_NAME` / `ALLOWED_ORIGINS`（表示名は設定せず、アプリ既定の太郎 / 花子を使う）
+`ACCOUNT1_LOGINID` / `ACCOUNT1_PASSWORD_HASH` / `ACCOUNT2_LOGINID` / `ACCOUNT2_PASSWORD_HASH` / `JWT_SECRET` / `CLIENT_KEY` / `TABLE_NAME` / `ALLOWED_ORIGINS`（表示名は設定せず、アプリ既定のアカウントA / アカウントBを使う）
 
 ## 6. ローカル開発
 `make up`（Docker Compose）は `docker-compose.yml` にコミット済みの**ローカル専用値**で動く。本番シークレットは不要。
