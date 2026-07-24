@@ -91,6 +91,11 @@ export default function App() {
       });
   }, [me]);
 
+  // 画面を切り替えたら、現在のスクロール位置にかかわらず切り替え先を最上部から表示する。
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [screen]);
+
   if (!me) {
     return (
       <>
