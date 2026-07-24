@@ -78,8 +78,11 @@ JWT_SECRET=dev-secret go run ./cmd/server
 ```bash
 cd frontend && npm run dev        # Vite dev server
 cd frontend && npm run typecheck  # tsc --noEmit（型チェックのみ）
-cd frontend && npm run build      # tsc --noEmit → vite build
+cd frontend && npm run build      # tsc --noEmit → vite build → docs:api
+cd frontend && npm run docs:api   # OpenAPIからAPIドキュメント生成（dist/api-docs.html）
 ```
+
+`npm run build` は最後に `docs:api`（`@redocly/cli` の `build-docs`）を実行し、`api/openapi.yaml` から `dist/api-docs.html`（ReDoc）を生成する。これは配信物に含まれ、GitHub Pages・Cloudflare Pages の両方で `/api-docs.html` として公開される（[api.md](./api.md) 参照）。
 
 ログイン画面の「APIのURL」にAPIサーバー（例 `http://localhost:8080`）を入力する。値は localStorage に保存される。
 

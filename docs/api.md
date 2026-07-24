@@ -112,6 +112,14 @@ curl $BASE/months/2026-07/settlement -H "Authorization: Bearer $TOKEN"
 
 `CLIENT_KEY` を設定して運用する場合、`/health` と CORS プリフライト（OPTIONS）を除く全リクエストに `X-Client-Key: <キー>` を付与する必要がある（不一致は 403 `FORBIDDEN`）。フロントエンドはビルド時の `VITE_CLIENT_KEY` から自動付与する。詳細は [デプロイガイド](./deployment.md) の「アクセス制限とコスト最適化」を参照。
 
+## ドキュメントページ（自動生成・ホスティング）
+
+`api/openapi.yaml` から **ReDoc** 形式の API ドキュメント HTML を生成し、フロントと同じ配信物に含めている。生成はフロントのビルド（`npm run build` → `npm run docs:api`、`@redocly/cli` の `build-docs`）に組み込まれており、GitHub Pages・Cloudflare Pages の両方へ自動デプロイされる。
+
+- 公開パス: **`/api-docs.html`**（例: `https://<username>.github.io/duo-pocketbook/api-docs.html`、Cloudflare 構成では `https://<app_domain>/api-docs.html`）
+- ローカル生成: `cd frontend && npm run docs:api`（`dist/api-docs.html` を出力）
+- 単体プレビュー: `npx @redocly/cli build-docs api/openapi.yaml -o /tmp/api-docs.html`
+
 ## 外部ツール連携
 
 `api/openapi.yaml` を Swagger UI / Postman / openapi-generator 等に読み込めばクライアントを自動生成できる。API を変更する場合は必ずこの定義も更新すること。
