@@ -42,8 +42,12 @@ TOKEN=$(curl -s -X POST $BASE/login \
 | `GET /expenses?month=YYYY-MM` | 共有支出の月別一覧（日付降順） |
 | `PUT /expenses/{id}` | 共有支出の更新 |
 | `DELETE /expenses/{id}` | 共有支出の削除（どちらのメンバーでも可） |
-| `PUT /months/{month}/incomes/{memberId}` | 月次収入の入力（上書き） |
-| `GET /months/{month}/incomes` | 月次収入の一覧 |
+| `PUT /months/{month}/salaries/{memberId}` | 月次給与の入力（上書き。メンバーごと1件） |
+| `GET /months/{month}/salaries` | 月次給与の一覧 |
+| `POST /incomes` | 追加収入の登録（`month` 空で毎月継続・指定でその月のみの単発） |
+| `GET /incomes?month=YYYY-MM` | 指定月に適用される追加収入の一覧（継続分＋当月単発分） |
+| `PUT /incomes/{id}` | 追加収入の更新（メンバー・金額・内容。継続/単発と対象月は不変） |
+| `DELETE /incomes/{id}` | 追加収入の削除 |
 | `GET /months/{month}/settlement` | 月次精算の取得 |
 | `PUT /months/{month}/settlement/status` | 精算済みフラグの更新 |
 | `GET /settlements/history?from=YYYY-MM&to=YYYY-MM` | 精算履歴の取得（新しい月順） |
@@ -71,11 +75,15 @@ BASE=http://localhost:8080
 curl -X POST $BASE/expenses -H "Authorization: Bearer $TOKEN" \
   -d '{"paidBy":"taro","amountYen":20000,"description":"家賃","date":"2026-07-01"}'
 
-# 2. 月次収入を入力
-curl -X PUT $BASE/months/2026-07/incomes/taro -H "Authorization: Bearer $TOKEN" \
+# 2. 月次給与を入力（精算の可否判定に使う基本の収入）
+curl -X PUT $BASE/months/2026-07/salaries/taro -H "Authorization: Bearer $TOKEN" \
   -d '{"amountYen":100000}'
-curl -X PUT $BASE/months/2026-07/incomes/hanako -H "Authorization: Bearer $TOKEN2" \
+curl -X PUT $BASE/months/2026-07/salaries/hanako -H "Authorization: Bearer $TOKEN2" \
   -d '{"amountYen":50000}'
+
+# 2b. （任意）給与とは別の追加収入を登録（副業など・日付なし）
+curl -X POST $BASE/incomes -H "Authorization: Bearer $TOKEN" \
+  -d '{"memberId":"taro","amountYen":20000,"description":"副業","month":""}'
 
 # 3. 精算を取得
 curl $BASE/months/2026-07/settlement -H "Authorization: Bearer $TOKEN"
@@ -104,7 +112,7 @@ curl $BASE/months/2026-07/settlement -H "Authorization: Bearer $TOKEN"
 - `totalDirectTransferYen` は当月に適用された立替精算の総額（方向を問わない絶対額の合計）。
 - `settled` は `PUT /months/{month}/settlement/status` で更新する精算済みフラグ（振込を実施したかどうかの記録用で、精算計算そのものには影響しない）。
 
-固定費（`recurring-expenses`）が登録されている場合、精算計算時に対象月の共有支出として自動的に合算される。立替精算（`direct-transfers`）は共有支出とは別枠で、比重按分せずに振込額へそのまま加算される（詳細は [settlement.md](settlement.md#立替精算共有支出とは別枠の送金)）。
+固定費（`recurring-expenses`）が登録されている場合、精算計算時に対象月の共有支出として自動的に合算される。立替精算（`direct-transfers`）は共有支出とは別枠で、比重按分せずに振込額へそのまま加算される（詳細は [settlement.md](settlement.md#立替精算共有支出とは別枠の送金)）。追加収入（`incomes`）は各メンバーの給与と合算して収入（`incomeYen`）に反映される（詳細は [settlement.md](settlement.md#収入給与と追加収入)）。
 
 ## エラーレスポンス
 
@@ -120,7 +128,7 @@ curl $BASE/months/2026-07/settlement -H "Authorization: Bearer $TOKEN"
 | 401 | `UNAUTHORIZED` | 未認証・トークン無効・認証情報誤り |
 | 403 | `FORBIDDEN` | 事前共有クライアントキー（`X-Client-Key`）が不一致（`CLIENT_KEY` 設定時のみ） |
 | 404 | `NOT_FOUND` | 対象データが存在しない |
-| 409 | `INCOME_NOT_READY` | 精算に必要な両メンバーの収入が未入力 |
+| 409 | `INCOME_NOT_READY` | 精算に必要な両メンバーの給与が未入力 |
 | 429 | `RATE_LIMITED` | リクエストが多すぎる（`/login` のIP単位レート制限） |
 | 500 | `INTERNAL` | 内部エラー |
 

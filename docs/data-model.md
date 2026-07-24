@@ -9,7 +9,9 @@
 | エンティティ | PK | SK | 属性 |
 |---|---|---|---|
 | 共有支出 | `EXPENSE#<yyyy-MM>` | `<expenseID>` | `PaidBy`, `AmountYen`, `Description`, `Date`(YYYY-MM-DD), `CreatedAt`(RFC3339) |
-| 月次収入 | `MONTH#<yyyy-MM>` | `INCOME#<memberID>` | `MemberID`, `AmountYen` |
+| 給与 | `MONTH#<yyyy-MM>` | `SALARY#<memberID>` | `MemberID`, `AmountYen` |
+| 追加収入（継続） | `INCOME#RECURRING` | `<収入ID>` | `MemberID`, `AmountYen`, `Description`, `Month`(空文字) |
+| 追加収入（単発） | `INCOME#<yyyy-MM>` | `<収入ID>` | `MemberID`, `AmountYen`, `Description`, `Month`(YYYY-MM) |
 | 精算済みフラグ | `MONTH#<yyyy-MM>` | `STATUS` | `Settled`（bool） |
 | 固定費 | `RECURRING` | `<固定費ID>` | `PaidBy`, `AmountYen`, `Description` |
 | 立替精算（継続） | `DIRECTTRANSFER#RECURRING` | `<立替精算ID>` | `FromID`, `ToID`, `AmountYen`, `Description`, `Month`(空文字) |
@@ -40,6 +42,17 @@
 
 単発は支出と違い**日付ではなく精算月に直接ひも付く**（締め日の影響を受けない）。ある精算月に適用する立替精算は「継続分（`DIRECTTRANSFER#RECURRING`）＋当月単発分（`DIRECTTRANSFER#<月>`）」の2パーティションを取得して合算する。
 
+### 給与（1件・必須）と追加収入（複数件・単発/継続）の分離
+
+収入は2種類に分けて保持する（[settlement.md](settlement.md#収入給与と追加収入)）。
+
+- **給与**（`Salary`, `internal/domain/salary.go`）: 毎月発生する基本の収入。メンバーごと・月ごとに1件で、`PK=MONTH#<月>`・`SK=SALARY#<memberID>` に上書き保存する。精算の可否判定（両者分の入力）に使う。
+- **追加収入**（`Income`, `internal/domain/income.go`）: 給与とは別の内容付き収入（副業など・日付なし）。立替精算と同じく**継続/単発でパーティションを分ける**。
+  - 継続: `PK=INCOME#RECURRING`、ID は `inc_<hex>`。全精算月に自動加算される。
+  - 単発: `PK=INCOME#<精算月>`、ID は `<yyyy-MM>_<hex>`。IDに精算月を内包するため、`IncomeID.Month()` で `GET`/`DELETE` のパーティションを特定でき GSI/Scan 不要。
+
+ある精算月の収入は「給与（`SALARY#`）＋継続の追加収入（`INCOME#RECURRING`）＋当月単発の追加収入（`INCOME#<月>`）」を合算して算出する。
+
 ### 締め日は保存先を変えない（暦月キーのまま集計時に期間で絞る）
 
 支出は常に**支出日の暦月**（`EXPENSE#<暦月>`）に保存する。締め日（`SETTINGS/CLOSINGDAY`）は可変設定のため、これをIDやパーティションに焼き込むと締め日変更時に既存データが迷子になる。そこで締め日 D≥2 のとき、精算月 M の集計は暦月 `M-1` と `M` の2パーティションを取得し、各支出について `ClosingDay.SettlementMonth(支出日)==M` のものだけを採用する（`application.expensesForSettlementMonth`）。締め日=1 のときは暦月 M の1パーティションのみで従来どおり。これにより締め日を変更しても保存済みデータの再配置は不要で、集計だけが期間に追従する。
@@ -51,8 +64,11 @@
 | 支出の登録/更新 | `PutItem` |
 | 支出の月別一覧 | `Query (PK = EXPENSE#<月>)` |
 | 支出の取得/削除 | `GetItem` / `DeleteItem`（IDから月を導出してキー構築） |
-| 収入の入力（上書き） | `PutItem`（同キーへの上書きが自然に冪等） |
-| 収入の月別一覧 | `Query (PK = MONTH#<月> AND begins_with(SK, INCOME#))` |
+| 給与の入力（上書き） | `PutItem`（同キーへの上書きが自然に冪等） |
+| 給与の月別一覧 | `Query (PK = MONTH#<月> AND begins_with(SK, SALARY#))` |
+| 追加収入の登録/更新 | `PutItem`（継続 `PK=INCOME#RECURRING` / 単発 `PK=INCOME#<月>`） |
+| 追加収入の取得/削除 | `GetItem` / `DeleteItem`（IDから継続か単発の月を導出してキー構築） |
+| 追加収入の月別一覧 | `Query`（`INCOME#RECURRING` と `INCOME#<月>` の2パーティション） |
 | 精算済みフラグの取得/更新 | `GetItem` / `PutItem`（`PK=MONTH#<月>, SK=STATUS`） |
 | 固定費の登録/更新 | `PutItem`（`PK=RECURRING`） |
 | 固定費の取得/削除 | `GetItem` / `DeleteItem` |

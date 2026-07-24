@@ -17,10 +17,11 @@ type SettlementHistoryEntry struct {
 	Settled    bool
 }
 
-// SettlementUsecase は月次収入と精算に関するユースケース。
+// SettlementUsecase は給与・収入と精算に関するユースケース。
 type SettlementUsecase struct {
 	couple    domain.Couple
 	expenses  ExpenseRepository
+	salaries  SalaryRepository
 	incomes   IncomeRepository
 	recurring RecurringExpenseRepository
 	transfers DirectTransferRepository
@@ -29,8 +30,8 @@ type SettlementUsecase struct {
 }
 
 // NewSettlementUsecase は SettlementUsecase を生成する。
-func NewSettlementUsecase(couple domain.Couple, expenses ExpenseRepository, incomes IncomeRepository, recurring RecurringExpenseRepository, transfers DirectTransferRepository, settings SettingsRepository, status SettlementStatusRepository) *SettlementUsecase {
-	return &SettlementUsecase{couple: couple, expenses: expenses, incomes: incomes, recurring: recurring, transfers: transfers, settings: settings, status: status}
+func NewSettlementUsecase(couple domain.Couple, expenses ExpenseRepository, salaries SalaryRepository, incomes IncomeRepository, recurring RecurringExpenseRepository, transfers DirectTransferRepository, settings SettingsRepository, status SettlementStatusRepository) *SettlementUsecase {
+	return &SettlementUsecase{couple: couple, expenses: expenses, salaries: salaries, incomes: incomes, recurring: recurring, transfers: transfers, settings: settings, status: status}
 }
 
 // IsSettled は対象月が精算済みかを返す。
@@ -58,49 +59,59 @@ func (u *SettlementUsecase) SetSettled(ctx context.Context, month string, settle
 	return settled, nil
 }
 
-// InputIncome は対象月のメンバーの収入を入力（上書き）する。
-func (u *SettlementUsecase) InputIncome(ctx context.Context, month string, memberID domain.MemberID, amountYen int64) (domain.MonthlyIncome, error) {
+// InputSalary は対象月のメンバーの給与を入力（上書き）する。
+func (u *SettlementUsecase) InputSalary(ctx context.Context, month string, memberID domain.MemberID, amountYen int64) (domain.Salary, error) {
 	ym, err := domain.ParseYearMonth(month)
 	if err != nil {
-		return domain.MonthlyIncome{}, err
+		return domain.Salary{}, err
 	}
 	if !u.couple.Contains(memberID) {
-		return domain.MonthlyIncome{}, fmt.Errorf("%w: 不明なメンバーです: %s", domain.ErrValidation, memberID)
+		return domain.Salary{}, fmt.Errorf("%w: 不明なメンバーです: %s", domain.ErrValidation, memberID)
 	}
-	income, err := domain.NewMonthlyIncome(ym, memberID, domain.Money(amountYen))
+	salary, err := domain.NewSalary(ym, memberID, domain.Money(amountYen))
 	if err != nil {
-		return domain.MonthlyIncome{}, err
+		return domain.Salary{}, err
 	}
-	if err := u.incomes.Save(ctx, income); err != nil {
-		return domain.MonthlyIncome{}, fmt.Errorf("収入の保存に失敗しました: %w", err)
+	if err := u.salaries.Save(ctx, salary); err != nil {
+		return domain.Salary{}, fmt.Errorf("給与の保存に失敗しました: %w", err)
 	}
-	return income, nil
+	return salary, nil
 }
 
-// GetIncomes は対象月の入力済み収入を返す。
-func (u *SettlementUsecase) GetIncomes(ctx context.Context, month string) ([]domain.MonthlyIncome, error) {
+// GetSalaries は対象月の入力済み給与を返す。
+func (u *SettlementUsecase) GetSalaries(ctx context.Context, month string) ([]domain.Salary, error) {
 	ym, err := domain.ParseYearMonth(month)
 	if err != nil {
 		return nil, err
 	}
-	list, err := u.incomes.FindByMonth(ctx, ym)
+	list, err := u.salaries.FindByMonth(ctx, ym)
 	if err != nil {
-		return nil, fmt.Errorf("収入の取得に失敗しました: %w", err)
+		return nil, fmt.Errorf("給与の取得に失敗しました: %w", err)
 	}
 	return list, nil
 }
 
 // GetSettlement は対象月の精算結果を計算して返す。
-// 両メンバーの収入が入力されていない場合は domain.ErrIncomeNotReady を返す。
+// 両メンバーの給与が入力されていない場合は domain.ErrIncomeNotReady を返す。
 func (u *SettlementUsecase) GetSettlement(ctx context.Context, month string) (*domain.Settlement, error) {
 	ym, err := domain.ParseYearMonth(month)
 	if err != nil {
 		return nil, err
 	}
-	incomes, err := u.incomes.FindByMonth(ctx, ym)
+	salaries, err := u.salaries.FindByMonth(ctx, ym)
+	if err != nil {
+		return nil, fmt.Errorf("給与の取得に失敗しました: %w", err)
+	}
+	// 追加収入（毎月継続分＋当月単発分）を集める。給与と合算して各メンバーの収入とする。
+	incomeRecurring, err := u.incomes.FindRecurring(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("収入の取得に失敗しました: %w", err)
 	}
+	incomeOneOff, err := u.incomes.FindByMonth(ctx, ym)
+	if err != nil {
+		return nil, fmt.Errorf("収入の取得に失敗しました: %w", err)
+	}
+	incomes := append(incomeRecurring, incomeOneOff...)
 	closingDay, err := currentClosingDay(ctx, u.settings)
 	if err != nil {
 		return nil, err
@@ -139,6 +150,7 @@ func (u *SettlementUsecase) GetSettlement(ctx context.Context, month string) (*d
 	return domain.CalculateSettlement(domain.SettlementInput{
 		Month:           ym,
 		Couple:          couple,
+		Salaries:        salaries,
 		Incomes:         incomes,
 		Expenses:        expenses,
 		DirectTransfers: directTransfers,
@@ -148,7 +160,7 @@ func (u *SettlementUsecase) GetSettlement(ctx context.Context, month string) (*d
 }
 
 // History は from〜to（両端含む・YYYY-MM）の各月について精算結果と精算済みフラグを、
-// 新しい月から順に返す。両メンバーの収入が未入力の月はスキップする。
+// 新しい月から順に返す。両メンバーの給与が未入力の月はスキップする。
 func (u *SettlementUsecase) History(ctx context.Context, from, to string) ([]SettlementHistoryEntry, error) {
 	fromYM, err := domain.ParseYearMonth(from)
 	if err != nil {

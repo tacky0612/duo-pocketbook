@@ -6,7 +6,7 @@ import "fmt"
 type MemberSettlement struct {
 	Member      Member
 	Weight      int64
-	Income      Money // 対象月の収入
+	Income      Money // 対象月の収入（給与＋追加収入の合計）
 	PaidExpense Money // 対象月に立て替えた共有支出の合計
 	Disposable  Money // 精算後の可処分所得 (= 収入 - 立替支出 ± 精算額)
 }
@@ -35,9 +35,13 @@ type Settlement struct {
 
 // SettlementInput は精算計算への入力。
 type SettlementInput struct {
-	Month   YearMonth
-	Couple  Couple
-	Incomes []MonthlyIncome // 両メンバー分が揃っている必要がある
+	Month  YearMonth
+	Couple Couple
+	// Salaries は各メンバーの給与。両メンバー分が揃っている必要がある。
+	Salaries []Salary
+	// Incomes は給与とは別の追加収入（毎月継続分＋当月単発分）。
+	// 給与と合算して各メンバーの収入とする。
+	Incomes []Income
 	// Expenses は対象精算月に計上する共有支出。締め日設定により暦月をまたぐ場合がある。
 	Expenses []Expense
 	// DirectTransfers は対象月に適用する立替精算（毎月継続分＋当月単発分）。
@@ -71,21 +75,35 @@ func CalculateSettlement(in SettlementInput) (*Settlement, error) {
 		return nil, fmt.Errorf("%w: 比重に両メンバーの設定が必要です", ErrValidation)
 	}
 
+	// 給与は各メンバー必須。両者分が揃っていなければ精算できない。
 	incomes := map[MemberID]Money{}
-	for _, inc := range in.Incomes {
-		if inc.Month != in.Month {
-			return nil, fmt.Errorf("%w: 対象月以外の収入が含まれています: %s", ErrValidation, inc.Month)
+	for _, s := range in.Salaries {
+		if s.Month != in.Month {
+			return nil, fmt.Errorf("%w: 対象月以外の給与が含まれています: %s", ErrValidation, s.Month)
 		}
-		if !in.Couple.Contains(inc.MemberID) {
-			return nil, fmt.Errorf("%w: 不明なメンバーの収入が含まれています: %s", ErrValidation, inc.MemberID)
+		if !in.Couple.Contains(s.MemberID) {
+			return nil, fmt.Errorf("%w: 不明なメンバーの給与が含まれています: %s", ErrValidation, s.MemberID)
 		}
-		incomes[inc.MemberID] = inc.Amount
+		incomes[s.MemberID] = s.Amount
 	}
 	incomeA, okA := incomes[a.ID]
 	incomeB, okB := incomes[b.ID]
 	if !okA || !okB {
 		return nil, fmt.Errorf("%w (対象月: %s)", ErrIncomeNotReady, in.Month)
 	}
+
+	// 給与とは別の追加収入（毎月継続分＋当月単発分）を各メンバーの収入へ加算する。
+	for _, inc := range in.Incomes {
+		if !inc.Month.IsZero() && inc.Month != in.Month {
+			return nil, fmt.Errorf("%w: 対象月以外の収入が含まれています: %s", ErrValidation, inc.ID)
+		}
+		if !in.Couple.Contains(inc.MemberID) {
+			return nil, fmt.Errorf("%w: 不明なメンバーの収入が含まれています: %s", ErrValidation, inc.MemberID)
+		}
+		incomes[inc.MemberID] = incomes[inc.MemberID].Add(inc.Amount)
+	}
+	incomeA = incomes[a.ID]
+	incomeB = incomes[b.ID]
 
 	paid := map[MemberID]Money{}
 	var total Money
