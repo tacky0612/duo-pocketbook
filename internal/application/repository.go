@@ -47,6 +47,22 @@ type MemberProfile struct {
 	Color string // "#RRGGBB" 形式
 }
 
+// Account はログイン資格情報と不変の AccountID を持つアカウント。
+// ID（AccountID）はデータのキー・JWT subject として使う不変値。
+// LoginID はログインに使う可変のユーザー名。
+type Account struct {
+	ID           domain.MemberID // 不変の AccountID（例: acct_xxxx）
+	Slot         int             // env 設定スロット(0/1)。プロビジョニングの安定リンク
+	LoginID      string          // 可変のログインID
+	PasswordHash string          // bcrypt ハッシュ
+}
+
+// AccountRepository はアカウント（資格情報）の永続化を担う。
+type AccountRepository interface {
+	List(ctx context.Context) ([]Account, error)
+	Save(ctx context.Context, a Account) error
+}
+
 // SettingsRepository はアプリケーション設定（精算比重・プロフィール）の永続化を担う。
 type SettingsRepository interface {
 	// GetWeight は設定済みの比重を返す。未設定の場合は ok=false を返す。

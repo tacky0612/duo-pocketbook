@@ -17,6 +17,7 @@ import (
 type Handler struct {
 	couple     domain.Couple
 	auth       *Authenticator
+	account    *application.AccountUsecase
 	expenses   *application.ExpenseUsecase
 	settlement *application.SettlementUsecase
 	settings   *application.SettingsUsecase
@@ -27,6 +28,7 @@ type Handler struct {
 func NewHandler(
 	couple domain.Couple,
 	auth *Authenticator,
+	account *application.AccountUsecase,
 	expenses *application.ExpenseUsecase,
 	settlement *application.SettlementUsecase,
 	settings *application.SettingsUsecase,
@@ -35,6 +37,7 @@ func NewHandler(
 	return &Handler{
 		couple:     couple,
 		auth:       auth,
+		account:    account,
 		expenses:   expenses,
 		settlement: settlement,
 		settings:   settings,
@@ -171,7 +174,7 @@ func (h *Handler) Health(w http.ResponseWriter, _ *http.Request) {
 }
 
 type loginRequest struct {
-	MemberID string `json:"memberId"`
+	MemberID string `json:"memberId"` // ログインID
 	Password string `json:"password"`
 }
 
@@ -181,15 +184,21 @@ type loginResponse struct {
 	ExpiresAt string    `json:"expiresAt"`
 }
 
-// Login は認証してJWTを発行する。
+// Login はログインID・パスワードを検証してJWTを発行する。
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
 	if !decodeBody(w, r, &req) {
 		return
 	}
-	token, member, expiresAt, err := h.auth.Login(domain.MemberID(req.MemberID), req.Password)
+	accountID, err := h.account.Authenticate(r.Context(), req.MemberID, req.Password)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "メンバーIDまたはパスワードが違います")
+		writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "ログインIDまたはパスワードが違います")
+		return
+	}
+	member, _ := h.couple.Get(accountID)
+	token, expiresAt, err := h.auth.IssueToken(accountID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "INTERNAL", "内部エラーが発生しました")
 		return
 	}
 	writeJSON(w, http.StatusOK, loginResponse{
@@ -197,6 +206,63 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		Member:    toMemberDTO(member),
 		ExpiresAt: expiresAt.UTC().Format(time.RFC3339),
 	})
+}
+
+// ---- アカウント（自分の資格情報） ----
+
+type accountDTO struct {
+	AccountID string `json:"accountId"`
+	LoginID   string `json:"loginId"`
+	Name      string `json:"name"`
+}
+
+func (h *Handler) accountResponse(w http.ResponseWriter, r *http.Request, id domain.MemberID) {
+	acc, err := h.account.Get(r.Context(), id)
+	if err != nil {
+		writeUsecaseError(w, err)
+		return
+	}
+	member, _ := h.couple.Get(id)
+	writeJSON(w, http.StatusOK, accountDTO{AccountID: string(acc.ID), LoginID: acc.LoginID, Name: member.Name})
+}
+
+// GetAccount は認証中アカウントの AccountID・ログインID・表示名を返す。
+func (h *Handler) GetAccount(w http.ResponseWriter, r *http.Request) {
+	id, _ := MemberIDFromContext(r.Context())
+	h.accountResponse(w, r, id)
+}
+
+// UpdateLoginID はログインIDを変更する。
+func (h *Handler) UpdateLoginID(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		LoginID string `json:"loginId"`
+	}
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	id, _ := MemberIDFromContext(r.Context())
+	if err := h.account.UpdateLoginID(r.Context(), id, req.LoginID); err != nil {
+		writeUsecaseError(w, err)
+		return
+	}
+	h.accountResponse(w, r, id)
+}
+
+// UpdatePassword はパスワードを変更する（現在のパスワードを検証）。
+func (h *Handler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		CurrentPassword string `json:"currentPassword"`
+		NewPassword     string `json:"newPassword"`
+	}
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	id, _ := MemberIDFromContext(r.Context())
+	if err := h.account.UpdatePassword(r.Context(), id, req.CurrentPassword, req.NewPassword); err != nil {
+		writeUsecaseError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // ListMembers はメンバー一覧を返す（表示名・カラーの上書きを反映）。

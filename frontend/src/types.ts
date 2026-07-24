@@ -80,6 +80,13 @@ export interface LoginResponse {
   member: Member;
   expiresAt: string;
 }
+
+/** GET /account: 認証中アカウントの不変ID・可変ログインID・表示名。 */
+export interface AccountResponse {
+  accountId: string;
+  loginId: string;
+  name: string;
+}
 export interface MembersResponse {
   members: MemberView[];
 }

@@ -66,8 +66,8 @@ make up && make test-integration
 ### Dockerを使わない最小起動（インメモリ）
 
 ```bash
-MEMBER1_ID=taro MEMBER1_PASSWORD=pass1 \
-MEMBER2_ID=hanako MEMBER2_PASSWORD=pass2 \
+ACCOUNT1_LOGINID=taro ACCOUNT1_PASSWORD=pass1 \
+ACCOUNT2_LOGINID=hanako ACCOUNT2_PASSWORD=pass2 \
 JWT_SECRET=dev-secret go run ./cmd/server
 ```
 
@@ -109,9 +109,9 @@ cd frontend && npm run build      # tsc --noEmit → vite build
 
 | 変数 | 必須 | 説明 |
 |---|---|---|
-| `MEMBER1_ID` / `MEMBER2_ID` | ✅ | メンバーID（ログインID） |
-| `MEMBERn_PASSWORD_HASH` | ※ | bcryptハッシュ（本番用。`go run ./cmd/hashpw` で生成） |
-| `MEMBERn_PASSWORD` | ※ | 平文パスワード（ローカル専用）。※どちらか一方が必須 |
+| `ACCOUNT1_LOGINID` / `ACCOUNT2_LOGINID` | ✅ | 初期ログインID（AccountIDとは別の可変ユーザー名。ログイン後に画面から変更可能） |
+| `ACCOUNTn_PASSWORD_HASH` | ※ | bcryptハッシュ（本番用。`go run ./cmd/hashpw` で生成） |
+| `ACCOUNTn_PASSWORD` | ※ | 平文パスワード（ローカル専用）。※どちらか一方が必須 |
 | `JWT_SECRET` | ✅ | JWT署名シークレット |
 | `TOKEN_TTL_HOURS` | | トークン有効時間（デフォルト720=30日） |
 | `TABLE_NAME` | | DynamoDBテーブル名。未設定ならインメモリ |
