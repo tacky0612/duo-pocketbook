@@ -14,8 +14,13 @@
 | 固定費 | `RECURRING` | `<固定費ID>` | `PaidBy`, `AmountYen`, `Description` |
 | 精算比重 | `SETTINGS` | `WEIGHT` | `Weights`（memberID→比重のマップ） |
 | メンバープロフィール | `SETTINGS` | `PROFILE#<memberID>` | `MemberID`, `Name`, `Color`（上書き設定。未設定項目は保存されない） |
+| アカウント | `ACCOUNT` | `ACCT#<accountID>` | `Slot`(1/2), `LoginID`, `PasswordHash`（bcrypt） |
 
 ## 設計上のポイント
+
+### AccountID（不変）とログインID（可変）の分離
+
+各アカウントはアカウント作成時に生成される不変の **AccountID**（`acct_<hex>`）で一意に識別される。ログインに用いる **ログインID**（初期値は環境変数 `MEMBER*_ID`）は後から変更でき、AccountID とは独立している。JWT の subject は AccountID であり、支出・収入・比重などのデータはすべて AccountID（＝`memberID`）をキーに保存される。したがってログインIDを変更してもデータの所有関係は変わらない。アカウントは起動時に2スロット分をプロビジョニングし、既存レコードがあればそれを尊重、なければ生成する。
 
 ### 支出IDが対象月を内包する
 
@@ -39,6 +44,8 @@
 | 比重の取得/更新 | `GetItem` / `PutItem`（固定キー） |
 | プロフィールの一覧 | `Query (PK = SETTINGS AND begins_with(SK, PROFILE#))` |
 | プロフィールの表示名/カラー更新 | `UpdateItem`（単一属性のみ更新し他の属性を維持） |
+| アカウントの一覧（起動時・認証時） | `Query (PK = ACCOUNT)` |
+| ログインID/パスワードの更新 | `PutItem`（`PK=ACCOUNT, SK=ACCT#<accountID>`） |
 
 ### キャパシティ（無料枠の制約）
 

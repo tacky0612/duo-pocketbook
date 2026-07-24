@@ -78,29 +78,34 @@ func waitForHealthy(t *testing.T) {
 	t.Fatalf("アプリが起動しませんでした: %s", baseURL)
 }
 
-func login(t *testing.T, memberID, password string) string {
+// login はログインIDで認証し、トークンと不変の AccountID（member.id）を返す。
+// 支出の paidBy・収入・比重などのキーはログインIDではなく AccountID を使う。
+func login(t *testing.T, loginID, password string) (token, accountID string) {
 	t.Helper()
 	status, body := doJSON(t, http.MethodPost, "/login", "", map[string]string{
-		"memberId": memberID, "password": password,
+		"memberId": loginID, "password": password,
 	})
 	if status != http.StatusOK {
-		t.Fatalf("login(%s) status = %d, body = %s", memberID, status, body)
+		t.Fatalf("login(%s) status = %d, body = %s", loginID, status, body)
 	}
 	var out struct {
-		Token string `json:"token"`
+		Token  string `json:"token"`
+		Member struct {
+			ID string `json:"id"`
+		} `json:"member"`
 	}
 	if err := json.Unmarshal(body, &out); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	return out.Token
+	return out.Token, out.Member.ID
 }
 
 func TestE2EFlow(t *testing.T) {
 	waitForHealthy(t)
 
 	// --- 認証 ---
-	taro := login(t, "taro", "taro-password")
-	hanako := login(t, "hanako", "hanako-password")
+	taro, taroID := login(t, "taro", "taro-password")
+	hanako, hanakoID := login(t, "hanako", "hanako-password")
 
 	// 誤ったパスワードは 401
 	if status, _ := doJSON(t, http.MethodPost, "/login", "", map[string]string{
@@ -135,7 +140,7 @@ func TestE2EFlow(t *testing.T) {
 	// --- 支出登録 (ユーザー提示の例) ---
 	day := testMonth + "-15"
 	status, body = doJSON(t, http.MethodPost, "/expenses", taro, map[string]any{
-		"paidBy": "taro", "amountYen": 20000, "description": "家賃(一部)", "date": day,
+		"paidBy": taroID, "amountYen": 20000, "description": "家賃(一部)", "date": day,
 	})
 	if status != http.StatusCreated {
 		t.Fatalf("expense status = %d, body = %s", status, body)
@@ -148,7 +153,7 @@ func TestE2EFlow(t *testing.T) {
 	}
 
 	if status, body = doJSON(t, http.MethodPost, "/expenses", hanako, map[string]any{
-		"paidBy": "hanako", "amountYen": 20000, "description": "食費", "date": day,
+		"paidBy": hanakoID, "amountYen": 20000, "description": "食費", "date": day,
 	}); status != http.StatusCreated {
 		t.Fatalf("expense status = %d, body = %s", status, body)
 	}
@@ -176,12 +181,12 @@ func TestE2EFlow(t *testing.T) {
 	}
 
 	// --- 収入入力 ---
-	if status, body = doJSON(t, http.MethodPut, "/months/"+testMonth+"/incomes/taro", taro, map[string]any{
+	if status, body = doJSON(t, http.MethodPut, "/months/"+testMonth+"/incomes/"+taroID, taro, map[string]any{
 		"amountYen": 100000,
 	}); status != http.StatusOK {
 		t.Fatalf("income status = %d, body = %s", status, body)
 	}
-	if status, body = doJSON(t, http.MethodPut, "/months/"+testMonth+"/incomes/hanako", hanako, map[string]any{
+	if status, body = doJSON(t, http.MethodPut, "/months/"+testMonth+"/incomes/"+hanakoID, hanako, map[string]any{
 		"amountYen": 50000,
 	}); status != http.StatusOK {
 		t.Fatalf("income status = %d, body = %s", status, body)
@@ -211,7 +216,7 @@ func TestE2EFlow(t *testing.T) {
 		t.Errorf("totalExpenseYen = %d, want 40000", settlement.TotalExpenseYen)
 	}
 	if settlement.Transfer == nil ||
-		settlement.Transfer.From != "taro" || settlement.Transfer.To != "hanako" || settlement.Transfer.AmountYen != 25000 {
+		settlement.Transfer.From != taroID || settlement.Transfer.To != hanakoID || settlement.Transfer.AmountYen != 25000 {
 		t.Errorf("transfer = %+v, want taro→hanako 25000", settlement.Transfer)
 	}
 	for _, m := range settlement.Members {
@@ -231,11 +236,12 @@ func TestE2EFlow(t *testing.T) {
 
 func TestWeightSettings(t *testing.T) {
 	waitForHealthy(t)
-	taro := login(t, "taro", "taro-password")
+	taro, taroID := login(t, "taro", "taro-password")
+	_, hanakoID := login(t, "hanako", "hanako-password")
 
 	// 比重の更新が永続化されること
 	status, body := doJSON(t, http.MethodPut, "/settings/weight", taro, map[string]any{
-		"weights": map[string]int64{"taro": 2, "hanako": 1},
+		"weights": map[string]int64{taroID: 2, hanakoID: 1},
 	})
 	if status != http.StatusOK {
 		t.Fatalf("weight put status = %d, body = %s", status, body)
@@ -251,13 +257,13 @@ func TestWeightSettings(t *testing.T) {
 	if err := json.Unmarshal(body, &weights); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if weights.Weights["taro"] != 2 || weights.Weights["hanako"] != 1 {
+	if weights.Weights[taroID] != 2 || weights.Weights[hanakoID] != 1 {
 		t.Errorf("weights = %v, want taro:2 hanako:1", weights.Weights)
 	}
 
 	// 後続テストに影響しないよう1:1へ戻す
 	if status, _ = doJSON(t, http.MethodPut, "/settings/weight", taro, map[string]any{
-		"weights": map[string]int64{"taro": 1, "hanako": 1},
+		"weights": map[string]int64{taroID: 1, hanakoID: 1},
 	}); status != http.StatusOK {
 		t.Fatalf("weight reset status = %d", status)
 	}
@@ -265,7 +271,7 @@ func TestWeightSettings(t *testing.T) {
 
 func TestValidationErrors(t *testing.T) {
 	waitForHealthy(t)
-	taro := login(t, "taro", "taro-password")
+	taro, taroID := login(t, "taro", "taro-password")
 
 	cases := []struct {
 		name       string
@@ -274,10 +280,10 @@ func TestValidationErrors(t *testing.T) {
 		body       any
 		wantStatus int
 	}{
-		{"負の金額", http.MethodPost, "/expenses", map[string]any{"paidBy": "taro", "amountYen": -1, "date": testMonth + "-01"}, 400},
+		{"負の金額", http.MethodPost, "/expenses", map[string]any{"paidBy": taroID, "amountYen": -1, "date": testMonth + "-01"}, 400},
 		{"不明メンバー", http.MethodPost, "/expenses", map[string]any{"paidBy": "nobody", "amountYen": 100, "date": testMonth + "-01"}, 400},
 		{"月形式不正", http.MethodGet, "/expenses?month=bad", nil, 400},
-		{"収入の月形式不正", http.MethodPut, "/months/bad/incomes/taro", map[string]any{"amountYen": 1}, 400},
+		{"収入の月形式不正", http.MethodPut, "/months/bad/incomes/" + taroID, map[string]any{"amountYen": 1}, 400},
 		{"存在しない支出", http.MethodDelete, fmt.Sprintf("/expenses/%s_missing", testMonth), nil, 404},
 	}
 	for _, tt := range cases {

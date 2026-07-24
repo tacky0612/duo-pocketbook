@@ -18,6 +18,8 @@ TOKEN=$(curl -s -X POST $BASE/login \
 
 - トークン有効期限はデフォルト30日（`TOKEN_TTL_HOURS` で変更可）
 - `/health` と `/login` 以外はすべて認証必須
+- ログインの `memberId` フィールドには**ログインID**（可変のユーザー名）を渡す。初期値は環境変数 `ACCOUNT1_LOGINID`/`ACCOUNT2_LOGINID`
+- JWT の subject は **AccountID**（`acct_...`）。アカウント作成時から不変で、ログインIDを変更しても変わらない。各種データは AccountID をキーに保存される
 
 ## CORS
 
@@ -31,6 +33,9 @@ TOKEN=$(curl -s -X POST $BASE/login \
 | `POST /login` | ログイン、JWT発行（認証不要） |
 | `GET /members` | メンバー一覧（2人） |
 | `PUT /members/{id}` | メンバーの表示名・カラーの更新（指定した項目のみ上書き） |
+| `GET /account` | 認証中アカウントの情報（AccountID・ログインID・表示名） |
+| `PUT /account/login-id` | ログインIDの変更（英数字と `. _ -`・32文字以内・重複不可） |
+| `PUT /account/password` | パスワードの変更（現在のパスワード必須・新パスワードは8文字以上） |
 | `POST /expenses` | 共有支出の登録 |
 | `GET /expenses?month=YYYY-MM` | 共有支出の月別一覧（日付降順） |
 | `PUT /expenses/{id}` | 共有支出の更新 |

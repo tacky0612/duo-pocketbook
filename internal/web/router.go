@@ -36,6 +36,10 @@ func NewRouter(h *Handler, auth *Authenticator, allowedOrigins []string, opt Rou
 	}
 	mux.Handle("GET /members", authed(h.ListMembers))
 	mux.Handle("PUT /members/{id}", authed(h.UpdateMember))
+	// アカウント（自分の資格情報）
+	mux.Handle("GET /account", authed(h.GetAccount))
+	mux.Handle("PUT /account/login-id", authed(h.UpdateLoginID))
+	mux.Handle("PUT /account/password", authed(h.UpdatePassword))
 	mux.Handle("POST /expenses", authed(h.RegisterExpense))
 	mux.Handle("GET /expenses", authed(h.ListExpenses))
 	mux.Handle("PUT /expenses/{id}", authed(h.UpdateExpense))

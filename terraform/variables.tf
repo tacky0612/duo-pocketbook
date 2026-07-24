@@ -16,27 +16,27 @@ variable "lambda_zip_path" {
   default     = "../build/lambda.zip"
 }
 
-variable "member1_id" {
-  description = "メンバー1のID（ログインIDを兼ねる）"
+variable "account1_login_id" {
+  description = "アカウント1の初期ログインID（AccountIDとは別の可変ユーザー名。ログイン後に画面から変更可能）"
   type        = string
 }
 
 # 表示名はアプリ側の既定値（太郎/花子）を使うため変数化しない。
 # 変更は画面（表示名編集）から行う。
 
-variable "member1_password_hash" {
-  description = "メンバー1のパスワードのbcryptハッシュ。`go run ./cmd/hashpw '<password>'` で生成する"
+variable "account1_password_hash" {
+  description = "アカウント1の初期パスワードのbcryptハッシュ。`go run ./cmd/hashpw '<password>'` で生成する"
   type        = string
   sensitive   = true
 }
 
-variable "member2_id" {
-  description = "メンバー2のID（ログインIDを兼ねる）"
+variable "account2_login_id" {
+  description = "アカウント2の初期ログインID（AccountIDとは別の可変ユーザー名。ログイン後に画面から変更可能）"
   type        = string
 }
 
-variable "member2_password_hash" {
-  description = "メンバー2のパスワードのbcryptハッシュ"
+variable "account2_password_hash" {
+  description = "アカウント2の初期パスワードのbcryptハッシュ"
   type        = string
   sensitive   = true
 }

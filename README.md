@@ -59,8 +59,8 @@ cd frontend && npm run dev
 DynamoDBなしで手早くAPIを動かす場合（インメモリ、再起動でデータ消滅）:
 
 ```bash
-MEMBER1_ID=taro MEMBER1_PASSWORD=pass1 \
-MEMBER2_ID=hanako MEMBER2_PASSWORD=pass2 \
+ACCOUNT1_LOGINID=taro ACCOUNT1_PASSWORD=pass1 \
+ACCOUNT2_LOGINID=hanako ACCOUNT2_PASSWORD=pass2 \
 JWT_SECRET=dev-secret go run ./cmd/server
 ```
 

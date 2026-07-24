@@ -1,5 +1,5 @@
 // hashpw はパスワードの bcrypt ハッシュを生成する補助ツール。
-// Terraform 変数 (memberN_password_hash) の値の生成に使う。
+// Terraform 変数 (accountN_password_hash) の値の生成に使う。
 //
 // 使い方: go run ./cmd/hashpw 'your-password'
 package main

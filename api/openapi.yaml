@@ -132,6 +132,70 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+  /account:
+    get:
+      summary: 認証中アカウントの情報（不変のAccountID・可変のログインID・表示名）
+      responses:
+        "200":
+          description: アカウント情報
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /account/login-id:
+    put:
+      summary: ログインIDの変更
+      description: ログイン用の可変ユーザー名を変更する。AccountID は不変で変わらない。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [loginId]
+              properties:
+                loginId:
+                  type: string
+                  description: 英数字と . _ - のみ・32文字以内。2アカウントで重複不可
+      responses:
+        "200":
+          description: 変更後のアカウント情報
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /account/password:
+    put:
+      summary: パスワードの変更
+      description: 現在のパスワードを検証したうえで新しいパスワードに更新する。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword:
+                  type: string
+                  format: password
+                newPassword:
+                  type: string
+                  format: password
+                  description: 8文字以上
+      responses:
+        "204":
+          description: 変更成功
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /expenses:
     post:
       summary: 共有支出の登録
@@ -564,6 +628,21 @@ components:
           type: string
           description: "\"#RRGGBB\" 形式。上書き未設定の場合は省略される。"
           example: "#FF8800"
+    Account:
+      type: object
+      description: 認証中アカウント。accountId はアカウント作成時から不変、loginId はログイン用の可変ユーザー名。
+      properties:
+        accountId:
+          type: string
+          description: アカウントを一意に定める不変ID。JWT の subject。
+          example: acct_9f3c1a2b7d4e5f60
+        loginId:
+          type: string
+          description: ログインに用いる可変のユーザー名。
+          example: taro
+        name:
+          type: string
+          example: 太郎
     Expense:
       type: object
       properties:

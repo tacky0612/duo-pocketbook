@@ -122,24 +122,28 @@ export default function LoginScreen({ onLoggedIn }: LoginScreenProps) {
             {busy ? "ログイン中..." : "ログイン"}
           </Button>
 
-          {/* デモモード導線（API 不要） */}
-          <div className="flex items-center gap-3 py-1">
-            <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
-            <span className="text-xs text-slate-400">または</span>
-            <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
-          </div>
-          <button
-            type="button"
-            onClick={loginDemo}
-            disabled={busy}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:border-blue-900 dark:hover:bg-blue-950/40 dark:hover:text-blue-300"
-          >
-            <PlayIcon className="h-4 w-4" />
-            デモモードで試す（API不要）
-          </button>
-          <p className="text-center text-xs text-slate-400">
-            サンプルデータでアプリの全機能を体験できます。データはこの端末内にのみ保存されます。
-          </p>
+          {/* デモモード導線（API 不要）。API が固定（VITE_API_BASE 指定）の本番配信では非表示にする */}
+          {!FIXED_API_BASE && (
+            <>
+              <div className="flex items-center gap-3 py-1">
+                <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+                <span className="text-xs text-slate-400">または</span>
+                <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+              </div>
+              <button
+                type="button"
+                onClick={loginDemo}
+                disabled={busy}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:border-blue-900 dark:hover:bg-blue-950/40 dark:hover:text-blue-300"
+              >
+                <PlayIcon className="h-4 w-4" />
+                デモモードで試す（API不要）
+              </button>
+              <p className="text-center text-xs text-slate-400">
+                サンプルデータでアプリの全機能を体験できます。データはこの端末内にのみ保存されます。
+              </p>
+            </>
+          )}
         </form>
       </div>
     </div>
