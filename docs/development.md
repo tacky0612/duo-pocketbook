@@ -165,3 +165,19 @@ cd frontend && npm run docs:api   # OpenAPIからAPIドキュメント生成（d
 5. **Docs Mermaid Validation** — `docs/` 配下のMermaid図の構文検証（`make docs-validate` と同内容）
 
 Unit / Integration のテストレポートは dorny/test-reporter により **PRのChecksタブ** に表示される。
+
+### Docker Hub 認証（Integration Test のイメージ pull）
+
+Integration Test は Docker Compose で `amazon/dynamodb-local` を pull する。**匿名 pull は Docker Hub のレート制限やタイムアウト（`registry-1.docker.io ... context deadline exceeded`）でジョブが落ちる**ことがあるため、Secrets が設定されていれば pull 前に Docker Hub へログインする（`docker/login-action`）。Secrets 未設定（フォークからの PR 等）ならログインをスキップし匿名 pull にフォールバックする。
+
+| Secret | 用途 |
+|---|---|
+| `DOCKERHUB_USERNAME` | Docker Hub のユーザー名 |
+| `DOCKERHUB_TOKEN` | Docker Hub のアクセストークン（[Account Settings → Personal access tokens](https://app.docker.com/settings/personal-access-tokens) で発行。権限は `Read-only` で十分） |
+
+設定例（値の入力はリポジトリ所有者が行う）:
+
+```bash
+gh secret set DOCKERHUB_USERNAME --body "<Docker Hubユーザー名>"
+gh secret set DOCKERHUB_TOKEN     # 実行後にトークンを対話入力（履歴に残さない）
+```
