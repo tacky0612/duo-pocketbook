@@ -7,10 +7,18 @@ import { ArrowRightIcon, CheckIcon, ChevronRight } from "../components/Icons";
 import type { HistoryResponse, MemberId, MemberView, ScreenProps, SettlementHistoryEntry, Transfer } from "../types";
 
 const WINDOW_MONTHS = 12;
+// バックエンド（application.maxHistoryMonths）と一致させる、一度に遡れる最大月数。
+const MAX_HISTORY_MONTHS = 120;
 
 function thisMonth(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+// month（YYYY-MM）を「年×12＋月」の連番に変換する（比較用）。
+function monthIndex(month: string): number {
+  const [y, m] = month.split("-").map(Number);
+  return y * 12 + (m - 1);
 }
 
 // month（YYYY-MM）から delta か月ずらした YYYY-MM を返す
@@ -47,6 +55,16 @@ export default function HistoryScreen({ members, onError }: ScreenProps) {
 
   const entries = data?.entries ?? [];
 
+  // 「さらに過去を表示」を出すか。
+  // 履歴は精算済み（スナップショットのある）月のみ返る。表示ウィンドウの下端 from より新しい月で
+  // 最古エントリが止まっている（下端側に空きがある）＝それ以上過去にデータが無い、と判断して
+  // 非表示にする。エントリが0件の場合や最大月数に達した場合も非表示。
+  // 読み込み中（ウィンドウ拡張中）はちらつき防止のため非表示にしない。
+  const oldest = entries.length > 0 ? entries[entries.length - 1].month : null;
+  const reachedEnd =
+    span >= MAX_HISTORY_MONTHS || oldest === null || monthIndex(oldest) > monthIndex(from);
+  const canLoadMore = loading || !reachedEnd;
+
   return (
     <div className="space-y-4">
       <Card>
@@ -69,11 +87,13 @@ export default function HistoryScreen({ members, onError }: ScreenProps) {
           </ul>
         )}
 
-        <div className="mt-4 flex justify-center">
-          <Button variant="secondary" onClick={() => setSpan((s) => s + WINDOW_MONTHS)} disabled={loading}>
-            さらに過去を表示
-          </Button>
-        </div>
+        {canLoadMore && (
+          <div className="mt-4 flex justify-center">
+            <Button variant="secondary" onClick={() => setSpan((s) => s + WINDOW_MONTHS)} disabled={loading}>
+              さらに過去を表示
+            </Button>
+          </div>
+        )}
       </Card>
     </div>
   );
@@ -132,11 +152,14 @@ function HistoryEntryCard({ entry, members }: { entry: SettlementHistoryEntry; m
         </div>
 
         {entry.transfer ? (
-          <div className="flex items-center justify-center gap-3">
-            <span className="font-semibold">{memberName(entry.transfer.from)}</span>
-            <ArrowRightIcon className="h-5 w-5 text-white/70" />
-            <span className="font-semibold">{memberName(entry.transfer.to)}</span>
-            <span className="ml-1 text-2xl font-bold tabular-nums">{yen(entry.transfer.amountYen)}</span>
+          // 「誰から誰へ」を上段、金額を下段に分けて表示する（狭い画面で金額が名前に紛れて折り返さないように）。
+          <div className="text-center">
+            <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+              <span className="font-semibold">{memberName(entry.transfer.from)}</span>
+              <ArrowRightIcon className="h-5 w-5 shrink-0 text-white/70" />
+              <span className="font-semibold">{memberName(entry.transfer.to)}</span>
+            </div>
+            <p className="mt-1 text-2xl font-bold tabular-nums">{yen(entry.transfer.amountYen)}</p>
           </div>
         ) : (
           <div className="flex items-center justify-center gap-2">

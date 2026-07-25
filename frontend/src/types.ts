@@ -210,7 +210,6 @@ export type ScreenName =
   | "settlement"
   | "income"
   | "expense"
-  | "recurring"
   | "directTransfer"
   | "history"
   | "settings";
