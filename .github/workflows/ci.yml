@@ -78,6 +78,11 @@ jobs:
   integration-test:
     name: Integration Test
     runs-on: ubuntu-latest
+    # Docker Hub の匿名 pull はレート制限・タイムアウトの原因になるため、認証情報が
+    # あればログインしてから pull する。secret 未設定（フォークからの PR 等）ならログインは
+    # スキップし匿名 pull にフォールバックする。
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -85,6 +90,12 @@ jobs:
           go-version-file: go.mod
       - name: Install gotestsum
         run: go install gotest.tools/gotestsum@latest
+      - name: Log in to Docker Hub
+        if: ${{ env.DOCKERHUB_USERNAME != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Start local environment (Docker Compose)
         run: docker compose up -d --build --wait
       - name: Run integration tests
