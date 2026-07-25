@@ -10,7 +10,6 @@ import LoginScreen from "./screens/LoginScreen";
 import SettlementScreen from "./screens/SettlementScreen";
 import IncomeScreen from "./screens/IncomeScreen";
 import ExpenseScreen from "./screens/ExpenseScreen";
-import RecurringScreen from "./screens/RecurringScreen";
 import DirectTransferScreen from "./screens/DirectTransferScreen";
 import HistoryScreen from "./screens/HistoryScreen";
 import SettingsScreen from "./screens/SettingsScreen";
@@ -147,8 +146,6 @@ export default function App() {
         <IncomeScreen {...shared} />
       ) : screen === "expense" ? (
         <ExpenseScreen {...shared} />
-      ) : screen === "recurring" ? (
-        <RecurringScreen {...shared} />
       ) : screen === "directTransfer" ? (
         <DirectTransferScreen {...shared} />
       ) : screen === "history" ? (
