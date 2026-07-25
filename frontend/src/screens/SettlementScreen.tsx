@@ -71,13 +71,14 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
   const hasDirect = (settlement?.totalDirectTransferYen ?? 0) > 0;
 
   // 内訳行: from → to amount（振込がなければ zeroLabel を表示）。
+  // 狭い画面ではラベルと値を行単位で折り返しつつ、値（名前→名前 金額）は塊として改行させない。
   const transferRow = (label: string, t: Transfer | null, zeroLabel: string) => (
-    <div className="flex items-center justify-between gap-3 text-sm">
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-sm">
       <span className="text-white/80">{label}</span>
       {t ? (
-        <span className="inline-flex items-center gap-1.5 font-medium tabular-nums">
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap font-medium tabular-nums">
           <span>{memberName(t.from)}</span>
-          <ArrowRightIcon className="h-4 w-4 text-white/70" />
+          <ArrowRightIcon className="h-4 w-4 shrink-0 text-white/70" />
           <span>{memberName(t.to)}</span>
           <span className="ml-1">{yen(t.amountYen)}</span>
         </span>

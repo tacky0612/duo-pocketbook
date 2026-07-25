@@ -299,12 +299,35 @@ components:
       type: object
     web.settlementHistoryEntryDTO:
       properties:
+        directTransfer:
+          $ref: '#/components/schemas/web.transferDTO'
+        directTransfers:
+          items:
+            $ref: '#/components/schemas/web.snapshotDirectTransferDTO'
+          type: array
+          uniqueItems: false
+        expenses:
+          items:
+            $ref: '#/components/schemas/web.snapshotExpenseDTO'
+          type: array
+          uniqueItems: false
+        members:
+          items:
+            $ref: '#/components/schemas/web.settlementMemberDTO'
+          type: array
+          uniqueItems: false
         month:
           example: 2026-07
           type: string
-        settled:
-          example: true
-          type: boolean
+        settledAt:
+          example: "2026-07-31T12:00:00Z"
+          type: string
+        settlementTransfer:
+          $ref: '#/components/schemas/web.transferDTO'
+        totalDirectTransferYen:
+          description: TotalDirectTransferYen は当月に適用された立替精算の総額（方向を問わない絶対額の合計）。
+          example: 5000
+          type: integer
         totalExpenseYen:
           example: 40000
           type: integer
@@ -380,6 +403,42 @@ components:
           type: string
         settled:
           example: true
+          type: boolean
+      type: object
+    web.snapshotDirectTransferDTO:
+      properties:
+        amountYen:
+          example: 5000
+          type: integer
+        description:
+          example: 立替分
+          type: string
+        from:
+          example: acct_9f3c1a2b7d4e5f60
+          type: string
+        recurring:
+          example: false
+          type: boolean
+        to:
+          example: acct_1a2b3c4d5e6f7a8b
+          type: string
+      type: object
+    web.snapshotExpenseDTO:
+      properties:
+        amountYen:
+          example: 80000
+          type: integer
+        date:
+          example: "2026-07-03"
+          type: string
+        description:
+          example: 家賃
+          type: string
+        paidBy:
+          example: acct_9f3c1a2b7d4e5f60
+          type: string
+        recurring:
+          example: false
           type: boolean
       type: object
     web.transferDTO:
@@ -1532,7 +1591,7 @@ paths:
       - settings
   /settlements/history:
     get:
-      description: from〜to（YYYY-MM）の精算履歴を新しい月順に返す。収入が揃っていない月は除外する。
+      description: from〜to（YYYY-MM）の精算スナップショット（精算完了時点の内容）を新しい月順に返す。精算未完了の月は除外する。
       parameters:
       - description: 開始月（YYYY-MM）
         in: query

@@ -40,11 +40,11 @@ func newFixture(t *testing.T) fixture {
 	recurringRepo := memory.NewRecurringExpenseRepository()
 	directRepo := memory.NewDirectTransferRepository()
 	settingsRepo := memory.NewSettingsRepository()
-	statusRepo := memory.NewSettlementStatusRepository()
+	snapshotRepo := memory.NewSettlementSnapshotRepository()
 	now := func() time.Time { return time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC) }
 	return fixture{
 		expenses:   application.NewExpenseUsecase(couple, expenseRepo, settingsRepo, now),
-		settlement: application.NewSettlementUsecase(couple, expenseRepo, salaryRepo, incomeRepo, recurringRepo, directRepo, settingsRepo, statusRepo),
+		settlement: application.NewSettlementUsecase(couple, expenseRepo, salaryRepo, incomeRepo, recurringRepo, directRepo, settingsRepo, snapshotRepo, now),
 		settings:   application.NewSettingsUsecase(couple, settingsRepo),
 		recurring:  application.NewRecurringExpenseUsecase(couple, recurringRepo),
 		direct:     application.NewDirectTransferUsecase(couple, directRepo),
@@ -503,13 +503,24 @@ func TestSettlementHistory(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 
-	// 7月: 収入あり（精算対象）、8月: 収入未入力（スキップ対象）、9月: 収入あり＋精算済み
+	// 7月: 収入あり＋精算完了（スナップショット保存）
 	if _, err := f.settlement.InputSalary(ctx, "2026-07", husband, 100_000); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.settlement.InputSalary(ctx, "2026-07", wife, 60_000); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := f.settlement.SetSettled(ctx, "2026-07", true); err != nil {
+		t.Fatal(err)
+	}
+	// 8月: 収入あり・精算未完了（履歴には出ない）
+	if _, err := f.settlement.InputSalary(ctx, "2026-08", husband, 100_000); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.settlement.InputSalary(ctx, "2026-08", wife, 100_000); err != nil {
+		t.Fatal(err)
+	}
+	// 9月: 収入あり＋精算完了
 	if _, err := f.settlement.InputSalary(ctx, "2026-09", husband, 100_000); err != nil {
 		t.Fatal(err)
 	}
@@ -524,17 +535,21 @@ func TestSettlementHistory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("History: %v", err)
 	}
-	// 収入のある7月・9月のみ、新しい順で返る
+	// 精算完了した7月・9月のみ、新しい順で返る（8月は未完了のため除外）
 	if len(entries) != 2 {
 		t.Fatalf("len(entries) = %d, want 2", len(entries))
 	}
-	if entries[0].Settlement.Month.String() != "2026-09" || !entries[0].Settled {
-		t.Errorf("entries[0] = %+v, want 2026-09 settled", entries[0].Settlement.Month)
+	if entries[0].Settlement.Month.String() != "2026-09" {
+		t.Errorf("entries[0] = %+v, want 2026-09", entries[0].Settlement.Month)
 	}
-	if entries[1].Settlement.Month.String() != "2026-07" || entries[1].Settled {
-		t.Errorf("entries[1] = %+v, want 2026-07 unsettled", entries[1].Settlement.Month)
+	if entries[1].Settlement.Month.String() != "2026-07" {
+		t.Errorf("entries[1] = %+v, want 2026-07", entries[1].Settlement.Month)
 	}
-	// 7月: 収入差40000 → 太郎→花子 20000
+	// スナップショットには完了日時が記録される
+	if entries[1].SettledAt.IsZero() {
+		t.Error("7月 SettledAt が記録されていない")
+	}
+	// 7月: 収入差40000 → 太郎→花子 20000（スナップショットの内容）
 	tr := entries[1].Settlement.Transfer
 	if tr == nil || tr.From != husband || tr.To != wife || tr.Amount != 20_000 {
 		t.Errorf("7月 transfer = %+v, want taro→hanako 20000", tr)
@@ -543,6 +558,49 @@ func TestSettlementHistory(t *testing.T) {
 	// from > to はエラー
 	if _, err := f.settlement.History(ctx, "2026-12", "2026-01"); !errors.Is(err, domain.ErrValidation) {
 		t.Errorf("from>to: err = %v, want ErrValidation", err)
+	}
+}
+
+// TestSettlementSnapshotFrozen は、精算完了後に元データ（給与）を変更しても履歴の
+// スナップショットが完了時点の内容を保持することを検証する。
+func TestSettlementSnapshotFrozen(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", husband, 100_000); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", wife, 60_000); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.settlement.SetSettled(ctx, "2026-07", true); err != nil {
+		t.Fatal(err)
+	}
+
+	// 完了後に給与を変更する（本来なら精算額が変わる）
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", wife, 100_000); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := f.settlement.History(ctx, "2026-07", "2026-07")
+	if err != nil {
+		t.Fatalf("History: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("len(entries) = %d, want 1", len(entries))
+	}
+	// 履歴は完了時点の精算額（太郎→花子 20000）を保持している
+	tr := entries[0].Settlement.Transfer
+	if tr == nil || tr.From != husband || tr.To != wife || tr.Amount != 20_000 {
+		t.Errorf("スナップショット transfer = %+v, want taro→hanako 20000（完了時点の額）", tr)
+	}
+	// 一方、再計算すると変更後の内容になる（均衡 → 振込不要）
+	live, err := f.settlement.GetSettlement(ctx, "2026-07")
+	if err != nil {
+		t.Fatalf("GetSettlement: %v", err)
+	}
+	if live.Transfer != nil {
+		t.Errorf("再計算 transfer = %+v, want nil（収入が揃い均衡）", live.Transfer)
 	}
 }
 
@@ -559,7 +617,18 @@ func TestSettlementStatus(t *testing.T) {
 		t.Error("初期状態が精算済みになっている")
 	}
 
-	// 精算済みに設定
+	// 収入未入力では精算完了できない（スナップショットを作れない）
+	if _, err := f.settlement.SetSettled(ctx, "2026-07", true); !errors.Is(err, domain.ErrIncomeNotReady) {
+		t.Errorf("収入未入力での完了: err = %v, want ErrIncomeNotReady", err)
+	}
+
+	// 収入を入力してから精算完了する
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", husband, 100_000); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", wife, 60_000); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := f.settlement.SetSettled(ctx, "2026-07", true); err != nil {
 		t.Fatalf("SetSettled: %v", err)
 	}

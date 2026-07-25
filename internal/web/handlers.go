@@ -1094,11 +1094,40 @@ func (h *Handler) DeleteDirectTransfer(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// snapshotExpenseDTO は精算スナップショットに含まれる共有支出1件の明細。
+type snapshotExpenseDTO struct {
+	PaidBy      string `json:"paidBy" example:"acct_9f3c1a2b7d4e5f60"`
+	AmountYen   int64  `json:"amountYen" example:"80000"`
+	Description string `json:"description" example:"家賃"`
+	Date        string `json:"date" example:"2026-07-03"`
+	Recurring   bool   `json:"recurring" example:"false"`
+}
+
+// snapshotDirectTransferDTO は精算スナップショットに含まれる立替精算1件の明細。
+type snapshotDirectTransferDTO struct {
+	From        string `json:"from" example:"acct_9f3c1a2b7d4e5f60"`
+	To          string `json:"to" example:"acct_1a2b3c4d5e6f7a8b"`
+	AmountYen   int64  `json:"amountYen" example:"5000"`
+	Description string `json:"description" example:"立替分"`
+	Recurring   bool   `json:"recurring" example:"false"`
+}
+
+// settlementHistoryEntryDTO は精算完了時点の内容を凍結したスナップショット1件。
 type settlementHistoryEntryDTO struct {
-	Month           string       `json:"month" example:"2026-07"`
-	Settled         bool         `json:"settled" example:"true"`
-	TotalExpenseYen int64        `json:"totalExpenseYen" example:"40000"`
-	Transfer        *transferDTO `json:"transfer"`
+	Month           string                `json:"month" example:"2026-07"`
+	SettledAt       string                `json:"settledAt" example:"2026-07-31T12:00:00Z"`
+	TotalExpenseYen int64                 `json:"totalExpenseYen" example:"40000"`
+	Members         []settlementMemberDTO `json:"members"`
+	// Transfer は実際の振込（精算分＋立替精算分の合算）。0円なら null。
+	Transfer *transferDTO `json:"transfer"`
+	// SettlementTransfer は比重按分による精算分のみの振込。0円なら null。
+	SettlementTransfer *transferDTO `json:"settlementTransfer"`
+	// DirectTransfer は立替精算の純額のみの振込。0円なら null。
+	DirectTransfer *transferDTO `json:"directTransfer"`
+	// TotalDirectTransferYen は当月に適用された立替精算の総額（方向を問わない絶対額の合計）。
+	TotalDirectTransferYen int64                       `json:"totalDirectTransferYen" example:"5000"`
+	Expenses               []snapshotExpenseDTO        `json:"expenses"`
+	DirectTransfers        []snapshotDirectTransferDTO `json:"directTransfers"`
 }
 
 // settlementHistoryResponse は精算履歴のレスポンス。
@@ -1109,7 +1138,7 @@ type settlementHistoryResponse struct {
 // GetSettlementHistory godoc
 //
 //	@Summary		精算履歴の取得
-//	@Description	from〜to（YYYY-MM）の精算履歴を新しい月順に返す。収入が揃っていない月は除外する。
+//	@Description	from〜to（YYYY-MM）の精算スナップショット（精算完了時点の内容）を新しい月順に返す。精算未完了の月は除外する。
 //	@Tags			settlement
 //	@Produce		json
 //	@Param			from	query		string	true	"開始月（YYYY-MM）"
@@ -1122,28 +1151,61 @@ type settlementHistoryResponse struct {
 func (h *Handler) GetSettlementHistory(w http.ResponseWriter, r *http.Request) {
 	from := r.URL.Query().Get("from")
 	to := r.URL.Query().Get("to")
-	entries, err := h.settlement.History(r.Context(), from, to)
+	snapshots, err := h.settlement.History(r.Context(), from, to)
 	if err != nil {
 		writeUsecaseError(w, err)
 		return
 	}
-	dtos := make([]settlementHistoryEntryDTO, 0, len(entries))
-	for _, e := range entries {
-		dto := settlementHistoryEntryDTO{
-			Month:           e.Settlement.Month.String(),
-			Settled:         e.Settled,
-			TotalExpenseYen: int64(e.Settlement.TotalExpense),
-		}
-		if e.Settlement.Transfer != nil {
-			dto.Transfer = &transferDTO{
-				From:      string(e.Settlement.Transfer.From),
-				To:        string(e.Settlement.Transfer.To),
-				AmountYen: int64(e.Settlement.Transfer.Amount),
-			}
-		}
-		dtos = append(dtos, dto)
+	dtos := make([]settlementHistoryEntryDTO, 0, len(snapshots))
+	for _, s := range snapshots {
+		dtos = append(dtos, toSettlementHistoryEntryDTO(s))
 	}
 	writeJSON(w, http.StatusOK, settlementHistoryResponse{Entries: dtos})
+}
+
+// toSettlementHistoryEntryDTO は精算スナップショットを履歴エントリDTOへ変換する。
+func toSettlementHistoryEntryDTO(s domain.SettlementSnapshot) settlementHistoryEntryDTO {
+	set := s.Settlement
+	dto := settlementHistoryEntryDTO{
+		Month:                  set.Month.String(),
+		SettledAt:              s.SettledAt.UTC().Format(time.RFC3339),
+		TotalExpenseYen:        int64(set.TotalExpense),
+		Transfer:               toTransferDTO(set.Transfer),
+		SettlementTransfer:     toTransferDTO(set.SettlementTransfer),
+		DirectTransfer:         toTransferDTO(set.DirectTransfer),
+		TotalDirectTransferYen: int64(set.TotalDirectTransfer),
+	}
+	for _, m := range set.Members {
+		dto.Members = append(dto.Members, settlementMemberDTO{
+			ID:             string(m.Member.ID),
+			Name:           m.Member.Name,
+			Weight:         m.Weight,
+			IncomeYen:      int64(m.Income),
+			PaidExpenseYen: int64(m.PaidExpense),
+			DisposableYen:  int64(m.Disposable),
+		})
+	}
+	dto.Expenses = make([]snapshotExpenseDTO, 0, len(s.Expenses))
+	for _, e := range s.Expenses {
+		dto.Expenses = append(dto.Expenses, snapshotExpenseDTO{
+			PaidBy:      string(e.PaidBy),
+			AmountYen:   int64(e.Amount),
+			Description: e.Description,
+			Date:        e.Date,
+			Recurring:   e.Recurring,
+		})
+	}
+	dto.DirectTransfers = make([]snapshotDirectTransferDTO, 0, len(s.DirectTransfers))
+	for _, d := range s.DirectTransfers {
+		dto.DirectTransfers = append(dto.DirectTransfers, snapshotDirectTransferDTO{
+			From:        string(d.From),
+			To:          string(d.To),
+			AmountYen:   int64(d.Amount),
+			Description: d.Description,
+			Recurring:   d.Recurring,
+		})
+	}
+	return dto
 }
 
 type settlementStatusRequest struct {

@@ -7,7 +7,7 @@
 import { ApiError, type HttpMethod } from "../lib/apiClient";
 import { store } from "./store";
 import { computeSettlement, settlementMonthOf } from "./settlement";
-import type { DemoDb, ExpensesResponse, Settlement, Weights } from "../types";
+import type { DemoDb, ExpensesResponse, SettlementHistoryEntry, Settlement, SnapshotExpense, Weights } from "../types";
 
 // デモが受け取り得るリクエストボディのフィールド（すべて任意）。
 interface DemoBody {
@@ -77,6 +77,7 @@ function incomesFor(db: DemoDb, month: string): DemoDb["incomes"] {
 }
 
 // 対象月の精算（settled フラグ付き）。給与未入力なら computeSettlement が INCOME_NOT_READY を投げる。
+// settled はスナップショットの有無で判定する。
 function settlementOf(db: DemoDb, month: string): Settlement {
   const s = computeSettlement({
     month,
@@ -89,7 +90,38 @@ function settlementOf(db: DemoDb, month: string): Settlement {
     directTransfers: directTransfersFor(db, month),
     closingDay: db.closingDay ?? 1,
   });
-  return { ...s, settled: Boolean(db.settled[month]) };
+  return { ...s, settled: Boolean(db.snapshots[month]) };
+}
+
+// 精算完了時点の内容をスナップショット（履歴エントリ）として組み立てる。
+// バックエンドの SettlementUsecase.buildSnapshot 相当。給与未入力なら INCOME_NOT_READY を投げる。
+function buildSnapshot(db: DemoDb, month: string): SettlementHistoryEntry {
+  const s = computeSettlement({
+    month,
+    members: db.members,
+    weights: db.weights,
+    salaries: db.salaries ?? [],
+    incomes: db.incomes ?? [],
+    expenses: db.expenses,
+    recurring: db.recurring,
+    directTransfers: directTransfersFor(db, month),
+    closingDay: db.closingDay ?? 1,
+  });
+  const cd = db.closingDay ?? 1;
+  const expenses: SnapshotExpense[] = [
+    ...db.expenses
+      .filter((e) => settlementMonthOf(e.date, cd) === month)
+      .map((e) => ({ paidBy: e.paidBy, amountYen: e.amountYen, description: e.description, date: e.date, recurring: false })),
+    ...db.recurring.map((r) => ({ paidBy: r.paidBy, amountYen: r.amountYen, description: r.description, date: "" as const, recurring: true })),
+  ];
+  const directTransfers = directTransfersFor(db, month).map((t) => ({
+    from: t.from,
+    to: t.to,
+    amountYen: t.amountYen,
+    description: t.description,
+    recurring: t.recurring,
+  }));
+  return { ...s, settledAt: nowISO(), expenses, directTransfers };
 }
 
 // demoApi は (method, path, body) を実ハンドラ相当のレスポンスへマッピングする。
@@ -257,9 +289,16 @@ export async function demoApi(method: HttpMethod, path: string, body?: unknown):
   }
   if (method === "PUT" && (mm = rawPath.match(/^\/months\/([^/]+)\/settlement\/status$/))) {
     const month = mm[1];
-    db.settled[month] = Boolean(b.settled);
+    if (b.settled) {
+      // 精算完了: その時点の内容をスナップショットとして保存する（収入未入力なら 409）。
+      db.snapshots[month] = buildSnapshot(db, month);
+      store.save();
+      return { month, settled: true };
+    }
+    // 精算済みの取り消し: スナップショットを削除する。
+    delete db.snapshots[month];
     store.save();
-    return { month, settled: db.settled[month] };
+    return { month, settled: false };
   }
 
   // --- 精算履歴 ---
@@ -267,17 +306,11 @@ export async function demoApi(method: HttpMethod, path: string, body?: unknown):
     const from = q.get("from");
     const to = q.get("to");
     if (!from || !to) validation("from / to は必須です");
-    const entries = [];
-    // to から from へ（新しい月順）走査し、収入完備の月のみ採用する。
+    const entries: SettlementHistoryEntry[] = [];
+    // to から from へ（新しい月順）走査し、スナップショットのある（精算完了した）月のみ採用する。
     for (let month = to; monthIndex(month) >= monthIndex(from); month = shiftMonth(month, -1)) {
-      let s: Settlement;
-      try {
-        s = settlementOf(db, month);
-      } catch (err) {
-        if (err instanceof ApiError && err.code === "INCOME_NOT_READY") continue;
-        throw err;
-      }
-      entries.push({ month: s.month, settled: s.settled, totalExpenseYen: s.totalExpenseYen, transfer: s.transfer });
+      const snapshot = db.snapshots[month];
+      if (snapshot) entries.push(snapshot);
     }
     return { entries };
   }

@@ -4,7 +4,19 @@
 // 精算・履歴が自然に見える。各オブジェクトのフィールド名は実 API（Go ハンドラの
 // json タグ）に厳密一致させている（amountYen / paidBy / incomeYen など）。
 
-import type { DemoDb, DemoSalary, DirectTransfer, Expense, Income, MemberId, MemberView, RecurringExpense } from "../types";
+import { computeSettlement, settlementMonthOf } from "./settlement";
+import type {
+  DemoDb,
+  DemoSalary,
+  DirectTransfer,
+  Expense,
+  Income,
+  MemberId,
+  MemberView,
+  RecurringExpense,
+  SettlementHistoryEntry,
+  SnapshotExpense,
+} from "../types";
 
 // デモの2アカウント。id はログインに使い、color は支出一覧のバッジ色に使う。
 const MEMBERS: MemberView[] = [
@@ -94,7 +106,7 @@ export function seedData(): DemoDb {
     month,
   });
 
-  return {
+  const db: DemoDb = {
     members: MEMBERS.map((m) => ({ ...m })),
     weights: { taro: 1, hanako: 1 },
     expenses: [
@@ -135,9 +147,47 @@ export function seedData(): DemoDb {
       // 今月だけ: アカウントB の臨時収入
       incOnce(m0, "hanako", 15000, "臨時収入"),
     ],
-    // 過去2か月は精算済み、今月は未精算にしておく
-    settled: { [m1]: true, [m2]: true },
+    // スナップショットは下で m1・m2 を精算済みとして埋める
+    snapshots: {},
     // 締め日は暦月どおり（1）を初期値にする
     closingDay: 1,
   };
+
+  // 過去2か月（先月・先々月）は精算完了済みとして、その時点のスナップショットを保存する。
+  // 今月は未精算のまま。
+  db.snapshots = {
+    [m1]: snapshotFor(db, m1),
+    [m2]: snapshotFor(db, m2),
+  };
+  return db;
+}
+
+// snapshotFor はシード用に、対象月の精算内容をスナップショット（履歴エントリ）へ組み立てる。
+// demoApi.buildSnapshot と同じ構造を、store 依存なしで生成する。
+function snapshotFor(db: DemoDb, month: string): SettlementHistoryEntry {
+  const cd = db.closingDay;
+  const s = computeSettlement({
+    month,
+    members: db.members,
+    weights: db.weights,
+    salaries: db.salaries,
+    incomes: db.incomes,
+    expenses: db.expenses,
+    recurring: db.recurring,
+    directTransfers: db.directTransfers.filter((dt) => dt.recurring || dt.month === month),
+    closingDay: cd,
+  });
+  const expenses: SnapshotExpense[] = [
+    ...db.expenses
+      .filter((e) => settlementMonthOf(e.date, cd) === month)
+      .map((e) => ({ paidBy: e.paidBy, amountYen: e.amountYen, description: e.description, date: e.date, recurring: false })),
+    ...db.recurring.map((r) => ({ paidBy: r.paidBy, amountYen: r.amountYen, description: r.description, date: "" as const, recurring: true })),
+  ];
+  const directTransfers = db.directTransfers
+    .filter((dt) => dt.recurring || dt.month === month)
+    .map((t) => ({ from: t.from, to: t.to, amountYen: t.amountYen, description: t.description, recurring: t.recurring }));
+  // シードのスナップショットは対象月の末日を完了日時にしておく（当月の最終日 = 翌月0日）。
+  const [y, mo] = month.split("-").map(Number);
+  const settledAt = new Date(y, mo, 0).toISOString();
+  return { ...s, settledAt, expenses, directTransfers };
 }

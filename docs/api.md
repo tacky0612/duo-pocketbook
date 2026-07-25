@@ -49,8 +49,8 @@ TOKEN=$(curl -s -X POST $BASE/login \
 | `PUT /incomes/{id}` | 追加収入の更新（メンバー・金額・内容。継続/単発と対象月は不変） |
 | `DELETE /incomes/{id}` | 追加収入の削除 |
 | `GET /months/{month}/settlement` | 月次精算の取得 |
-| `PUT /months/{month}/settlement/status` | 精算済みフラグの更新 |
-| `GET /settlements/history?from=YYYY-MM&to=YYYY-MM` | 精算履歴の取得（新しい月順） |
+| `PUT /months/{month}/settlement/status` | 精算の完了/取り消し（`settled=true` で完了時点のスナップショットを保存、`false` で削除） |
+| `GET /settlements/history?from=YYYY-MM&to=YYYY-MM` | 精算履歴（完了時点のスナップショット）の取得（新しい月順） |
 | `POST /recurring-expenses` | 固定費の登録 |
 | `GET /recurring-expenses` | 固定費の一覧 |
 | `PUT /recurring-expenses/{id}` | 固定費の更新 |
@@ -110,9 +110,13 @@ curl $BASE/months/2026-07/settlement -H "Authorization: Bearer $TOKEN"
 - `transfer` は実際に振り込む金額で、**比重按分の精算分 `settlementTransfer` と立替精算分 `directTransfer` を合算**したもの。いずれも `null` の場合は不要。
 - `settlementTransfer` / `directTransfer` は内訳（方向が逆になることもある）。`disposableYen`（精算後の可処分所得）は**共有支出の比重按分のみを反映**し、立替精算は含めない。
 - `totalDirectTransferYen` は当月に適用された立替精算の総額（方向を問わない絶対額の合計）。
-- `settled` は `PUT /months/{month}/settlement/status` で更新する精算済みフラグ（振込を実施したかどうかの記録用で、精算計算そのものには影響しない）。
+- `settled` はその月が精算完了済みか（スナップショットが保存されているか）を表す。`PUT /months/{month}/settlement/status` の `settled=true` で完了し、`false` で取り消す。`GET /months/{month}/settlement` 自体は常に現在のデータで再計算した**ライブの精算**を返す（`settled` の値は計算結果に影響しない）。
 
 固定費（`recurring-expenses`）が登録されている場合、精算計算時に対象月の共有支出として自動的に合算される。立替精算（`direct-transfers`）は共有支出とは別枠で、比重按分せずに振込額へそのまま加算される（詳細は [settlement.md](settlement.md#立替精算共有支出とは別枠の送金)）。追加収入（`incomes`）は各メンバーの給与と合算して収入（`incomeYen`）に反映される（詳細は [settlement.md](settlement.md#収入給与と追加収入)）。
+
+### 精算履歴（スナップショット）
+
+`GET /settlements/history` は、**精算を完了した月**のスナップショット（完了時点の精算内容）を新しい月順に返す。精算未完了の月は含まれない。各エントリは精算レスポンスと同等の内訳（`members` / `transfer` / `settlementTransfer` / `directTransfer` / `totalExpenseYen` / `totalDirectTransferYen`）に加え、完了日時 `settledAt`（RFC3339）と、当月の共有支出明細 `expenses`（固定費由来は `recurring=true`）・立替精算明細 `directTransfers` を含む。スナップショットは完了時点の内容を保持するため、後から固定費や収支・比重を変更しても履歴の内容は変わらない（背景と保存方式は [data-model.md](data-model.md#精算スナップショット精算完了時点の内容を凍結) を参照）。
 
 ## エラーレスポンス
 

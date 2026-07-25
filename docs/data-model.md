@@ -12,7 +12,7 @@
 | 給与 | `MONTH#<yyyy-MM>` | `SALARY#<memberID>` | `MemberID`, `AmountYen` |
 | 追加収入（継続） | `INCOME#RECURRING` | `<収入ID>` | `MemberID`, `AmountYen`, `Description`, `Month`(空文字) |
 | 追加収入（単発） | `INCOME#<yyyy-MM>` | `<収入ID>` | `MemberID`, `AmountYen`, `Description`, `Month`(YYYY-MM) |
-| 精算済みフラグ | `MONTH#<yyyy-MM>` | `STATUS` | `Settled`（bool） |
+| 精算スナップショット | `MONTH#<yyyy-MM>` | `SNAPSHOT` | 完了時点の精算結果（`Members`, `Transfer`/`SettlementTransfer`/`DirectTransfer`, `TotalExpenseYen`, `TotalDirectTransferYen`）＋明細（`Expenses`, `DirectTransfers`）＋`SettledAt`(RFC3339) |
 | 固定費 | `RECURRING` | `<固定費ID>` | `PaidBy`, `AmountYen`, `Description` |
 | 立替精算（継続） | `DIRECTTRANSFER#RECURRING` | `<立替精算ID>` | `FromID`, `ToID`, `AmountYen`, `Description`, `Month`(空文字) |
 | 立替精算（単発） | `DIRECTTRANSFER#<yyyy-MM>` | `<立替精算ID>` | `FromID`, `ToID`, `AmountYen`, `Description`, `Month`(YYYY-MM) |
@@ -53,6 +53,16 @@
 
 ある精算月の収入は「給与（`SALARY#`）＋継続の追加収入（`INCOME#RECURRING`）＋当月単発の追加収入（`INCOME#<月>`）」を合算して算出する。
 
+### 精算スナップショット（精算完了時点の内容を凍結）
+
+精算履歴は、元データ（給与・追加収入・共有支出・固定費・比重・締め日）を後から変更しても**完了した時点の内容を保ち続ける**必要がある。毎回再計算すると、例えば固定費の金額を後で更新したり過去月の収支を直したりしたときに、履歴の表示が実際に精算した内容と乖離してしまう。
+
+そこで**精算完了（`PUT /months/{month}/settlement/status` の `settled=true`）をトリガーに、その月の精算内容をスナップショットとして保存する**（`PK=MONTH#<月>, SK=SNAPSHOT`）。保存内容は精算結果（各メンバーの収入・立替支出・精算後可処分・比重、振込額、共有支出合計、立替精算総額）に加え、共有支出・立替精算の明細（`docs/settlement.md` 参照）まで含み、履歴画面はこのスナップショットだけで自己完結して表示する（精算画面は参照しない）。
+
+- **スナップショットの有無がその月の精算済み状態を表す**（別途の精算済みフラグは持たない）。`settled=false`（精算済みの取り消し）でスナップショットを削除する。
+- 精算を完了できるのは両メンバーの給与が揃っている月のみ（収入未入力では計算できずスナップショットを作れないため `409 INCOME_NOT_READY`）。
+- 精算画面（`GET /months/{month}/settlement`）は編集用の**ライブ計算**を返す。完了後に元データを変えると精算画面の数値は変わるが、履歴のスナップショットは変わらない。
+
 ### 締め日は保存先を変えない（暦月キーのまま集計時に期間で絞る）
 
 支出は常に**支出日の暦月**（`EXPENSE#<暦月>`）に保存する。締め日（`SETTINGS/CLOSINGDAY`）は可変設定のため、これをIDやパーティションに焼き込むと締め日変更時に既存データが迷子になる。そこで締め日 D≥2 のとき、精算月 M の集計は暦月 `M-1` と `M` の2パーティションを取得し、各支出について `ClosingDay.SettlementMonth(支出日)==M` のものだけを採用する（`application.expensesForSettlementMonth`）。締め日=1 のときは暦月 M の1パーティションのみで従来どおり。これにより締め日を変更しても保存済みデータの再配置は不要で、集計だけが期間に追従する。
@@ -69,7 +79,7 @@
 | 追加収入の登録/更新 | `PutItem`（継続 `PK=INCOME#RECURRING` / 単発 `PK=INCOME#<月>`） |
 | 追加収入の取得/削除 | `GetItem` / `DeleteItem`（IDから継続か単発の月を導出してキー構築） |
 | 追加収入の月別一覧 | `Query`（`INCOME#RECURRING` と `INCOME#<月>` の2パーティション） |
-| 精算済みフラグの取得/更新 | `GetItem` / `PutItem`（`PK=MONTH#<月>, SK=STATUS`） |
+| 精算スナップショットの取得/保存/削除 | `GetItem` / `PutItem` / `DeleteItem`（`PK=MONTH#<月>, SK=SNAPSHOT`） |
 | 固定費の登録/更新 | `PutItem`（`PK=RECURRING`） |
 | 固定費の取得/削除 | `GetItem` / `DeleteItem` |
 | 固定費の一覧 | `Query (PK = RECURRING)` |
