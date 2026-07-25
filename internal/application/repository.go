@@ -38,10 +38,15 @@ type IncomeRepository interface {
 	Delete(ctx context.Context, id domain.IncomeID) error
 }
 
-// SettlementStatusRepository は月ごとの精算済みフラグの永続化を担う。
-type SettlementStatusRepository interface {
-	IsSettled(ctx context.Context, month domain.YearMonth) (bool, error)
-	SetSettled(ctx context.Context, month domain.YearMonth, settled bool) error
+// SettlementSnapshotRepository は月ごとの精算スナップショット（精算完了時点の内容）の
+// 永続化を担う。スナップショットの有無がその月の精算済み状態を表す。
+type SettlementSnapshotRepository interface {
+	// Save はスナップショットを保存（上書き）する。
+	Save(ctx context.Context, snapshot domain.SettlementSnapshot) error
+	// Find は対象月のスナップショットを返す。存在しない場合は ok=false を返す。
+	Find(ctx context.Context, month domain.YearMonth) (snapshot domain.SettlementSnapshot, ok bool, err error)
+	// Delete は対象月のスナップショットを削除する（存在しなくてもエラーにしない）。
+	Delete(ctx context.Context, month domain.YearMonth) error
 }
 
 // RecurringExpenseRepository は固定費（毎月発生する共有支出）の永続化を担う。

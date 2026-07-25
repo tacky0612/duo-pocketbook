@@ -274,29 +274,38 @@ func (r *DirectTransferRepository) Delete(_ context.Context, id domain.DirectTra
 	return nil
 }
 
-// SettlementStatusRepository は application.SettlementStatusRepository のインメモリ実装。
-type SettlementStatusRepository struct {
-	mu      sync.RWMutex
-	settled map[string]bool // key: 対象月
+// SettlementSnapshotRepository は application.SettlementSnapshotRepository のインメモリ実装。
+type SettlementSnapshotRepository struct {
+	mu        sync.RWMutex
+	snapshots map[string]domain.SettlementSnapshot // key: 対象月
 }
 
-// NewSettlementStatusRepository は空の SettlementStatusRepository を生成する。
-func NewSettlementStatusRepository() *SettlementStatusRepository {
-	return &SettlementStatusRepository{settled: map[string]bool{}}
+// NewSettlementSnapshotRepository は空の SettlementSnapshotRepository を生成する。
+func NewSettlementSnapshotRepository() *SettlementSnapshotRepository {
+	return &SettlementSnapshotRepository{snapshots: map[string]domain.SettlementSnapshot{}}
 }
 
-// IsSettled は対象月が精算済みかを返す。
-func (r *SettlementStatusRepository) IsSettled(_ context.Context, month domain.YearMonth) (bool, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.settled[month.String()], nil
-}
-
-// SetSettled は精算済みフラグを保存する。
-func (r *SettlementStatusRepository) SetSettled(_ context.Context, month domain.YearMonth, settled bool) error {
+// Save はスナップショットを保存（上書き）する。
+func (r *SettlementSnapshotRepository) Save(_ context.Context, s domain.SettlementSnapshot) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.settled[month.String()] = settled
+	r.snapshots[s.Month().String()] = s
+	return nil
+}
+
+// Find は対象月のスナップショットを返す。存在しない場合は ok=false を返す。
+func (r *SettlementSnapshotRepository) Find(_ context.Context, month domain.YearMonth) (domain.SettlementSnapshot, bool, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	s, ok := r.snapshots[month.String()]
+	return s, ok, nil
+}
+
+// Delete は対象月のスナップショットを削除する。
+func (r *SettlementSnapshotRepository) Delete(_ context.Context, month domain.YearMonth) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.snapshots, month.String())
 	return nil
 }
 

@@ -22,7 +22,7 @@ func BuildHandler(ctx context.Context, cfg config.Config, opt RouterOption) (htt
 		recurringRepo application.RecurringExpenseRepository
 		directRepo    application.DirectTransferRepository
 		settings      application.SettingsRepository
-		statusRepo    application.SettlementStatusRepository
+		snapshotRepo  application.SettlementSnapshotRepository
 		accountRepo   application.AccountRepository
 	)
 	if cfg.TableName != "" {
@@ -37,8 +37,8 @@ func BuildHandler(ctx context.Context, cfg config.Config, opt RouterOption) (htt
 			}
 		}
 		repos := dynamoinfra.NewRepositories(client, cfg.TableName)
-		expenseRepo, salaryRepo, incomeRepo, recurringRepo, directRepo, settings, statusRepo, accountRepo =
-			repos.Expenses, repos.Salaries, repos.Incomes, repos.Recurring, repos.Direct, repos.Settings, repos.Status, repos.Accounts
+		expenseRepo, salaryRepo, incomeRepo, recurringRepo, directRepo, settings, snapshotRepo, accountRepo =
+			repos.Expenses, repos.Salaries, repos.Incomes, repos.Recurring, repos.Direct, repos.Settings, repos.Snapshots, repos.Accounts
 	} else {
 		expenseRepo = memory.NewExpenseRepository()
 		salaryRepo = memory.NewSalaryRepository()
@@ -46,7 +46,7 @@ func BuildHandler(ctx context.Context, cfg config.Config, opt RouterOption) (htt
 		recurringRepo = memory.NewRecurringExpenseRepository()
 		directRepo = memory.NewDirectTransferRepository()
 		settings = memory.NewSettingsRepository()
-		statusRepo = memory.NewSettlementStatusRepository()
+		snapshotRepo = memory.NewSettlementSnapshotRepository()
 		accountRepo = memory.NewAccountRepository()
 	}
 
@@ -69,7 +69,7 @@ func BuildHandler(ctx context.Context, cfg config.Config, opt RouterOption) (htt
 		auth,
 		account,
 		application.NewExpenseUsecase(couple, expenseRepo, settings, nil),
-		application.NewSettlementUsecase(couple, expenseRepo, salaryRepo, incomeRepo, recurringRepo, directRepo, settings, statusRepo),
+		application.NewSettlementUsecase(couple, expenseRepo, salaryRepo, incomeRepo, recurringRepo, directRepo, settings, snapshotRepo, nil),
 		application.NewSettingsUsecase(couple, settings),
 		application.NewRecurringExpenseUsecase(couple, recurringRepo),
 		application.NewDirectTransferUsecase(couple, directRepo),

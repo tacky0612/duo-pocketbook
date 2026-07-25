@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, useRef, useLayoutEffect, type FormEvent } from "react";
 import { api } from "../lib/apiClient";
 import { yen } from "../lib/format";
 import { useAsync } from "../hooks";
@@ -99,18 +99,9 @@ export default function DirectTransferScreen({ month, members, me, notify, onErr
 
   const list = data?.directTransfers ?? [];
 
-  // 送金元 → 送金先の名前を矢印付きで表示する小コンポーネント。
-  const FromTo = ({ from, to }: { from: MemberId; to: MemberId }) => (
-    <span className="inline-flex items-center gap-1.5">
-      <MemberBadge name={memberName(from)} color={memberColor(from)} />
-      <ArrowRightIcon className="h-4 w-4 text-slate-400" />
-      <MemberBadge name={memberName(to)} color={memberColor(to)} />
-    </span>
-  );
-
   return (
     <div className="grid gap-4 lg:grid-cols-5 lg:items-start">
-      <Card className="lg:col-span-2 lg:sticky lg:top-20">
+      <Card className="min-w-0 lg:col-span-2 lg:sticky lg:top-20">
         <SectionTitle>立替精算を追加</SectionTitle>
         <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
           共有支出以外で一方が立て替えた分などを精算します。比重で按分されず、月次の振込額へそのまま加算されます。
@@ -179,7 +170,7 @@ export default function DirectTransferScreen({ month, members, me, notify, onErr
         </form>
       </Card>
 
-      <Card className="lg:col-span-3">
+      <Card className="min-w-0 lg:col-span-3">
         <SectionTitle>{month} に適用される立替精算</SectionTitle>
         {loading ? (
           <Spinner />
@@ -258,7 +249,12 @@ export default function DirectTransferScreen({ month, members, me, notify, onErr
                       </span>
                     </div>
                     <div className="mt-1">
-                      <FromTo from={t.from} to={t.to} />
+                      <FromTo
+                        fromName={memberName(t.from)}
+                        fromColor={memberColor(t.from)}
+                        toName={memberName(t.to)}
+                        toColor={memberColor(t.to)}
+                      />
                     </div>
                   </div>
                   <span className="whitespace-nowrap font-semibold tabular-nums">{yen(t.amountYen)}</span>
@@ -283,5 +279,67 @@ export default function DirectTransferScreen({ month, members, me, notify, onErr
         )}
       </Card>
     </div>
+  );
+}
+
+// FromTo は送金元 → 送金先を表示する。
+// 1行に収まるときは従来どおり横並び（→）、収まらないときだけ縦並び（↓）に切り替える。
+// 切り替えは幅の実測で行う（不可視の横並びクローンの自然幅と、利用可能幅を比較）。
+function FromTo({
+  fromName,
+  fromColor,
+  toName,
+  toColor,
+}: {
+  fromName: string;
+  fromColor?: string;
+  toName: string;
+  toColor?: string;
+}) {
+  const [stacked, setStacked] = useState(false);
+  const wrapRef = useRef<HTMLSpanElement>(null);
+  const rowRef = useRef<HTMLSpanElement>(null);
+
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current;
+    const row = rowRef.current;
+    if (!wrap || !row) return;
+    const measure = () => {
+      // 横並び（クローン）の自然幅が利用可能幅を超えるなら縦並びにする。
+      setStacked(row.getBoundingClientRect().width > wrap.getBoundingClientRect().width + 1);
+    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(wrap);
+    measure();
+    return () => ro.disconnect();
+  }, [fromName, toName]);
+
+  return (
+    <span ref={wrapRef} className="block min-w-0">
+      {/* 実測専用の不可視クローン（常に横並び・折り返しなし） */}
+      <span
+        ref={rowRef}
+        aria-hidden
+        className="pointer-events-none invisible absolute left-0 top-0 inline-flex items-center gap-1.5 whitespace-nowrap"
+      >
+        <MemberBadge name={fromName} color={fromColor} />
+        <ArrowRightIcon className="h-4 w-4" />
+        <MemberBadge name={toName} color={toColor} />
+      </span>
+
+      {stacked ? (
+        <span className="inline-flex flex-col items-start gap-1">
+          <MemberBadge name={fromName} color={fromColor} />
+          <ArrowRightIcon className="h-4 w-4 rotate-90 text-slate-400" />
+          <MemberBadge name={toName} color={toColor} />
+        </span>
+      ) : (
+        <span className="inline-flex max-w-full items-center gap-1.5">
+          <MemberBadge name={fromName} color={fromColor} />
+          <ArrowRightIcon className="h-4 w-4 shrink-0 text-slate-400" />
+          <MemberBadge name={toName} color={toColor} />
+        </span>
+      )}
+    </span>
   );
 }

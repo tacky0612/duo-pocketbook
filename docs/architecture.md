@@ -46,7 +46,7 @@ flowchart TD
 ユースケース（アプリケーションとしての動作）を定義する。永続化は `repository.go` の**インターフェイス**（`ExpenseRepository` / `SalaryRepository` / `IncomeRepository` / `RecurringExpenseRepository` / `DirectTransferRepository` / `SettlementStatusRepository` / `SettingsRepository` / `AccountRepository`）経由でのみアクセスし、実装には依存しない。
 
 - `ExpenseUsecase` — 支出の登録・更新・月別一覧（日付降順）・削除
-- `SettlementUsecase` — 給与の入力/取得、精算結果の計算、精算済みフラグの取得/更新、精算履歴の取得（給与＋追加収入を各メンバーの収入として合算し、固定費を対象月の支出として合算し、立替精算を振込額へ加算する）
+- `SettlementUsecase` — 給与の入力/取得、精算結果の計算、精算の完了/取り消し（完了時点の精算内容をスナップショットとして保存/削除）、精算履歴（スナップショット）の取得（給与＋追加収入を各メンバーの収入として合算し、固定費を対象月の支出として合算し、立替精算を振込額へ加算する）
 - `IncomeUsecase` — 追加収入の登録・更新・月別一覧・削除（継続/単発）
 - `RecurringExpenseUsecase` — 固定費の登録・更新・一覧・削除
 - `DirectTransferUsecase` — 立替精算の登録・更新・月別一覧・削除（継続/単発）

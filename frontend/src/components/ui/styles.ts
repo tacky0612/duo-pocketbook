@@ -1,7 +1,8 @@
 // UIプリミティブ間で共有する Tailwind クラス文字列。
 
 export const fieldInput =
-  "w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-slate-900 " +
+  // min-w-0: グリッド/フレックス内で内容（長いoptionなど）に押し広げられず親幅へ収める
+  "w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-slate-900 " +
   "placeholder:text-slate-400 shadow-sm transition-colors " +
   "focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 " +
   "dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-100 dark:placeholder:text-slate-500";

@@ -2,7 +2,7 @@
 //
 // シングルテーブル設計で、全エンティティを1テーブルの PK/SK で表現する。キー設計は
 // 下記の定数に集約し、各エンティティの実装は同名のファイル（expense.go / income.go /
-// settlement_status.go / recurring_expense.go / direct_transfer.go / settings.go /
+// settlement_snapshot.go / recurring_expense.go / direct_transfer.go / settings.go /
 // account.go）に分割している。
 package dynamodb
 
@@ -24,7 +24,7 @@ const (
 	recurringPK     = "RECURRING"
 	directPKPrefix  = "DIRECTTRANSFER#" // 単発: DIRECTTRANSFER#<month> / 継続: DIRECTTRANSFER#RECURRING
 	directRecurring = "RECURRING"
-	statusSK        = "STATUS"
+	snapshotSK      = "SNAPSHOT" // 精算スナップショット: PK=MONTH#<month> / SK=SNAPSHOT
 	accountPK       = "ACCOUNT"
 	accountSKPrefix = "ACCT#"
 )
@@ -37,7 +37,7 @@ type Repositories struct {
 	Recurring *RecurringExpenseRepository
 	Direct    *DirectTransferRepository
 	Settings  *SettingsRepository
-	Status    *SettlementStatusRepository
+	Snapshots *SettlementSnapshotRepository
 	Accounts  *AccountRepository
 }
 
@@ -50,7 +50,7 @@ func NewRepositories(client *dynamodb.Client, tableName string) Repositories {
 		Recurring: &RecurringExpenseRepository{client: client, table: tableName},
 		Direct:    &DirectTransferRepository{client: client, table: tableName},
 		Settings:  &SettingsRepository{client: client, table: tableName},
-		Status:    &SettlementStatusRepository{client: client, table: tableName},
+		Snapshots: &SettlementSnapshotRepository{client: client, table: tableName},
 		Accounts:  &AccountRepository{client: client, table: tableName},
 	}
 }
