@@ -48,7 +48,7 @@ func newTestServer(t *testing.T) (*httptest.Server, [2]testAccount) {
 	recurringRepo := memory.NewRecurringExpenseRepository()
 	directRepo := memory.NewDirectTransferRepository()
 	settingsRepo := memory.NewSettingsRepository()
-	statusRepo := memory.NewSettlementStatusRepository()
+	snapshotRepo := memory.NewSettlementSnapshotRepository()
 
 	auth := web.NewAuthenticator("test-secret", time.Hour, couple, nil)
 	handler := web.NewHandler(
@@ -56,7 +56,7 @@ func newTestServer(t *testing.T) (*httptest.Server, [2]testAccount) {
 		auth,
 		account,
 		application.NewExpenseUsecase(couple, expenseRepo, settingsRepo, nil),
-		application.NewSettlementUsecase(couple, expenseRepo, salaryRepo, incomeRepo, recurringRepo, directRepo, settingsRepo, statusRepo),
+		application.NewSettlementUsecase(couple, expenseRepo, salaryRepo, incomeRepo, recurringRepo, directRepo, settingsRepo, snapshotRepo, nil),
 		application.NewSettingsUsecase(couple, settingsRepo),
 		application.NewRecurringExpenseUsecase(couple, recurringRepo),
 		application.NewDirectTransferUsecase(couple, directRepo),

@@ -94,11 +94,43 @@ export interface Settlement {
   settled: boolean;
 }
 
+/** 精算スナップショットに含まれる共有支出1件の明細。 */
+export interface SnapshotExpense {
+  paidBy: MemberId;
+  amountYen: number;
+  description: string;
+  date: IsoDate | ""; // 固定費など日付を持たない項目は空文字
+  recurring: boolean;
+}
+
+/** 精算スナップショットに含まれる立替精算1件の明細。 */
+export interface SnapshotDirectTransfer {
+  from: MemberId;
+  to: MemberId;
+  amountYen: number;
+  description: string;
+  recurring: boolean;
+}
+
+/**
+ * 精算完了時点の内容を凍結したスナップショット（精算履歴の1件）。
+ * 元データ（給与・支出・固定費・比重など）を後から変更しても内容は変わらない。
+ */
 export interface SettlementHistoryEntry {
   month: YearMonth;
-  settled: boolean;
+  settledAt: string; // RFC3339
   totalExpenseYen: number;
+  members: MemberSettlement[];
+  /** 実際の振込（精算分＋立替精算分の合算）。0円なら null。 */
   transfer: Transfer | null;
+  /** 比重按分による精算分のみの振込。0円なら null。 */
+  settlementTransfer: Transfer | null;
+  /** 立替精算の純額のみの振込。0円なら null。 */
+  directTransfer: Transfer | null;
+  /** 当月に適用された立替精算の総額（方向を問わない絶対額の合計）。 */
+  totalDirectTransferYen: number;
+  expenses: SnapshotExpense[];
+  directTransfers: SnapshotDirectTransfer[];
 }
 
 export type Weights = Record<MemberId, number>;
@@ -229,7 +261,8 @@ export interface DemoDb {
   directTransfers: DirectTransfer[];
   salaries: DemoSalary[];
   incomes: Income[];
-  settled: Record<YearMonth, boolean>;
+  /** 精算完了時点のスナップショット（月ごと）。存在＝精算済み。 */
+  snapshots: Record<YearMonth, SettlementHistoryEntry>;
   /** 締め日（精算期間の起算日。1=暦月どおり）。1〜31。 */
   closingDay: number;
 }

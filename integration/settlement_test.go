@@ -73,17 +73,24 @@ func TestClosingDaySettlement(t *testing.T) {
 	}
 }
 
-// TestSettlementHistory は精算履歴が新しい月順に返り、給与が揃わない月が除外されることを検証する。
+// TestSettlementHistory は精算完了した月のスナップショットが新しい月順に返り、
+// 精算未完了の月が除外されることを検証する。
 func TestSettlementHistory(t *testing.T) {
 	waitForHealthy(t)
 	taro, taroID, hanako, hanakoID := loginBoth(t)
 
-	// 2037-01・2037-02 は両者の給与あり、2037-03 は太郎のみ（履歴から除外される）
+	settle := func(month string) {
+		if status, body := doJSON(t, http.MethodPut, "/months/"+month+"/settlement/status", taro, map[string]any{"settled": true}); status != http.StatusOK {
+			t.Fatalf("settle(%s) status = %d, body = %s", month, status, body)
+		}
+	}
+
+	// 2037-01・2037-02 は精算完了、2037-03 は精算未完了（履歴から除外される）
 	setSalaries(t, taro, taroID, hanako, hanakoID, "2037-01", 100000, 100000)
 	setSalaries(t, taro, taroID, hanako, hanakoID, "2037-02", 100000, 100000)
-	if status, _ := doJSON(t, http.MethodPut, "/months/2037-03/salaries/"+taroID, taro, map[string]any{"amountYen": 100000}); status != http.StatusOK {
-		t.Fatalf("salary(2037-03 taro) status = %d", status)
-	}
+	setSalaries(t, taro, taroID, hanako, hanakoID, "2037-03", 100000, 100000)
+	settle("2037-01")
+	settle("2037-02")
 
 	status, body := doJSON(t, http.MethodGet, "/settlements/history?from=2037-01&to=2037-03", taro, nil)
 	if status != http.StatusOK {
@@ -91,19 +98,29 @@ func TestSettlementHistory(t *testing.T) {
 	}
 	var res struct {
 		Entries []struct {
-			Month   string `json:"month"`
-			Settled bool   `json:"settled"`
+			Month     string `json:"month"`
+			SettledAt string `json:"settledAt"`
+			Members   []struct {
+				ID string `json:"id"`
+			} `json:"members"`
 		} `json:"entries"`
 	}
 	if err := json.Unmarshal(body, &res); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	if len(res.Entries) != 2 {
-		t.Fatalf("entries = %d, want 2（2037-03は給与片方のみで除外）(body = %s)", len(res.Entries), body)
+		t.Fatalf("entries = %d, want 2（2037-03は精算未完了で除外）(body = %s)", len(res.Entries), body)
 	}
 	// 新しい月順
 	if res.Entries[0].Month != "2037-02" || res.Entries[1].Month != "2037-01" {
 		t.Errorf("順序 = [%s, %s], want [2037-02, 2037-01]", res.Entries[0].Month, res.Entries[1].Month)
+	}
+	// スナップショットには完了日時とメンバー内訳が含まれる
+	if res.Entries[0].SettledAt == "" {
+		t.Error("settledAt が空")
+	}
+	if len(res.Entries[0].Members) != 2 {
+		t.Errorf("members = %d, want 2", len(res.Entries[0].Members))
 	}
 
 	// 不正な範囲（from > to）は 400
