@@ -1,6 +1,6 @@
 module github.com/tacky0612/duo-pocketbook
 
-go 1.24
+go 1.25.0
 
 require (
 	github.com/aws/aws-lambda-go v1.47.0
@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.34.4
 	github.com/awslabs/aws-lambda-go-api-proxy v0.16.2
 	github.com/golang-jwt/jwt/v5 v5.2.2
-	golang.org/x/crypto v0.25.0
+	golang.org/x/crypto v0.52.0
 )
 
 require (
@@ -41,8 +41,8 @@ require (
 	github.com/swaggo/swag/v2 v2.0.0-rc5 // indirect
 	github.com/urfave/cli/v2 v2.27.5 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
-	golang.org/x/text v0.16.0 // indirect
-	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
+	golang.org/x/text v0.37.0 // indirect
+	golang.org/x/tools v0.44.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
