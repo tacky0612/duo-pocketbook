@@ -19,12 +19,29 @@ function persist(): void {
   }
 }
 
+// 古い保存データ（新フィールド追加前）に欠けているコレクションを既定値で補う。
+// これがないと、例えば snapshots 追加前の demo:db を読み込んだとき db.snapshots が
+// undefined となり db.snapshots[month] で TypeError になる。
+function normalize(raw: DemoDb): DemoDb {
+  return {
+    members: raw.members ?? [],
+    weights: raw.weights ?? {},
+    expenses: raw.expenses ?? [],
+    recurring: raw.recurring ?? [],
+    directTransfers: raw.directTransfers ?? [],
+    salaries: raw.salaries ?? [],
+    incomes: raw.incomes ?? [],
+    snapshots: raw.snapshots ?? {},
+    closingDay: raw.closingDay ?? 1,
+  };
+}
+
 function load(): DemoDb {
   if (db) return db;
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
-      db = JSON.parse(raw) as DemoDb;
+      db = normalize(JSON.parse(raw) as DemoDb);
       return db;
     }
   } catch {
