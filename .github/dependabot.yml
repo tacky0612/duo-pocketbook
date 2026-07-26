@@ -1,0 +1,40 @@
+# Dependabot によるバージョン更新設定。
+# セキュリティアラート（脆弱性）は本設定に関係なく常に有効。ここでは日常的な
+# バージョン更新PRの対象・頻度を定義する。
+version: 2
+updates:
+  # バックエンド（Go modules。go.mod はリポジトリ直下）
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # マイナー/パッチはまとめて1PRにしてノイズを減らす
+      go-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  # フロントエンド（npm。package.json は frontend/ 配下）
+  - package-ecosystem: npm
+    directory: "/frontend"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  # GitHub Actions（.github/workflows のアクション）
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      actions-all:
+        patterns:
+          - "*"
