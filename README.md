@@ -1,9 +1,13 @@
 # duo-pocketbook
 
 [![CI](https://github.com/tacky0612/duo-pocketbook/actions/workflows/ci.yml/badge.svg)](https://github.com/tacky0612/duo-pocketbook/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/tacky0612/duo-pocketbook/actions/workflows/codeql.yml/badge.svg)](https://github.com/tacky0612/duo-pocketbook/actions/workflows/codeql.yml)
 [![Deploy to GitHub Pages](https://github.com/tacky0612/duo-pocketbook/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/tacky0612/duo-pocketbook/actions/workflows/deploy-pages.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 クライアント2人で使う家計簿Webアプリケーション。共有支出を2アカウントから登録し、月次で双方の収入を入力すると、指定した比重で双方の可処分所得が揃うように精算額（振込額）を算出します。
+
+🚀 **ライブデモ**: <https://tacky0612.github.io/duo-pocketbook/>（ログイン画面の「デモモードで試す（API不要）」から、サーバー不要でブラウザ内の擬似データで全機能を体験できます）
 
 📚 **詳細ドキュメント**: [docs/](docs/README.md)（アーキテクチャ / 精算仕様 / API / データモデル / 開発 / デプロイ）
 
@@ -100,3 +104,15 @@ GitHub Actions（`.github/workflows/ci.yml`）で以下を実行し、テスト�
 3. **Unit Test** — `go test ./...` + カバレッジサマリ
 4. **Integration Test** — Docker Composeでローカル環境を起動しE2Eテスト（外部通信なし）
 5. **Frontend Build** — Viteビルド（`api/openapi.yaml` からAPIドキュメントも生成）
+
+また `codeql.yml` で Go / TypeScript の CodeQL コードスキャンを実行します。
+
+## コントリビュート
+
+バグ報告・機能提案・Pull Request を歓迎します。開発フローやコーディング規約は [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。参加にあたっては [行動規範（CODE_OF_CONDUCT.md）](CODE_OF_CONDUCT.md) に従ってください。
+
+脆弱性を見つけた場合は、公開 Issue ではなく [SECURITY.md](SECURITY.md) の手順に従って報告してください。
+
+## ライセンス
+
+[MIT License](LICENSE) の下で公開しています。

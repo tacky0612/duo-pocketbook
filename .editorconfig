@@ -1,0 +1,27 @@
+# EditorConfig — エディタ間でインデント・改行・文字コードを統一する
+# https://editorconfig.org
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Go はタブインデント（gofmt 準拠）
+[*.go]
+indent_style = tab
+
+# Go modules
+[go.{mod,sum}]
+indent_style = tab
+
+# Makefile はタブ必須
+[Makefile]
+indent_style = tab
+
+# Markdown は行末の空白がハード改行の意味を持つため保持する
+[*.md]
+trim_trailing_whitespace = false

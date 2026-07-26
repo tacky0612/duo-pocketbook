@@ -1,0 +1,11 @@
+# このリポジトリの Sponsor ボタンに表示される支援先。
+# GitHub Sponsors を利用する場合は、事前に GitHub 側で Sponsors を有効化しておく必要がある。
+# 利用しない項目はコメントアウトのままでよい。詳細:
+# https://docs.github.com/ja/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button-in-your-repository
+
+github: [tacky0612]
+# patreon: <username>
+# open_collective: <slug>
+# ko_fi: <username>
+# buy_me_a_coffee: <username>
+# custom: ["https://example.com/donate"]
