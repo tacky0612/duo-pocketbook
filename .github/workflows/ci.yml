@@ -14,8 +14,8 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: gofmt
@@ -28,7 +28,7 @@ jobs:
       - name: go vet
         run: go vet ./...
       - name: terraform fmt
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
       - run: terraform -chdir=terraform fmt -check
       - name: terraform validate
         run: |
@@ -39,8 +39,8 @@ jobs:
     name: OpenAPI Up-to-date
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: Regenerate and check api/openapi.yaml
@@ -50,8 +50,8 @@ jobs:
     name: Unit Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: Install gotestsum
@@ -68,7 +68,7 @@ jobs:
           go tool cover -func=coverage.out | tail -20 >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
       - name: Test report
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v3
         if: always()
         with:
           name: Unit Test Report
@@ -84,15 +84,15 @@ jobs:
     env:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: Install gotestsum
         run: go install gotest.tools/gotestsum@latest
       - name: Log in to Docker Hub
         if: ${{ env.DOCKERHUB_USERNAME != '' }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -109,7 +109,7 @@ jobs:
         if: always()
         run: docker compose down -v
       - name: Test report
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v3
         if: always()
         with:
           name: Integration Test Report
@@ -120,8 +120,8 @@ jobs:
     name: Frontend Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -136,8 +136,8 @@ jobs:
     name: Docs Mermaid Validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Validate Mermaid diagrams
