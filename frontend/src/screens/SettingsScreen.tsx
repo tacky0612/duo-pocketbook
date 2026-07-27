@@ -113,7 +113,8 @@ export default function SettingsScreen({ members, me, theme, notify, onError, on
   const [confirmPw, setConfirmPw] = useState("");
   const [savingPw, setSavingPw] = useState(false);
 
-  const myColor = members.find((m) => m.id === me?.id)?.color;
+  const myMember = members.find((m) => m.id === me?.id);
+  const myColor = myMember?.color;
 
   useEffect(() => {
     if (!data) return;
@@ -122,7 +123,11 @@ export default function SettingsScreen({ members, me, theme, notify, onError, on
     setWeights(next);
   }, [data, members]);
 
-  useEffect(() => setName(me?.name || ""), [me]);
+  // 表示名の初期値は「現在設定されている値」にする。members（GET /members）が
+  // 最新の表示名を持つため、セッションの me?.name より優先する。
+  useEffect(() => {
+    setName(myMember?.name ?? me?.name ?? "");
+  }, [myMember?.name, me]);
   useEffect(() => {
     if (account.data) setLoginId(account.data.loginId);
   }, [account.data]);
