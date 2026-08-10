@@ -68,12 +68,12 @@ func BuildHandler(ctx context.Context, cfg config.Config, opt RouterOption) (htt
 		couple,
 		auth,
 		account,
-		application.NewExpenseUsecase(couple, expenseRepo, settings, nil),
+		application.NewExpenseUsecase(couple, expenseRepo, settings, snapshotRepo, nil),
 		application.NewSettlementUsecase(couple, expenseRepo, salaryRepo, incomeRepo, recurringRepo, directRepo, settings, snapshotRepo, nil),
 		application.NewSettingsUsecase(couple, settings),
 		application.NewRecurringExpenseUsecase(couple, recurringRepo),
-		application.NewDirectTransferUsecase(couple, directRepo),
-		application.NewIncomeUsecase(couple, incomeRepo),
+		application.NewDirectTransferUsecase(couple, directRepo, snapshotRepo),
+		application.NewIncomeUsecase(couple, incomeRepo, snapshotRepo),
 	)
 	// 事前共有キー検証を有効化（設定時のみ）。
 	opt.ClientKey = cfg.ClientKey

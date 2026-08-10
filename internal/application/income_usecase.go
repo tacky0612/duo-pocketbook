@@ -10,13 +10,14 @@ import (
 
 // IncomeUsecase は給与とは別の追加収入（内容付き・単発/継続）に関するユースケース。
 type IncomeUsecase struct {
-	couple  domain.Couple
-	incomes IncomeRepository
+	couple    domain.Couple
+	incomes   IncomeRepository
+	snapshots SettlementSnapshotRepository
 }
 
 // NewIncomeUsecase は IncomeUsecase を生成する。
-func NewIncomeUsecase(couple domain.Couple, incomes IncomeRepository) *IncomeUsecase {
-	return &IncomeUsecase{couple: couple, incomes: incomes}
+func NewIncomeUsecase(couple domain.Couple, incomes IncomeRepository, snapshots SettlementSnapshotRepository) *IncomeUsecase {
+	return &IncomeUsecase{couple: couple, incomes: incomes, snapshots: snapshots}
 }
 
 // RegisterIncomeInput は収入登録の入力。
@@ -50,8 +51,17 @@ func (u *IncomeUsecase) build(suffix string, in RegisterIncomeInput) (domain.Inc
 	return domain.NewIncome(string(id), in.MemberID, domain.Money(in.AmountYen), in.Description, month)
 }
 
-// Register は収入を登録する。
+// Register は収入を登録する。単発（特定月）の登録先が確定済みの月なら拒否する。
 func (u *IncomeUsecase) Register(ctx context.Context, in RegisterIncomeInput) (domain.Income, error) {
+	if in.Month != "" {
+		ym, err := domain.ParseYearMonth(in.Month)
+		if err != nil {
+			return domain.Income{}, err
+		}
+		if err := ensureMonthNotSettled(ctx, u.snapshots, ym); err != nil {
+			return domain.Income{}, err
+		}
+	}
 	inc, err := u.build(newIDSuffix(), in)
 	if err != nil {
 		return domain.Income{}, err
@@ -67,6 +77,12 @@ func (u *IncomeUsecase) Update(ctx context.Context, id domain.IncomeID, in Regis
 	existing, err := u.incomes.FindByID(ctx, id)
 	if err != nil {
 		return domain.Income{}, err
+	}
+	// 単発（特定月）の収入で、その月が確定済みなら編集を拒否する。継続は対象外。
+	if !existing.Month.IsZero() {
+		if err := ensureMonthNotSettled(ctx, u.snapshots, existing.Month); err != nil {
+			return domain.Income{}, err
+		}
 	}
 	if !u.couple.Contains(in.MemberID) {
 		return domain.Income{}, fmt.Errorf("%w: 不明なメンバーです: %s", domain.ErrValidation, in.MemberID)
@@ -102,10 +118,16 @@ func (u *IncomeUsecase) ListForMonth(ctx context.Context, month string) ([]domai
 	return append(recurring, oneOff...), nil
 }
 
-// Delete は収入を削除する。
+// Delete は収入を削除する。単発（特定月）でその月が確定済みなら拒否する。継続は対象外。
 func (u *IncomeUsecase) Delete(ctx context.Context, id domain.IncomeID) error {
-	if _, err := u.incomes.FindByID(ctx, id); err != nil {
+	existing, err := u.incomes.FindByID(ctx, id)
+	if err != nil {
 		return err
+	}
+	if !existing.Month.IsZero() {
+		if err := ensureMonthNotSettled(ctx, u.snapshots, existing.Month); err != nil {
+			return err
+		}
 	}
 	if err := u.incomes.Delete(ctx, id); err != nil {
 		return fmt.Errorf("収入の削除に失敗しました: %w", err)

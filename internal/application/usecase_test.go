@@ -43,12 +43,12 @@ func newFixture(t *testing.T) fixture {
 	snapshotRepo := memory.NewSettlementSnapshotRepository()
 	now := func() time.Time { return time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC) }
 	return fixture{
-		expenses:   application.NewExpenseUsecase(couple, expenseRepo, settingsRepo, now),
+		expenses:   application.NewExpenseUsecase(couple, expenseRepo, settingsRepo, snapshotRepo, now),
 		settlement: application.NewSettlementUsecase(couple, expenseRepo, salaryRepo, incomeRepo, recurringRepo, directRepo, settingsRepo, snapshotRepo, now),
 		settings:   application.NewSettingsUsecase(couple, settingsRepo),
 		recurring:  application.NewRecurringExpenseUsecase(couple, recurringRepo),
-		direct:     application.NewDirectTransferUsecase(couple, directRepo),
-		income:     application.NewIncomeUsecase(couple, incomeRepo),
+		direct:     application.NewDirectTransferUsecase(couple, directRepo, snapshotRepo),
+		income:     application.NewIncomeUsecase(couple, incomeRepo, snapshotRepo),
 	}
 }
 
@@ -561,8 +561,10 @@ func TestSettlementHistory(t *testing.T) {
 	}
 }
 
-// TestSettlementSnapshotFrozen は、精算完了後に元データ（給与）を変更しても履歴の
-// スナップショットが完了時点の内容を保持することを検証する。
+// TestSettlementSnapshotFrozen は、精算完了後に元データ（ここでは全月に効く固定費）を
+// 変更しても履歴のスナップショットが完了時点の内容を保持することを検証する。
+// 確定済み月の給与・支出は編集がブロックされる（TestEditSettledMonthRejected で検証）ため、
+// 対象月に紐づかず編集可能な固定費を変更して凍結を確認する。
 func TestSettlementSnapshotFrozen(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
@@ -577,8 +579,11 @@ func TestSettlementSnapshotFrozen(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// 完了後に給与を変更する（本来なら精算額が変わる）
-	if _, err := f.settlement.InputSalary(ctx, "2026-07", wife, 100_000); err != nil {
+	// 完了後に固定費（全月に効く共有支出）を追加する。本来なら再計算の精算額が変わる。
+	// 太郎が 40000 の固定費を負担すると、収入差 40000 が相殺され再計算は均衡（振込不要）になる。
+	if _, err := f.recurring.Register(ctx, application.RegisterRecurringExpenseInput{
+		PaidBy: husband, AmountYen: 40_000, Description: "家賃",
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -594,14 +599,90 @@ func TestSettlementSnapshotFrozen(t *testing.T) {
 	if tr == nil || tr.From != husband || tr.To != wife || tr.Amount != 20_000 {
 		t.Errorf("スナップショット transfer = %+v, want taro→hanako 20000（完了時点の額）", tr)
 	}
-	// 一方、再計算すると変更後の内容になる（均衡 → 振込不要）
+	// 一方、再計算すると変更後（固定費追加）の内容になる（均衡 → 振込不要）
 	live, err := f.settlement.GetSettlement(ctx, "2026-07")
 	if err != nil {
 		t.Fatalf("GetSettlement: %v", err)
 	}
 	if live.Transfer != nil {
-		t.Errorf("再計算 transfer = %+v, want nil（収入が揃い均衡）", live.Transfer)
+		t.Errorf("再計算 transfer = %+v, want nil（固定費で相殺され均衡）", live.Transfer)
 	}
+}
+
+// TestEditSettledMonthRejected は、精算確定済みの月に属するデータの作成/更新/削除が
+// domain.ErrSettled で拒否されること、および対象月に紐づかない項目（別月・毎月継続・固定費）は
+// 引き続き編集できることを検証する。
+func TestEditSettledMonthRejected(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	wantSettled := func(name string, err error) {
+		t.Helper()
+		if !errors.Is(err, domain.ErrSettled) {
+			t.Errorf("%s: err = %v, want ErrSettled", name, err)
+		}
+	}
+	noErr := func(name string, err error) {
+		t.Helper()
+		if err != nil {
+			t.Errorf("%s: 予期しないエラー: %v", name, err)
+		}
+	}
+
+	// 確定前に、更新/削除の対象となる 2026-07 のデータを用意する。
+	exp, err := f.expenses.Register(ctx, application.RegisterExpenseInput{PaidBy: husband, AmountYen: 3000, Description: "食費", Date: "2026-07-10"})
+	noErr("先行の支出登録", err)
+	incOneOff, err := f.income.Register(ctx, application.RegisterIncomeInput{MemberID: husband, AmountYen: 5000, Description: "副業", Month: "2026-07"})
+	noErr("先行の単発収入登録", err)
+	incRec, err := f.income.Register(ctx, application.RegisterIncomeInput{MemberID: husband, AmountYen: 1000, Description: "継続収入", Month: ""})
+	noErr("先行の継続収入登録", err)
+	dtOneOff, err := f.direct.Register(ctx, application.RegisterDirectTransferInput{From: husband, AmountYen: 2000, Description: "立替", Month: "2026-07"})
+	noErr("先行の単発立替登録", err)
+
+	// 給与を入れて 2026-07 を精算確定する。
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", husband, 100_000); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", wife, 60_000); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.settlement.SetSettled(ctx, "2026-07", true); err != nil {
+		t.Fatal(err)
+	}
+
+	// --- 確定済み月に対する操作はすべて拒否される ---
+	_, err = f.expenses.Register(ctx, application.RegisterExpenseInput{PaidBy: husband, AmountYen: 1000, Description: "追加", Date: "2026-07-20"})
+	wantSettled("支出Register(確定月)", err)
+	_, err = f.expenses.Update(ctx, exp.ID, application.RegisterExpenseInput{PaidBy: husband, AmountYen: 9999, Description: "変更", Date: "2026-07-10"})
+	wantSettled("支出Update(確定月)", err)
+	wantSettled("支出Delete(確定月)", f.expenses.Delete(ctx, exp.ID))
+
+	_, err = f.settlement.InputSalary(ctx, "2026-07", wife, 70_000)
+	wantSettled("給与InputSalary(確定月)", err)
+
+	_, err = f.income.Register(ctx, application.RegisterIncomeInput{MemberID: husband, AmountYen: 3000, Description: "副業2", Month: "2026-07"})
+	wantSettled("収入Register(確定月・単発)", err)
+	_, err = f.income.Update(ctx, incOneOff.ID, application.RegisterIncomeInput{MemberID: husband, AmountYen: 8000, Description: "変更"})
+	wantSettled("収入Update(確定月・単発)", err)
+	wantSettled("収入Delete(確定月・単発)", f.income.Delete(ctx, incOneOff.ID))
+
+	_, err = f.direct.Register(ctx, application.RegisterDirectTransferInput{From: husband, AmountYen: 500, Description: "立替2", Month: "2026-07"})
+	wantSettled("立替Register(確定月・単発)", err)
+	_, err = f.direct.Update(ctx, dtOneOff.ID, application.RegisterDirectTransferInput{From: husband, AmountYen: 700, Description: "変更"})
+	wantSettled("立替Update(確定月・単発)", err)
+	wantSettled("立替Delete(確定月・単発)", f.direct.Delete(ctx, dtOneOff.ID))
+
+	// --- 対象月に紐づかない項目・別月は引き続き編集できる ---
+	_, err = f.expenses.Register(ctx, application.RegisterExpenseInput{PaidBy: husband, AmountYen: 1000, Description: "翌月", Date: "2026-08-01"})
+	noErr("支出Register(未確定の別月)", err)
+	_, err = f.income.Update(ctx, incRec.ID, application.RegisterIncomeInput{MemberID: husband, AmountYen: 1200, Description: "継続変更"})
+	noErr("収入Update(継続)", err)
+	_, err = f.income.Register(ctx, application.RegisterIncomeInput{MemberID: wife, AmountYen: 400, Description: "継続追加", Month: ""})
+	noErr("収入Register(継続)", err)
+	_, err = f.direct.Register(ctx, application.RegisterDirectTransferInput{From: husband, AmountYen: 300, Description: "継続立替", Month: ""})
+	noErr("立替Register(継続)", err)
+	_, err = f.recurring.Register(ctx, application.RegisterRecurringExpenseInput{PaidBy: husband, AmountYen: 40_000, Description: "家賃"})
+	noErr("固定費Register", err)
 }
 
 func TestSettlementStatus(t *testing.T) {

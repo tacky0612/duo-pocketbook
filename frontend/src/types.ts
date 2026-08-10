@@ -198,6 +198,7 @@ export type ErrorCode =
   | "UNAUTHORIZED"
   | "NOT_FOUND"
   | "INCOME_NOT_READY"
+  | "MONTH_SETTLED"
   | "INTERNAL";
 
 /** エラーレスポンスの JSON ボディ。 */

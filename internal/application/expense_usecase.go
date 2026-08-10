@@ -12,18 +12,19 @@ import (
 
 // ExpenseUsecase は共有支出に関するユースケース。
 type ExpenseUsecase struct {
-	couple   domain.Couple
-	expenses ExpenseRepository
-	settings SettingsRepository
-	now      func() time.Time
+	couple    domain.Couple
+	expenses  ExpenseRepository
+	settings  SettingsRepository
+	snapshots SettlementSnapshotRepository
+	now       func() time.Time
 }
 
 // NewExpenseUsecase は ExpenseUsecase を生成する。
-func NewExpenseUsecase(couple domain.Couple, expenses ExpenseRepository, settings SettingsRepository, now func() time.Time) *ExpenseUsecase {
+func NewExpenseUsecase(couple domain.Couple, expenses ExpenseRepository, settings SettingsRepository, snapshots SettlementSnapshotRepository, now func() time.Time) *ExpenseUsecase {
 	if now == nil {
 		now = time.Now
 	}
-	return &ExpenseUsecase{couple: couple, expenses: expenses, settings: settings, now: now}
+	return &ExpenseUsecase{couple: couple, expenses: expenses, settings: settings, snapshots: snapshots, now: now}
 }
 
 // RegisterExpenseInput は支出登録の入力。
@@ -42,6 +43,13 @@ func (u *ExpenseUsecase) Register(ctx context.Context, in RegisterExpenseInput) 
 	date, err := time.Parse("2006-01-02", in.Date)
 	if err != nil {
 		return domain.Expense{}, fmt.Errorf("%w: 支出日は YYYY-MM-DD 形式で指定してください: %q", domain.ErrValidation, in.Date)
+	}
+	closingDay, err := currentClosingDay(ctx, u.settings)
+	if err != nil {
+		return domain.Expense{}, err
+	}
+	if err := ensureMonthNotSettled(ctx, u.snapshots, closingDay.SettlementMonth(date)); err != nil {
+		return domain.Expense{}, err
 	}
 	e, err := domain.NewExpense(newIDSuffix(), in.PaidBy, domain.Money(in.AmountYen), in.Description, date, u.now())
 	if err != nil {
@@ -66,6 +74,18 @@ func (u *ExpenseUsecase) Update(ctx context.Context, id domain.ExpenseID, in Reg
 	date, err := time.Parse("2006-01-02", in.Date)
 	if err != nil {
 		return domain.Expense{}, fmt.Errorf("%w: 支出日は YYYY-MM-DD 形式で指定してください: %q", domain.ErrValidation, in.Date)
+	}
+	closingDay, err := currentClosingDay(ctx, u.settings)
+	if err != nil {
+		return domain.Expense{}, err
+	}
+	// 変更前の精算月・変更後の精算月のいずれかが確定済みなら編集を拒否する
+	// （確定済みの月から動かす／確定済みの月へ移す、のどちらも不可）。
+	if err := ensureMonthNotSettled(ctx, u.snapshots, closingDay.SettlementMonth(existing.Date)); err != nil {
+		return domain.Expense{}, err
+	}
+	if err := ensureMonthNotSettled(ctx, u.snapshots, closingDay.SettlementMonth(date)); err != nil {
+		return domain.Expense{}, err
 	}
 	// 既存IDのサフィックスを引き継ぐ。対象月が同じなら同一IDのまま上書きになる。
 	_, suffix, _ := strings.Cut(string(id), "_")
@@ -114,7 +134,15 @@ func (u *ExpenseUsecase) Delete(ctx context.Context, id domain.ExpenseID) error 
 	if _, err := id.Month(); err != nil {
 		return err
 	}
-	if _, err := u.expenses.FindByID(ctx, id); err != nil {
+	existing, err := u.expenses.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	closingDay, err := currentClosingDay(ctx, u.settings)
+	if err != nil {
+		return err
+	}
+	if err := ensureMonthNotSettled(ctx, u.snapshots, closingDay.SettlementMonth(existing.Date)); err != nil {
 		return err
 	}
 	if err := u.expenses.Delete(ctx, id); err != nil {

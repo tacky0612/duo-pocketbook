@@ -55,12 +55,12 @@ func newTestServer(t *testing.T) (*httptest.Server, [2]testAccount) {
 		couple,
 		auth,
 		account,
-		application.NewExpenseUsecase(couple, expenseRepo, settingsRepo, nil),
+		application.NewExpenseUsecase(couple, expenseRepo, settingsRepo, snapshotRepo, nil),
 		application.NewSettlementUsecase(couple, expenseRepo, salaryRepo, incomeRepo, recurringRepo, directRepo, settingsRepo, snapshotRepo, nil),
 		application.NewSettingsUsecase(couple, settingsRepo),
 		application.NewRecurringExpenseUsecase(couple, recurringRepo),
-		application.NewDirectTransferUsecase(couple, directRepo),
-		application.NewIncomeUsecase(couple, incomeRepo),
+		application.NewDirectTransferUsecase(couple, directRepo, snapshotRepo),
+		application.NewIncomeUsecase(couple, incomeRepo, snapshotRepo),
 	)
 	srv := httptest.NewServer(web.NewRouter(handler, auth, []string{"*"}, web.RouterOption{}))
 	t.Cleanup(srv.Close)
