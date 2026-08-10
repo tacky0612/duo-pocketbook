@@ -82,6 +82,8 @@ func writeUsecaseError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, domain.ErrIncomeNotReady):
 		writeError(w, http.StatusConflict, "INCOME_NOT_READY", err.Error())
+	case errors.Is(err, domain.ErrSettled):
+		writeError(w, http.StatusConflict, "MONTH_SETTLED", err.Error())
 	case errors.Is(err, domain.ErrValidation):
 		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
 	case errors.Is(err, application.ErrNotFound):
@@ -475,6 +477,7 @@ type registerExpenseRequest struct {
 //	@Success		201		{object}	expenseDTO
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse
+//	@Failure		409		{object}	errorResponse	"精算確定済みの月 (MONTH_SETTLED)"
 //	@Security		BearerAuth
 //	@Router			/expenses [post]
 func (h *Handler) RegisterExpense(w http.ResponseWriter, r *http.Request) {
@@ -507,6 +510,7 @@ func (h *Handler) RegisterExpense(w http.ResponseWriter, r *http.Request) {
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse
 //	@Failure		404		{object}	errorResponse
+//	@Failure		409		{object}	errorResponse	"精算確定済みの月 (MONTH_SETTLED)"
 //	@Security		BearerAuth
 //	@Router			/expenses/{id} [put]
 func (h *Handler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
@@ -567,6 +571,7 @@ func (h *Handler) ListExpenses(w http.ResponseWriter, r *http.Request) {
 //	@Success		204	"削除成功"
 //	@Failure		401	{object}	errorResponse
 //	@Failure		404	{object}	errorResponse
+//	@Failure		409		{object}	errorResponse	"精算確定済みの月 (MONTH_SETTLED)"
 //	@Security		BearerAuth
 //	@Router			/expenses/{id} [delete]
 func (h *Handler) DeleteExpense(w http.ResponseWriter, r *http.Request) {
@@ -601,6 +606,7 @@ type salaryResponse struct {
 //	@Success		200			{object}	salaryResponse
 //	@Failure		400			{object}	errorResponse
 //	@Failure		401			{object}	errorResponse
+//	@Failure		409		{object}	errorResponse	"精算確定済みの月 (MONTH_SETTLED)"
 //	@Security		BearerAuth
 //	@Router			/months/{month}/salaries/{memberId} [put]
 func (h *Handler) InputSalary(w http.ResponseWriter, r *http.Request) {
@@ -670,6 +676,7 @@ type registerIncomeRequest struct {
 //	@Success		201		{object}	incomeDTO
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse
+//	@Failure		409		{object}	errorResponse	"精算確定済みの月 (MONTH_SETTLED)"
 //	@Security		BearerAuth
 //	@Router			/incomes [post]
 func (h *Handler) RegisterIncome(w http.ResponseWriter, r *http.Request) {
@@ -703,6 +710,7 @@ func (h *Handler) RegisterIncome(w http.ResponseWriter, r *http.Request) {
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse
 //	@Failure		404		{object}	errorResponse
+//	@Failure		409		{object}	errorResponse	"精算確定済みの月 (MONTH_SETTLED)"
 //	@Security		BearerAuth
 //	@Router			/incomes/{id} [put]
 func (h *Handler) UpdateIncome(w http.ResponseWriter, r *http.Request) {
@@ -763,6 +771,7 @@ func (h *Handler) ListIncomes(w http.ResponseWriter, r *http.Request) {
 //	@Success		204	"削除成功"
 //	@Failure		401	{object}	errorResponse
 //	@Failure		404	{object}	errorResponse
+//	@Failure		409		{object}	errorResponse	"精算確定済みの月 (MONTH_SETTLED)"
 //	@Security		BearerAuth
 //	@Router			/incomes/{id} [delete]
 func (h *Handler) DeleteIncome(w http.ResponseWriter, r *http.Request) {
@@ -990,6 +999,7 @@ type registerDirectTransferRequest struct {
 //	@Success		201		{object}	directTransferDTO
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse
+//	@Failure		409		{object}	errorResponse	"精算確定済みの月 (MONTH_SETTLED)"
 //	@Security		BearerAuth
 //	@Router			/direct-transfers [post]
 func (h *Handler) RegisterDirectTransfer(w http.ResponseWriter, r *http.Request) {
@@ -1023,6 +1033,7 @@ func (h *Handler) RegisterDirectTransfer(w http.ResponseWriter, r *http.Request)
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse
 //	@Failure		404		{object}	errorResponse
+//	@Failure		409		{object}	errorResponse	"精算確定済みの月 (MONTH_SETTLED)"
 //	@Security		BearerAuth
 //	@Router			/direct-transfers/{id} [put]
 func (h *Handler) UpdateDirectTransfer(w http.ResponseWriter, r *http.Request) {
@@ -1083,6 +1094,7 @@ func (h *Handler) ListDirectTransfers(w http.ResponseWriter, r *http.Request) {
 //	@Success		204	"削除成功"
 //	@Failure		401	{object}	errorResponse
 //	@Failure		404	{object}	errorResponse
+//	@Failure		409		{object}	errorResponse	"精算確定済みの月 (MONTH_SETTLED)"
 //	@Security		BearerAuth
 //	@Router			/direct-transfers/{id} [delete]
 func (h *Handler) DeleteDirectTransfer(w http.ResponseWriter, r *http.Request) {

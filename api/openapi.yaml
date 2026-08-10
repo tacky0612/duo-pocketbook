@@ -665,6 +665,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/web.errorResponse'
           description: Unauthorized
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: 精算確定済みの月 (MONTH_SETTLED)
       security:
       - BearerAuth: []
       summary: 立替精算の登録
@@ -694,6 +700,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/web.errorResponse'
           description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: 精算確定済みの月 (MONTH_SETTLED)
       security:
       - BearerAuth: []
       summary: 立替精算の削除
@@ -744,6 +756,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/web.errorResponse'
           description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: 精算確定済みの月 (MONTH_SETTLED)
       security:
       - BearerAuth: []
       summary: 立替精算の更新
@@ -814,6 +832,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/web.errorResponse'
           description: Unauthorized
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: 精算確定済みの月 (MONTH_SETTLED)
       security:
       - BearerAuth: []
       summary: 共有支出の登録
@@ -843,6 +867,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/web.errorResponse'
           description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: 精算確定済みの月 (MONTH_SETTLED)
       security:
       - BearerAuth: []
       summary: 共有支出の削除
@@ -892,6 +922,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/web.errorResponse'
           description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: 精算確定済みの月 (MONTH_SETTLED)
       security:
       - BearerAuth: []
       summary: 共有支出の更新
@@ -976,6 +1012,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/web.errorResponse'
           description: Unauthorized
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: 精算確定済みの月 (MONTH_SETTLED)
       security:
       - BearerAuth: []
       summary: 追加収入の登録
@@ -1005,6 +1047,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/web.errorResponse'
           description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: 精算確定済みの月 (MONTH_SETTLED)
       security:
       - BearerAuth: []
       summary: 追加収入の削除
@@ -1055,6 +1103,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/web.errorResponse'
           description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: 精算確定済みの月 (MONTH_SETTLED)
       security:
       - BearerAuth: []
       summary: 追加収入の更新
@@ -1249,6 +1303,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/web.errorResponse'
           description: Unauthorized
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: 精算確定済みの月 (MONTH_SETTLED)
       security:
       - BearerAuth: []
       summary: 月次給与の入力（上書き）

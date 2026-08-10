@@ -133,8 +133,19 @@ curl $BASE/months/2026-07/settlement -H "Authorization: Bearer $TOKEN"
 | 403 | `FORBIDDEN` | 事前共有クライアントキー（`X-Client-Key`）が不一致（`CLIENT_KEY` 設定時のみ） |
 | 404 | `NOT_FOUND` | 対象データが存在しない |
 | 409 | `INCOME_NOT_READY` | 精算に必要な両メンバーの給与が未入力 |
+| 409 | `MONTH_SETTLED` | 精算確定済みの月に属するデータを変更・削除しようとした（下記参照） |
 | 429 | `RATE_LIMITED` | リクエストが多すぎる（`/login` のIP単位レート制限） |
 | 500 | `INTERNAL` | 内部エラー |
+
+#### 精算確定済みの月の編集ロック（`MONTH_SETTLED`）
+
+ある月を精算確定（`PUT /months/{month}/settlement/status` の `settled=true`）すると、その月に属する以下のデータの作成・更新・削除は `409 MONTH_SETTLED` で拒否される。編集するには先に精算を取り消す（`settled=false`）。
+
+- 共有支出（`/expenses`。支出日が締め日設定に基づき確定済み月に属するもの。登録先・移動先のいずれかが確定済みなら不可）
+- 給与（`/months/{month}/salaries/{memberId}`）
+- 追加収入・立替精算のうち**その月単発**のもの（`month` 指定あり）
+
+一方、特定月に紐づかない項目は確定済み月があってもロックされない: **毎月継続**の追加収入・立替精算（`month` 空）と、**固定費**（`/recurring-expenses`。全月に効くため）。これらを後から変更しても、確定済み月の履歴スナップショットは凍結されたまま変わらない。
 
 ### アクセス制限ヘッダ
 

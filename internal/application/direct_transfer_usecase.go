@@ -12,11 +12,12 @@ import (
 type DirectTransferUsecase struct {
 	couple    domain.Couple
 	transfers DirectTransferRepository
+	snapshots SettlementSnapshotRepository
 }
 
 // NewDirectTransferUsecase は DirectTransferUsecase を生成する。
-func NewDirectTransferUsecase(couple domain.Couple, transfers DirectTransferRepository) *DirectTransferUsecase {
-	return &DirectTransferUsecase{couple: couple, transfers: transfers}
+func NewDirectTransferUsecase(couple domain.Couple, transfers DirectTransferRepository, snapshots SettlementSnapshotRepository) *DirectTransferUsecase {
+	return &DirectTransferUsecase{couple: couple, transfers: transfers, snapshots: snapshots}
 }
 
 // RegisterDirectTransferInput は立替精算登録の入力。
@@ -51,8 +52,17 @@ func (u *DirectTransferUsecase) build(suffix string, in RegisterDirectTransferIn
 	return domain.NewDirectTransfer(string(id), in.From, to.ID, domain.Money(in.AmountYen), in.Description, month)
 }
 
-// Register は立替精算を登録する。
+// Register は立替精算を登録する。単発（特定月）の登録先が確定済みの月なら拒否する。
 func (u *DirectTransferUsecase) Register(ctx context.Context, in RegisterDirectTransferInput) (domain.DirectTransfer, error) {
+	if in.Month != "" {
+		ym, err := domain.ParseYearMonth(in.Month)
+		if err != nil {
+			return domain.DirectTransfer{}, err
+		}
+		if err := ensureMonthNotSettled(ctx, u.snapshots, ym); err != nil {
+			return domain.DirectTransfer{}, err
+		}
+	}
 	dt, err := u.build(newIDSuffix(), in)
 	if err != nil {
 		return domain.DirectTransfer{}, err
@@ -68,6 +78,12 @@ func (u *DirectTransferUsecase) Update(ctx context.Context, id domain.DirectTran
 	existing, err := u.transfers.FindByID(ctx, id)
 	if err != nil {
 		return domain.DirectTransfer{}, err
+	}
+	// 単発（特定月）の立替精算で、その月が確定済みなら編集を拒否する。継続は対象外。
+	if !existing.Month.IsZero() {
+		if err := ensureMonthNotSettled(ctx, u.snapshots, existing.Month); err != nil {
+			return domain.DirectTransfer{}, err
+		}
 	}
 	to, ok := u.couple.Other(in.From)
 	if !ok {
@@ -104,10 +120,16 @@ func (u *DirectTransferUsecase) ListForMonth(ctx context.Context, month string) 
 	return append(recurring, oneOff...), nil
 }
 
-// Delete は立替精算を削除する。
+// Delete は立替精算を削除する。単発（特定月）でその月が確定済みなら拒否する。継続は対象外。
 func (u *DirectTransferUsecase) Delete(ctx context.Context, id domain.DirectTransferID) error {
-	if _, err := u.transfers.FindByID(ctx, id); err != nil {
+	existing, err := u.transfers.FindByID(ctx, id)
+	if err != nil {
 		return err
+	}
+	if !existing.Month.IsZero() {
+		if err := ensureMonthNotSettled(ctx, u.snapshots, existing.Month); err != nil {
+			return err
+		}
 	}
 	if err := u.transfers.Delete(ctx, id); err != nil {
 		return fmt.Errorf("立替精算の削除に失敗しました: %w", err)

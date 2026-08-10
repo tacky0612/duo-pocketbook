@@ -94,6 +94,9 @@ func (u *SettlementUsecase) InputSalary(ctx context.Context, month string, membe
 	if !u.couple.Contains(memberID) {
 		return domain.Salary{}, fmt.Errorf("%w: 不明なメンバーです: %s", domain.ErrValidation, memberID)
 	}
+	if err := ensureMonthNotSettled(ctx, u.snapshots, ym); err != nil {
+		return domain.Salary{}, err
+	}
 	salary, err := domain.NewSalary(ym, memberID, domain.Money(amountYen))
 	if err != nil {
 		return domain.Salary{}, err
