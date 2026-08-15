@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api } from "../lib/apiClient";
 import { yen } from "../lib/format";
 import { useAsync } from "../hooks";
-import { Card, SectionTitle, Button, Spinner, Empty } from "../components/ui";
+import { Card, SectionTitle, Button, Spinner, Empty, Collapse } from "../components/ui";
 import { ArrowRightIcon, CheckIcon, ChevronRight } from "../components/Icons";
 import type { HistoryResponse, MemberId, MemberView, ScreenProps, SettlementHistoryEntry, Transfer } from "../types";
 
@@ -175,8 +175,8 @@ function HistoryEntryCard({ entry, members }: { entry: SettlementHistoryEntry; m
         )}
       </button>
 
-      {/* 明細の詳細（アコーディオン） */}
-      {open && (
+      {/* 明細の詳細（アコーディオン。高さを滑らかにアニメーションして開く） */}
+      <Collapse open={open}>
       <div className="space-y-3 border-t border-slate-200 p-4 dark:border-slate-800">
         {/* 内訳: 立替精算がある月は「精算 ＋ 立替精算」を明示する */}
         {hasDirect && (
@@ -296,7 +296,7 @@ function HistoryEntryCard({ entry, members }: { entry: SettlementHistoryEntry; m
           </div>
         )}
       </div>
-      )}
+      </Collapse>
     </div>
   );
 }

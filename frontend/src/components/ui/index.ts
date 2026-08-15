@@ -10,3 +10,6 @@ export { default as Select } from "./Select";
 export { default as Empty } from "./Empty";
 export { default as Spinner } from "./Spinner";
 export { default as MemberBadge } from "./MemberBadge";
+export { default as Tabs, type TabItem } from "./Tabs";
+export { default as AnimatedPanel } from "./AnimatedPanel";
+export { default as Collapse } from "./Collapse";

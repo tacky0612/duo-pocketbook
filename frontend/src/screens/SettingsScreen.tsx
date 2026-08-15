@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api, apiBase } from "../lib/apiClient";
 import { session } from "../lib/session";
 import { useAsync } from "../hooks";
-import { Card, SectionTitle, Field, Input, NumberInput, Button, Spinner } from "../components/ui";
+import { Card, SectionTitle, Field, Input, NumberInput, Button, Spinner, Tabs } from "../components/ui";
 import { SunIcon, MoonIcon, SettingsIcon, LogoutIcon, type IconComponent } from "../components/Icons";
 import type { AccountResponse, ClosingDayResponse, MemberView, ScreenProps, Theme, ThemeMode, WeightsResponse } from "../types";
 
@@ -68,29 +68,21 @@ interface ThemeSegmentedProps {
 }
 
 function ThemeSegmented({ mode, onChange }: ThemeSegmentedProps) {
+  // 支出タブ・履歴と同じ Tabs コンポーネントを使い、アクティブなピルがしなやかにスライドする。
   return (
-    <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
-      {THEME_OPTIONS.map(({ value, label, Icon }) => {
-        const on = mode === value;
-        return (
-          <button
-            key={value}
-            type="button"
-            onClick={() => onChange(value)}
-            aria-pressed={on}
-            className={
-              "flex flex-col items-center gap-1 rounded-lg py-2.5 text-xs font-medium transition-colors " +
-              (on
-                ? "bg-white text-blue-600 shadow-sm dark:bg-slate-950 dark:text-blue-400"
-                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200")
-            }
-          >
+    <Tabs<ThemeMode>
+      tabs={THEME_OPTIONS.map(({ value, label, Icon }) => ({
+        key: value,
+        label: (
+          <span className="flex flex-col items-center gap-1">
             <Icon className="h-5 w-5" />
             {label}
-          </button>
-        );
-      })}
-    </div>
+          </span>
+        ),
+      }))}
+      value={mode}
+      onChange={onChange}
+    />
   );
 }
 

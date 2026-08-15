@@ -93,3 +93,16 @@ body {
     animation: none;
   }
 }
+
+/* タブ切り替え時のパネル出現（フェード＋わずかな上方向スライド）。
+   AnimatedPanel が motion-safe:animate-[panel-in_...] から参照する。 */
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
