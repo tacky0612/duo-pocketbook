@@ -144,3 +144,89 @@ func TestDirectTransfer(t *testing.T) {
 		t.Errorf("再削除 status = %d, want 404", status)
 	}
 }
+
+// TestDirectTransferUpdateFrequency は、更新で頻度（単発⇄継続）を切り替えられることを検証する。
+// 頻度が変わるとIDが付け替わり、単発→継続にすると対象外の別月にも現れる。
+func TestDirectTransferUpdateFrequency(t *testing.T) {
+	waitForHealthy(t)
+	taro, taroID, _, _ := loginBoth(t)
+
+	const month = "2043-04"
+	const otherMonth = "2043-05"
+
+	// 単発で登録
+	status, body := doJSON(t, http.MethodPost, "/direct-transfers", taro, map[string]any{
+		"from": taroID, "amountYen": 3000, "description": "頻度変更テスト", "month": month,
+	})
+	if status != http.StatusCreated {
+		t.Fatalf("post status = %d, body = %s", status, body)
+	}
+	var created struct {
+		ID        string `json:"id"`
+		Recurring bool   `json:"recurring"`
+	}
+	if err := json.Unmarshal(body, &created); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if created.Recurring {
+		t.Fatalf("初期は単発のはず: %+v", created)
+	}
+
+	// 単発 → 継続（month を空に）
+	status, body = doJSON(t, http.MethodPut, "/direct-transfers/"+created.ID, taro, map[string]any{
+		"from": taroID, "amountYen": 3000, "description": "毎月へ変更", "month": "",
+	})
+	if status != http.StatusOK {
+		t.Fatalf("put status = %d, body = %s", status, body)
+	}
+	var updated struct {
+		ID        string `json:"id"`
+		Recurring bool   `json:"recurring"`
+	}
+	if err := json.Unmarshal(body, &updated); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if !updated.Recurring {
+		t.Errorf("継続へ切り替わっていない: %+v", updated)
+	}
+	if updated.ID == created.ID {
+		t.Errorf("頻度変更でIDが変わっていない: %s", updated.ID)
+	}
+
+	// 継続になったので、登録月とは別の月の一覧にも現れる
+	list := listDirectTransfers(t, taro, otherMonth)
+	found := false
+	for _, dt := range list {
+		if dt.ID == updated.ID {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("別月(%s)の一覧に継続が現れない: %+v", otherMonth, list)
+	}
+
+	// 後片付け
+	if status, _ := doJSON(t, http.MethodDelete, "/direct-transfers/"+updated.ID, taro, nil); status != http.StatusNoContent {
+		t.Errorf("delete status = %d, want 204", status)
+	}
+}
+
+type directTransferItem struct {
+	ID        string `json:"id"`
+	Recurring bool   `json:"recurring"`
+}
+
+func listDirectTransfers(t *testing.T, token, month string) []directTransferItem {
+	t.Helper()
+	status, body := doJSON(t, http.MethodGet, "/direct-transfers?month="+month, token, nil)
+	if status != http.StatusOK {
+		t.Fatalf("direct list(%s) status = %d, body = %s", month, status, body)
+	}
+	var res struct {
+		DirectTransfers []directTransferItem `json:"directTransfers"`
+	}
+	if err := json.Unmarshal(body, &res); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	return res.DirectTransfers
+}

@@ -394,6 +394,13 @@ export async function demoApi(method: HttpMethod, path: string, body?: unknown):
     }
     if (b.amountYen != null) item.amountYen = b.amountYen;
     if (b.description != null) item.description = b.description;
+    // 頻度（継続/単発）も変更可能。month が渡された場合のみ切り替える（空文字=継続）。
+    if (b.month != null) {
+      const recurring = !b.month;
+      item.recurring = recurring;
+      item.month = recurring ? "" : b.month;
+      item.id = recurring ? `dtr_${randHex()}` : `${b.month}_${randHex()}`;
+    }
     store.save();
     return item;
   }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/tacky0612/duo-pocketbook/internal/domain"
 )
@@ -73,29 +74,60 @@ func (u *DirectTransferUsecase) Register(ctx context.Context, in RegisterDirectT
 	return dt, nil
 }
 
-// Update は既存の立替精算の内容を更新する（IDと継続/単発の別・対象月は維持）。
+// Update は既存の立替精算の内容を更新する。
+// 頻度（継続/単発の別と対象月）も in.Month で変更でき、頻度が変わるとIDを移し替える
+// （新しいIDで保存し、旧レコードを削除する）。in.Month が空文字なら毎月継続、
+// "YYYY-MM" ならその精算月のみの単発。
 func (u *DirectTransferUsecase) Update(ctx context.Context, id domain.DirectTransferID, in RegisterDirectTransferInput) (domain.DirectTransfer, error) {
 	existing, err := u.transfers.FindByID(ctx, id)
 	if err != nil {
 		return domain.DirectTransfer{}, err
 	}
-	// 単発（特定月）の立替精算で、その月が確定済みなら編集を拒否する。継続は対象外。
+	to, ok := u.couple.Other(in.From)
+	if !ok {
+		return domain.DirectTransfer{}, fmt.Errorf("%w: 不明なメンバーです: %s", domain.ErrValidation, in.From)
+	}
+	// 変更後の対象月（頻度）を決める。
+	var month domain.YearMonth
+	if in.Month != "" {
+		ym, err := domain.ParseYearMonth(in.Month)
+		if err != nil {
+			return domain.DirectTransfer{}, err
+		}
+		month = ym
+	}
+	// 変更前・変更後（単発の場合）の月が確定済みなら編集を拒否する
+	// （頻度変更で確定済みの月へ移す／から出すのも不可）。継続（月なし）は対象外。
 	if !existing.Month.IsZero() {
 		if err := ensureMonthNotSettled(ctx, u.snapshots, existing.Month); err != nil {
 			return domain.DirectTransfer{}, err
 		}
 	}
-	to, ok := u.couple.Other(in.From)
-	if !ok {
-		return domain.DirectTransfer{}, fmt.Errorf("%w: 不明なメンバーです: %s", domain.ErrValidation, in.From)
+	if !month.IsZero() {
+		if err := ensureMonthNotSettled(ctx, u.snapshots, month); err != nil {
+			return domain.DirectTransfer{}, err
+		}
 	}
-	// 継続/単発の別と対象月は既存の値を維持する（変更するには削除して再登録する）。
-	dt, err := domain.NewDirectTransfer(string(id), in.From, to.ID, domain.Money(in.AmountYen), in.Description, existing.Month)
+	// 既存IDのサフィックスを引き継ぎ、頻度に応じたIDを組む。頻度が変わるとIDが変化する。
+	_, suffix, _ := strings.Cut(string(id), "_")
+	var newID domain.DirectTransferID
+	if month.IsZero() {
+		newID = domain.NewRecurringDirectTransferID(suffix)
+	} else {
+		newID = domain.NewOneOffDirectTransferID(month, suffix)
+	}
+	dt, err := domain.NewDirectTransfer(string(newID), in.From, to.ID, domain.Money(in.AmountYen), in.Description, month)
 	if err != nil {
 		return domain.DirectTransfer{}, err
 	}
 	if err := u.transfers.Save(ctx, dt); err != nil {
 		return domain.DirectTransfer{}, fmt.Errorf("立替精算の更新に失敗しました: %w", err)
+	}
+	// 頻度変更などでIDが変わった場合は旧レコードを削除する。
+	if dt.ID != id {
+		if err := u.transfers.Delete(ctx, id); err != nil {
+			return domain.DirectTransfer{}, fmt.Errorf("旧立替精算の削除に失敗しました: %w", err)
+		}
 	}
 	return dt, nil
 }
