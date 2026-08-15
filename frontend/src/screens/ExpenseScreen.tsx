@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { api } from "../lib/apiClient";
 import { yen } from "../lib/format";
 import { useAsync } from "../hooks";
-import { Card, SectionTitle, Field, Input, NumberInput, Select, Button, Spinner, Empty, MemberBadge } from "../components/ui";
+import { Card, SectionTitle, Field, Input, NumberInput, Select, Button, Spinner, Empty, MemberBadge, Tabs, AnimatedPanel } from "../components/ui";
 import { PlusIcon, TrashIcon, EditIcon } from "../components/Icons";
 import type {
   Expense,
@@ -51,34 +51,20 @@ export default function ExpenseScreen({ month, members, me, notify, onError }: S
 
   return (
     <div className="space-y-4">
-      {/* 変動費・固定費の切り替えタブ。画面が縦長にならないよう入力欄をタブで出し分ける */}
-      <div className="grid grid-cols-2 gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800/70">
-        {(
-          [
-            { key: "variable", label: "変動費" },
-            { key: "fixed", label: "固定費" },
-          ] as { key: Tab; label: string }[]
-        ).map(({ key, label }) => {
-          const on = tab === key;
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setTab(key)}
-              className={
-                "rounded-xl px-3 py-2 text-sm font-semibold transition-colors " +
-                (on
-                  ? "bg-white text-blue-700 shadow-sm dark:bg-slate-700 dark:text-blue-300"
-                  : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200")
-              }
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
+      {/* 変動費・固定費の切り替えタブ。画面が縦長にならないよう入力欄をタブで出し分ける。
+          アクティブなピルがスライドし、パネルはフェード＋スライドでしなやかに切り替わる。 */}
+      <Tabs<Tab>
+        tabs={[
+          { key: "variable", label: "変動費" },
+          { key: "fixed", label: "固定費" },
+        ]}
+        value={tab}
+        onChange={setTab}
+      />
 
-      {tab === "variable" ? <VariableExpenses month={month} {...section} /> : <FixedExpenses {...section} />}
+      <AnimatedPanel motionKey={tab}>
+        {tab === "variable" ? <VariableExpenses month={month} {...section} /> : <FixedExpenses {...section} />}
+      </AnimatedPanel>
     </div>
   );
 }
