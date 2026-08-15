@@ -5,111 +5,47 @@
 [![Deploy to GitHub Pages](https://github.com/tacky0612/duo-pocketbook/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/tacky0612/duo-pocketbook/actions/workflows/deploy-pages.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-クライアント2人で使う家計簿Webアプリケーション。共有支出を2アカウントから登録し、月次で双方の収入を入力すると、指定した比重で双方の可処分所得が揃うように精算額（振込額）を算出します。
+![duo-pocketbook のスクリーンショット](images/screenshot.png)
 
 🚀 **ライブデモ**: <https://tacky0612.github.io/duo-pocketbook/>（ログイン画面の「デモモードで試す（API不要）」から、サーバー不要でブラウザ内の擬似データで全機能を体験できます）
 
-📚 **詳細ドキュメント**: [docs/](docs/README.md)（アーキテクチャ / 精算仕様 / API / データモデル / 開発 / デプロイ）
+📖 **APIドキュメント**: <https://tacky0612.github.io/duo-pocketbook/api-docs.html>（ReDoc）
 
-## 精算の仕組み
+## duo-pocketbook とは
 
-各メンバーの純額を `net = 収入 - 立替済み共有支出` とし、比重 `wA:wB` に対して
+**duo-pocketbook** は、パートナーやルームメイトなど **2人で共有する支出を管理し、月末の精算額を自動で算出する家計簿 Web アプリケーション**です。「今月は誰がいくら払った」「結局いくら渡せばフェアなのか」という手計算の手間をなくします。
 
-```
-AからBへの振込額 t = (wB × netA - wA × netB) / (wA + wB)   ※端数は四捨五入
-```
+2人でお金を出し合って暮らしていると、支出のメモはたまっても「収入差をどう反映して精算するか」で悩みがちです。duo-pocketbook は、共有支出と双方の収入を登録するだけで、**指定した比重に応じて双方の可処分所得が揃うように振込額を計算**します。
 
-を計算します（`t` が負の場合はBからAへの振込）。精算後は `可処分所得A/wA == 可処分所得B/wB` が成り立ちます。
+## 主な機能
 
-> 例: 比重1:1、夫（収入10万・支出2万）、妻（収入5万・支出2万）
-> → 夫が妻に **2.5万円** 振り込むと、双方の可処分所得が5.5万円で等しくなります。
+- **📥 収入の登録** — 月ごとに2アカウントそれぞれの収入を入力
+- **📤 共有支出の登録** — どちらが立て替えたかを記録。固定費（家賃・光熱費・サブスクなど）の継続登録にも対応
+- **⚖️ 精算額の自動計算** — 比重（例 1:1、収入比など）に応じて、可処分所得が等しくなる振込額を算出。「誰から誰へいくら」を一目で表示
+- **🔁 立替精算** — 比重按分とは別に、個別の立替分をそのまま相手に返す精算も合算
+- **✅ 月次の精算確定** — 精算を完了すると、その月のデータは編集ロックされ記録として残る
+- **🕘 履歴の確認** — 過去の月の収支・精算結果をいつでも振り返り
+- **🔐 2アカウント専用のログイン** — 想定する2ユーザーのみがアクセスできる認証付き
 
-## アーキテクチャ
+## 無料枠だけで動く
 
-クリーンアーキテクチャ + ドメイン駆動設計。依存の向きは常に内側（domain）へ。
+duo-pocketbook は **AWS・Cloudflare などのクラウドサービスをすべて無料枠の範囲内で運用**できるように設計しています。個人が2人で使う規模であれば、追加コストをかけずに継続利用できます。
 
-| レイヤー | パス | 責務 |
-|---|---|---|
-| ドメイン層 | `internal/domain/` | 精算計算などの重要判断。**外部依存ゼロ**（標準ライブラリのみ） |
-| アプリケーション層 | `internal/application/` | ユースケース。リポジトリはインターフェイス経由 |
-| インフラ層 | `internal/infrastructure/` | DynamoDB / インメモリのリポジトリ実装 |
-| Web層 | `internal/web/` | APIインターフェイス（ハンドラ・ルーティング・JWT認証・CORS） |
+- **AWS Lambda + Function URL** — API を常時無料枠内で実行
+- **Amazon DynamoDB** — PROVISIONED 1RCU/1WCU（常時無料枠内）でデータを保存
+- **Cloudflare / GitHub Pages** — フロントエンドと API ドキュメントを無料で配信
 
-- **API仕様**: [`api/openapi.yaml`](api/openapi.yaml)（OpenAPI 3.1。Goコードの注釈から `make openapi` で生成） / 📖 **[APIドキュメント（ReDoc）](https://tacky0612.github.io/duo-pocketbook/api-docs.html)**
-- **フロントエンド**: `frontend/`（TypeScript + React + Vite + Tailwind CSS、GitHub Pages配信）
-- **インフラ**: `terraform/`（Lambda Function URL + DynamoDB。**AWS無料枠のみ**を使用）
+無料枠を前提とした構成の詳細は [docs/infrastructure.md](docs/infrastructure.md) / [docs/deployment.md](docs/deployment.md) を参照してください。
 
-## ローカル開発
+## ドキュメント
 
-必要ツール: Go 1.24+ / Node.js 22+ / Docker（OrbStackなど）/ Terraform
+アーキテクチャ・API・データモデル・開発／デプロイ手順などの技術情報は、まとめて以下にあります。
 
-```bash
-# ユニットテスト
-make test
-
-# ローカル環境の起動（アプリ + DynamoDB Local、外部通信なし）
-make up            # → http://localhost:8080 （taro / taro-password でログイン）
-
-# 統合テスト（要 make up）
-make test-integration
-
-# 停止
-make down
-
-# フロントエンドのみ開発する場合（Vite dev server）
-cd frontend && npm run dev
-```
-
-DynamoDBなしで手早くAPIを動かす場合（インメモリ、再起動でデータ消滅）:
-
-```bash
-ACCOUNT1_LOGINID=taro ACCOUNT1_PASSWORD=pass1 \
-ACCOUNT2_LOGINID=hanako ACCOUNT2_PASSWORD=pass2 \
-JWT_SECRET=dev-secret go run ./cmd/server
-```
-
-## デプロイ
-
-### API（AWS: 無料枠のみ）
-
-利用リソースはすべて常時無料枠内:
-
-- **Lambda** (128MB/arm64) + **Function URL** — 100万リクエスト/月まで永続無料
-- **DynamoDB** — PROVISIONED 1RCU/1WCU（常時無料枠25以内）
-- API Gatewayは12ヶ月無料のみのため**不使用**
-
-```bash
-# 1. パスワードハッシュを生成し terraform/terraform.tfvars を作成
-go run ./cmd/hashpw 'your-password'
-cp terraform/terraform.tfvars.example terraform/terraform.tfvars  # 値を編集
-
-# 2. Lambdaパッケージをビルドしてデプロイ
-make build-lambda
-terraform -chdir=terraform init
-terraform -chdir=terraform apply   # 出力の function_url がAPIエンドポイント
-```
-
-### フロントエンド（GitHub Pages）
-
-`main` ブランチの `frontend/` 変更をpushすると、GitHub Actions（`deploy-pages.yml`）が自動でビルド・デプロイします。リポジトリ設定で Pages のソースを「GitHub Actions」にしてください。
-
-デプロイ後、ログイン画面の「APIのURL」に Function URL を入力して利用します。`terraform.tfvars` の `allowed_origins` に Pages のURLを設定してください。
-
-## CI
-
-GitHub Actions（`.github/workflows/ci.yml`）で以下を実行し、テストレポートをPRのChecksに表示します:
-
-1. **Lint** — gofmt / go vet / terraform fmt・validate
-2. **OpenAPI Up-to-date** — `api/openapi.yaml` がGoコードと同期しているか検証（`make openapi-check`）
-3. **Unit Test** — `go test ./...` + カバレッジサマリ
-4. **Integration Test** — Docker Composeでローカル環境を起動しE2Eテスト（外部通信なし）
-5. **Frontend Build** — Viteビルド（`api/openapi.yaml` からAPIドキュメントも生成）
-
-また `codeql.yml` で Go / TypeScript の CodeQL コードスキャンを実行します。
+📚 **[docs/](docs/README.md)** — アーキテクチャ / インフラ / 精算仕様 / API / データモデル / 開発 / デプロイ
 
 ## コントリビュート
 
-バグ報告・機能提案・Pull Request を歓迎します。開発フローやコーディング規約は [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。参加にあたっては [行動規範（CODE_OF_CONDUCT.md）](CODE_OF_CONDUCT.md) に従ってください。
+バグ報告・機能提案・Pull Request を歓迎します。開発フローやコーディング規約は [CONTRIBUTING.md](CONTRIBUTING.md) を、参加時の心得は [行動規範（CODE_OF_CONDUCT.md）](CODE_OF_CONDUCT.md) を参照してください。
 
 脆弱性を見つけた場合は、公開 Issue ではなく [SECURITY.md](SECURITY.md) の手順に従って報告してください。
 
