@@ -10,6 +10,7 @@ interface TransferDraft {
   from: MemberId;
   amount: string;
   description: string;
+  recurring: boolean;
 }
 
 export default function DirectTransferScreen({ month, members, me, notify, onError }: ScreenProps) {
@@ -59,7 +60,7 @@ export default function DirectTransferScreen({ month, members, me, notify, onErr
 
   const startEdit = (t: DirectTransfer) => {
     setEditingId(t.id);
-    setDraft({ from: t.from, amount: String(t.amountYen), description: t.description });
+    setDraft({ from: t.from, amount: String(t.amountYen), description: t.description, recurring: t.recurring });
   };
   const cancelEdit = () => {
     setEditingId(null);
@@ -74,6 +75,7 @@ export default function DirectTransferScreen({ month, members, me, notify, onErr
         from: draft.from,
         amountYen: Number(draft.amount),
         description: draft.description,
+        month: draft.recurring ? "" : month,
       });
       notify("立替精算を更新しました");
       cancelEdit();
@@ -222,6 +224,34 @@ export default function DirectTransferScreen({ month, members, me, notify, onErr
                         </Field>
                       </div>
                     </div>
+                    <Field label="頻度">
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setDraft((d) => (d ? { ...d, recurring: true } : d))}
+                          className={
+                            "rounded-xl border px-3 py-2 text-sm font-medium transition-colors " +
+                            (draft.recurring
+                              ? "border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-500 dark:bg-blue-950/40 dark:text-blue-300"
+                              : "border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800")
+                          }
+                        >
+                          毎月継続
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDraft((d) => (d ? { ...d, recurring: false } : d))}
+                          className={
+                            "rounded-xl border px-3 py-2 text-sm font-medium transition-colors " +
+                            (!draft.recurring
+                              ? "border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-500 dark:bg-blue-950/40 dark:text-blue-300"
+                              : "border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800")
+                          }
+                        >
+                          {month} のみ
+                        </button>
+                      </div>
+                    </Field>
                     <div className="flex gap-2">
                       <Button type="button" variant="secondary" onClick={cancelEdit} className="flex-1">
                         キャンセル

@@ -685,6 +685,59 @@ func TestEditSettledMonthRejected(t *testing.T) {
 	noErr("固定費Register", err)
 }
 
+// TestDirectTransferUpdateChangesFrequency は、立替精算の更新で頻度（継続⇄単発）を
+// 切り替えると、対象月・IDが付け替わり、旧レコードが消えることを検証する。
+func TestDirectTransferUpdateChangesFrequency(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	const month = "2050-03"
+
+	// 継続で登録
+	rec, err := f.direct.Register(ctx, application.RegisterDirectTransferInput{From: husband, AmountYen: 1000, Description: "継続"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rec.IsRecurring() {
+		t.Fatalf("初期は継続のはず: %+v", rec)
+	}
+
+	// 継続 → 単発（month 指定）
+	upd, err := f.direct.Update(ctx, rec.ID, application.RegisterDirectTransferInput{From: husband, AmountYen: 1500, Description: "単発へ", Month: month})
+	if err != nil {
+		t.Fatalf("Update(継続→単発): %v", err)
+	}
+	if upd.IsRecurring() || upd.Month.String() != month {
+		t.Errorf("単発化に失敗: recurring=%v month=%s, want month=%s", upd.IsRecurring(), upd.Month, month)
+	}
+	if upd.ID == rec.ID {
+		t.Errorf("頻度変更でIDが変わっていない: %s", upd.ID)
+	}
+	// 対象月には単発として1件現れる
+	if list, err := f.direct.ListForMonth(ctx, month); err != nil || len(list) != 1 || list[0].IsRecurring() {
+		t.Errorf("単発一覧(%s) = %+v (err=%v), want 単発1件", month, list, err)
+	}
+	// 旧（継続）レコードは移し替えで消えているため、対象外の別月には現れない
+	if list, err := f.direct.ListForMonth(ctx, "2050-09"); err != nil || len(list) != 0 {
+		t.Errorf("別月一覧 = %+v (err=%v), want 0件（継続の残存なし）", list, err)
+	}
+
+	// 単発 → 継続（month 空）
+	back, err := f.direct.Update(ctx, upd.ID, application.RegisterDirectTransferInput{From: husband, AmountYen: 1500, Description: "継続へ", Month: ""})
+	if err != nil {
+		t.Fatalf("Update(単発→継続): %v", err)
+	}
+	if !back.IsRecurring() {
+		t.Errorf("継続化に失敗: %+v", back)
+	}
+	if back.ID == upd.ID {
+		t.Errorf("頻度変更でIDが変わっていない: %s", back.ID)
+	}
+	// 継続になったので、どの月の一覧にも1件現れる
+	if list, err := f.direct.ListForMonth(ctx, "2050-09"); err != nil || len(list) != 1 || !list[0].IsRecurring() {
+		t.Errorf("継続一覧 = %+v (err=%v), want 継続1件", list, err)
+	}
+}
+
 func TestSettlementStatus(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()

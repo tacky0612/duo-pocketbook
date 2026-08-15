@@ -1023,7 +1023,7 @@ func (h *Handler) RegisterDirectTransfer(w http.ResponseWriter, r *http.Request)
 // UpdateDirectTransfer godoc
 //
 //	@Summary		立替精算の更新
-//	@Description	送金元・金額・内容を更新する。継続/単発の別と対象月は変更できない（変更するには削除して再登録する）。
+//	@Description	送金元・金額・内容・頻度を更新する。month を空にすると毎月継続、"YYYY-MM" を指定するとその月のみの単発に切り替わる（頻度変更時はIDが変わる）。
 //	@Tags			direct-transfers
 //	@Accept			json
 //	@Produce		json
