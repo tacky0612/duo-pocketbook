@@ -170,19 +170,7 @@ func (r *ReservationRepository) FindByID(ctx context.Context, id domain.Reservat
 
 // FindAll はすべての予約を返す。
 func (r *ReservationRepository) FindAll(ctx context.Context) ([]domain.Reservation, error) {
-	items, err := queryItems[reservationItem](ctx, r.client, r.table, reservationPK)
-	if err != nil {
-		return nil, err
-	}
-	list := make([]domain.Reservation, 0, len(items))
-	for _, item := range items {
-		rsv, err := toReservation(item)
-		if err != nil {
-			return nil, err
-		}
-		list = append(list, rsv)
-	}
-	return list, nil
+	return queryByPK(ctx, r.client, r.table, reservationPK, toReservation)
 }
 
 // Delete は予約を削除する。
@@ -256,30 +244,4 @@ func (r *ReservationRepository) ReplaceFulfillment(ctx context.Context, id domai
 		return false, nil
 	}
 	return false, err
-}
-
-// queryItems は PK 一致の全アイテムをページングしながら取得し、T へ変換して返す。
-func queryItems[T any](ctx context.Context, client *dynamodb.Client, table, pk string) ([]T, error) {
-	paginator := dynamodb.NewQueryPaginator(client, &dynamodb.QueryInput{
-		TableName:              aws.String(table),
-		KeyConditionExpression: aws.String("PK = :pk"),
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":pk": &types.AttributeValueMemberS{Value: pk},
-		},
-	})
-	var list []T
-	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(ctx)
-		if err != nil {
-			return nil, err
-		}
-		for _, raw := range page.Items {
-			var item T
-			if err := attributevalue.UnmarshalMap(raw, &item); err != nil {
-				return nil, err
-			}
-			list = append(list, item)
-		}
-	}
-	return list, nil
 }

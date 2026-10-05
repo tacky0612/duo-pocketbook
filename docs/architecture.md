@@ -59,7 +59,7 @@ flowchart TD
 
 リポジトリインターフェイスの実装。外部依存とのやり取りをここに閉じ込める。
 
-- `dynamodb/` — 本番・統合テスト用。AWS SDK v2 を使用（→ [data-model.md](data-model.md)）。`DYNAMO_ENDPOINT` 指定時は DynamoDB Local に接続し、テーブルを自動作成する
+- `dynamodb/` — 本番・統合テスト用。AWS SDK v2 を使用（→ [data-model.md](data-model.md)）。`DYNAMO_ENDPOINT` 指定時は DynamoDB Local に接続し、テーブルを自動作成する。キー定義とパーティション全件取得の共通処理（`queryByPK`）は `repository.go` に集約し、各エンティティの実装は同名のファイルに置く
 - `memory/` — ユニットテスト・軽量ローカル起動用のインメモリ実装
 
 ### Web層 — `internal/web/`
@@ -67,7 +67,9 @@ flowchart TD
 APIインターフェイス。リクエスト/レスポンスの変換のみを担い、業務ロジックは持たない。
 
 - `router.go` — Go 1.22+ の `http.ServeMux` パターンルーティング（外部ルーター不使用）
-- `handlers.go` — DTO変換とエラー→HTTPステータスのマッピング
+- `handler.go` — `Handler`（ハンドラ群が使うユースケースの束）の定義と生成
+- `handler_<resource>.go` — リソースごとのハンドラ。そのリソースの DTO・リクエスト/レスポンス型・swag 注釈を同じファイルにまとめる（`handler_expense.go` / `handler_income.go` / `handler_reservation.go` / `handler_settlement.go` / `handler_settings.go` など）。テストも `handler_<resource>_test.go` に対応させ、共通ヘルパーは `helpers_test.go` に置く
+- `response.go` — 共通のレスポンス書き出し・エラー→HTTPステータスのマッピング・リクエストボディの読み取り
 - `auth.go` — JWT発行/検証（HS256）+ 認証ミドルウェア
 - `middleware.go` — CORS
 - `bootstrap.go` — 設定からリポジトリ実装を選択して全体を組み立てる（`TABLE_NAME` があれば DynamoDB、なければインメモリ）

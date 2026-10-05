@@ -78,32 +78,7 @@ func (r *RecurringExpenseRepository) FindByID(ctx context.Context, id domain.Rec
 
 // FindAll は全固定費を返す。
 func (r *RecurringExpenseRepository) FindAll(ctx context.Context) ([]domain.RecurringExpense, error) {
-	paginator := dynamodb.NewQueryPaginator(r.client, &dynamodb.QueryInput{
-		TableName:              aws.String(r.table),
-		KeyConditionExpression: aws.String("PK = :pk"),
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":pk": &types.AttributeValueMemberS{Value: recurringPK},
-		},
-	})
-	var list []domain.RecurringExpense
-	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(ctx)
-		if err != nil {
-			return nil, err
-		}
-		for _, raw := range page.Items {
-			var item recurringItem
-			if err := attributevalue.UnmarshalMap(raw, &item); err != nil {
-				return nil, err
-			}
-			e, err := toRecurring(item)
-			if err != nil {
-				return nil, err
-			}
-			list = append(list, e)
-		}
-	}
-	return list, nil
+	return queryByPK(ctx, r.client, r.table, recurringPK, toRecurring)
 }
 
 // Delete は固定費を削除する。

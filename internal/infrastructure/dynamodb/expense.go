@@ -120,32 +120,7 @@ func (r *ExpenseRepository) findByID(ctx context.Context, id domain.ExpenseID, c
 
 // FindByMonth は対象月の支出を返す。
 func (r *ExpenseRepository) FindByMonth(ctx context.Context, month domain.YearMonth) ([]domain.Expense, error) {
-	paginator := dynamodb.NewQueryPaginator(r.client, &dynamodb.QueryInput{
-		TableName:              aws.String(r.table),
-		KeyConditionExpression: aws.String("PK = :pk"),
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":pk": &types.AttributeValueMemberS{Value: expensePKPrefix + month.String()},
-		},
-	})
-	var expenses []domain.Expense
-	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(ctx)
-		if err != nil {
-			return nil, err
-		}
-		for _, raw := range page.Items {
-			var item expenseItem
-			if err := attributevalue.UnmarshalMap(raw, &item); err != nil {
-				return nil, err
-			}
-			e, err := toExpense(item)
-			if err != nil {
-				return nil, err
-			}
-			expenses = append(expenses, e)
-		}
-	}
-	return expenses, nil
+	return queryByPK(ctx, r.client, r.table, expensePKPrefix+month.String(), toExpense)
 }
 
 // Delete は支出を削除する。

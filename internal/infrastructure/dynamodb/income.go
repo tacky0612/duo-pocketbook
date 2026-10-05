@@ -139,32 +139,7 @@ func (r *IncomeRepository) FindByMonth(ctx context.Context, month domain.YearMon
 }
 
 func (r *IncomeRepository) queryByPK(ctx context.Context, pk string) ([]domain.Income, error) {
-	paginator := dynamodb.NewQueryPaginator(r.client, &dynamodb.QueryInput{
-		TableName:              aws.String(r.table),
-		KeyConditionExpression: aws.String("PK = :pk"),
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":pk": &types.AttributeValueMemberS{Value: pk},
-		},
-	})
-	var list []domain.Income
-	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(ctx)
-		if err != nil {
-			return nil, err
-		}
-		for _, raw := range page.Items {
-			var item incomeItem
-			if err := attributevalue.UnmarshalMap(raw, &item); err != nil {
-				return nil, err
-			}
-			inc, err := toIncome(item)
-			if err != nil {
-				return nil, err
-			}
-			list = append(list, inc)
-		}
-	}
-	return list, nil
+	return queryByPK(ctx, r.client, r.table, pk, toIncome)
 }
 
 // Delete は収入を削除する。
