@@ -13,3 +13,4 @@ export { default as MemberBadge } from "./MemberBadge";
 export { default as Tabs, type TabItem } from "./Tabs";
 export { default as AnimatedPanel } from "./AnimatedPanel";
 export { default as Collapse } from "./Collapse";
+export { default as Modal } from "./Modal";

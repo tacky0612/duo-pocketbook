@@ -90,6 +90,10 @@ components:
         paidBy:
           example: acct_9f3c1a2b7d4e5f60
           type: string
+        reservationId:
+          description: ReservationID は予約の入力で登録された支出ならその予約ID。通常の支出は空文字。
+          example: ""
+          type: string
       type: object
     web.expensesResponse:
       properties:
@@ -100,6 +104,19 @@ components:
           uniqueItems: false
         month:
           example: 2026-07
+          type: string
+      type: object
+    web.fulfillReservationRequest:
+      properties:
+        amountYen:
+          example: 7820
+          type: integer
+        date:
+          description: Date は支出の予約のみ必須（YYYY-MM-DD）。month の精算期間内の日付を指定する。収入の予約では無視される。
+          example: "2026-10-25"
+          type: string
+        month:
+          example: 2026-10
           type: string
       type: object
     web.healthResponse:
@@ -128,6 +145,10 @@ components:
         recurring:
           example: false
           type: boolean
+        reservationId:
+          description: ReservationID は予約の入力で登録された収入ならその予約ID。通常の収入は空文字。
+          example: ""
+          type: string
       type: object
     web.incomesResponse:
       properties:
@@ -269,6 +290,110 @@ components:
           example: acct_9f3c1a2b7d4e5f60
           type: string
       type: object
+    web.registerReservationRequest:
+      properties:
+        description:
+          example: 電気代
+          type: string
+        estimatedAmountYen:
+          example: 8000
+          type: integer
+        kind:
+          description: Kind は "expense"（支出の予約）か "income"（収入の予約）。更新時は無視される。
+          enum:
+          - expense
+          - income
+          example: expense
+          type: string
+        memberId:
+          example: acct_9f3c1a2b7d4e5f60
+          type: string
+        month:
+          description: Month は空文字なら毎月、"YYYY-MM" ならその精算月のみの単発。更新時も指定した頻度へ変更する。
+          example: ""
+          type: string
+        startMonth:
+          description: |-
+            StartMonth は毎月の予約の開始月（"YYYY-MM"）。これより前の月には現れない。登録時に空なら制限なし。
+            更新時に空なら、毎月のままは現在の開始月、単発から毎月へ変えるなら元の対象月を開始月にする。
+          example: 2026-10
+          type: string
+      type: object
+    web.reservationDTO:
+      properties:
+        description:
+          example: 電気代
+          type: string
+        estimatedAmountYen:
+          description: EstimatedAmountYen は見込み額。0 は未定。精算には影響しない。
+          example: 8000
+          type: integer
+        fulfilledAmountYen:
+          description: FulfilledAmountYen は入力済みのとき、対象月に紐づく支出／収入の合計額。
+          example: 0
+          type: integer
+        fulfilledIds:
+          description: |-
+            FulfilledIDs は入力済みのとき、対象月に予約へ紐づく支出ID（kind=expense）／収入ID（kind=income）のすべて
+            （通常は1件）。入力を取り消すにはすべて削除する。
+          items:
+            type: string
+          type: array
+          uniqueItems: false
+        id:
+          description: ID は頻度に依存しない固定の予約ID（rsv_<hex>）。
+          example: rsv_a1b2c3d4e5f6a7b8a1b2c3d4e5f6a7b8
+          type: string
+        kind:
+          description: Kind は "expense"（支出の予約）か "income"（収入の予約）。
+          enum:
+          - expense
+          - income
+          example: expense
+          type: string
+        memberId:
+          description: MemberID は支出なら支払う人、収入なら収入を得る人。
+          example: acct_9f3c1a2b7d4e5f60
+          type: string
+        month:
+          description: 毎月は空文字
+          example: ""
+          type: string
+        recurring:
+          example: true
+          type: boolean
+        startMonth:
+          description: StartMonth は毎月の予約の開始月。これより前の月には現れない。空文字は制限なし（単発は常に空文字）。
+          example: 2026-10
+          type: string
+        status:
+          description: Status は指定精算月の入力状況。pending=未入力 / fulfilled=入力済み / skipped=今月はなし。
+          enum:
+          - pending
+          - fulfilled
+          - skipped
+          example: pending
+          type: string
+      type: object
+    web.reservationsResponse:
+      properties:
+        month:
+          example: 2026-10
+          type: string
+        pendingCount:
+          description: PendingCount は未入力（status=pending）の予約の件数。精算確定前の警告に使う。
+          example: 1
+          type: integer
+        reservations:
+          items:
+            $ref: '#/components/schemas/web.reservationDTO'
+          type: array
+          uniqueItems: false
+        settled:
+          description: Settled は対象月が精算確定済みか。確定済みの月は予約の金額入力・今月はなしができない（409）。
+          example: false
+          type: boolean
+      type: object
     web.salariesResponse:
       properties:
         month:
@@ -402,6 +527,15 @@ components:
           example: 2026-07
           type: string
         settled:
+          example: true
+          type: boolean
+      type: object
+    web.skipReservationRequest:
+      properties:
+        month:
+          example: 2026-10
+          type: string
+        skipped:
           example: true
           type: boolean
       type: object
@@ -879,6 +1013,7 @@ paths:
       tags:
       - expenses
     put:
+      description: 予約から登録した支出（reservationId あり）は、日付の変更で別の精算月へ移すことはできない（400）。紐づく予約が削除済みなら紐づけを外して通常の支出として更新する。
       parameters:
       - description: 支出ID
         in: path
@@ -1532,6 +1667,309 @@ paths:
       summary: 固定費の更新
       tags:
       - recurring-expenses
+  /reservations:
+    get:
+      description: |-
+        指定精算月に存在する予約（毎月分＋当月単発分）と、その月の入力状況を返す。kind を指定すると種別で絞り込む。
+        精算を確定する前に pendingCount を確認し、未入力の予約があれば警告する用途を想定している。
+      parameters:
+      - description: 対象月（YYYY-MM）
+        in: query
+        name: month
+        required: true
+        schema:
+          type: string
+      - description: 種別で絞り込む
+        in: query
+        name: kind
+        schema:
+          enum:
+          - expense
+          - income
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.reservationsResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: 予約の一覧（入力状況つき）
+      tags:
+      - reservations
+    post:
+      description: |-
+        発生する予定はあるが金額が確定していない支出・収入を予約として登録する。予約自体は精算に影響しない。
+        month が空なら毎月（startMonth 以降の各月に現れる）、指定するとその精算月のみの単発。登録直後の入力状況は未入力（pending）。
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/web.registerReservationRequest'
+                description: 予約
+                summary: body
+        description: 予約
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.reservationDTO'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: 精算確定済みの月 (MONTH_SETTLED)
+      security:
+      - BearerAuth: []
+      summary: 予約の登録
+      tags:
+      - reservations
+  /reservations/{id}:
+    delete:
+      description: 予約を削除する。予約から登録済みの支出・収入は削除されずに残る。
+      parameters:
+      - description: 予約ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: 削除成功
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: 精算確定済みの月 (MONTH_SETTLED)
+      security:
+      - BearerAuth: []
+      summary: 予約の削除
+      tags:
+      - reservations
+    put:
+      description: |-
+        メンバー・内容・見込み額・頻度（month が空なら毎月、指定するとその精算月のみ）を更新する。種別は変更できない。
+        頻度を変えても予約IDは変わらず、予約から登録済みの支出・収入との紐づけもそのまま有効。単発へ変更すると「今月はなし」の記録は消える。
+        レスポンスは予約の内容のみを表し、status 等の入力状況は反映しない（月ごとの入力状況は一覧 API で取得する）。
+      parameters:
+      - description: 予約ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/web.registerReservationRequest'
+                description: 予約
+                summary: body
+        description: 予約
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.reservationDTO'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: 精算確定済みの月 (MONTH_SETTLED)
+      security:
+      - BearerAuth: []
+      summary: 予約の更新
+      tags:
+      - reservations
+  /reservations/{id}/fulfill:
+    post:
+      description: |-
+        確定した金額を入力し、予約を実データとして登録する。支出の予約は共有支出（date の日付）、収入の予約はその月のみの追加収入として登録され、精算に反映される。
+        登録された支出・収入は reservationId で予約と紐づき、通常の支出・収入と同様に編集・削除できる（削除すると予約は未入力に戻る）。
+        既に入力済みの月には入力できない（400）。同時入力・再送による二重登録も「予約×月」の入力ロックで防ぎ、後着側は 400 になる。スキップ済みだった場合はスキップを解除する。
+      parameters:
+      - description: 予約ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/web.fulfillReservationRequest'
+                description: 確定した金額
+                summary: body
+        description: 確定した金額
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.reservationDTO'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: 精算確定済みの月 (MONTH_SETTLED)
+      security:
+      - BearerAuth: []
+      summary: 予約の金額入力
+      tags:
+      - reservations
+  /reservations/{id}/skip:
+    put:
+      description: |-
+        毎月の予約が指定精算月には発生しないことを記録する（skipped=false で解除）。スキップ済みの予約は未入力として数えない。
+        今月だけ（単発）の予約と入力済みの予約はスキップできない（400）。単発の予約が不要になった場合は削除する。解除は単発でも行える。
+      parameters:
+      - description: 予約ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/web.skipReservationRequest'
+                description: スキップ状態
+                summary: body
+        description: スキップ状態
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.reservationDTO'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: 精算確定済みの月 (MONTH_SETTLED)
+      security:
+      - BearerAuth: []
+      summary: 予約のスキップ（今月はなし）
+      tags:
+      - reservations
   /settings/closing-day:
     get:
       description: 精算期間の起算日。未設定時は 1（暦月どおり）。

@@ -32,6 +32,7 @@ type Expense struct {
 	Description string
 	Date        time.Time // 支出日（日付のみ有効）
 	CreatedAt   time.Time
+	Reservation ReservationRef // 登録元の予約（ゼロ値は予約に由来しない）
 }
 
 // NewExpense は共有支出を生成する。IDは支出日の年月とサフィックスから採番される。
@@ -56,6 +57,29 @@ func NewExpense(suffix string, paidBy MemberID, amount Money, description string
 		Date:        date,
 		CreatedAt:   now,
 	}, nil
+}
+
+// EnsureMovableTo は支出日を date へ変更してよいかを確認する。
+//
+// 予約から登録した支出は、締め日 cd に基づく精算月を変えられない。入力した月とは別の月へ移ると、
+// 入力した月の予約が未入力に戻り、移した先の月で入力済みとして数えられてしまうため
+// （金額入力時の「支出日は対象月の精算期間内」という制約とも一致させる）。
+// 月を変えたい場合は入力を取り消し、移したい月で入力し直す。
+func (e Expense) EnsureMovableTo(date time.Time, cd ClosingDay) error {
+	if !e.Reservation.IsFromReservation() {
+		return nil
+	}
+	from, to := cd.SettlementMonth(e.Date), cd.SettlementMonth(date)
+	if from != to {
+		return fmt.Errorf("%w: 予約から登録した支出は別の精算月（%s → %s）へ移せません。入力を取り消して、移したい月で入力し直してください", ErrValidation, from, to)
+	}
+	return nil
+}
+
+// WithoutReservation は予約との紐づけを外した支出を返す（紐づく予約が削除済みの場合などに使う）。
+func (e Expense) WithoutReservation() Expense {
+	e.Reservation = ReservationRef{}
+	return e
 }
 
 // Month は支出の対象年月を返す。

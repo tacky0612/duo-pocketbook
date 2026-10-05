@@ -48,6 +48,12 @@ TOKEN=$(curl -s -X POST $BASE/login \
 | `GET /incomes?month=YYYY-MM` | 指定月に適用される追加収入の一覧（継続分＋当月単発分） |
 | `PUT /incomes/{id}` | 追加収入の更新（メンバー・金額・内容。継続/単発と対象月は不変） |
 | `DELETE /incomes/{id}` | 追加収入の削除 |
+| `POST /reservations` | 予約の登録（`kind`=`expense`/`income`。`month` 空で毎月（`startMonth` 以降）・指定でその月のみの単発。見込み額は任意） |
+| `GET /reservations?month=YYYY-MM[&kind=expense\|income]` | 指定月に存在する予約と入力状況（`status`）の一覧。`pendingCount` は未入力の件数、`settled` はその月が精算確定済みか |
+| `PUT /reservations/{id}` | 予約の更新（メンバー・内容・見込み額・頻度。種別とIDは不変。単発へ変更すると「今月はなし」の記録は消える） |
+| `DELETE /reservations/{id}` | 予約の削除（入力済みの支出・収入は残る） |
+| `POST /reservations/{id}/fulfill` | 予約の金額入力（支出の予約は共有支出、収入の予約はその月の追加収入として登録） |
+| `PUT /reservations/{id}/skip` | 予約を指定月で「今月はなし」にする／解除する |
 | `GET /months/{month}/settlement` | 月次精算の取得 |
 | `PUT /months/{month}/settlement/status` | 精算の完了/取り消し（`settled=true` で完了時点のスナップショットを保存、`false` で削除） |
 | `GET /settlements/history?from=YYYY-MM&to=YYYY-MM` | 精算履歴（完了時点のスナップショット）の取得（新しい月順） |
@@ -118,6 +124,39 @@ curl $BASE/months/2026-07/settlement -H "Authorization: Bearer $TOKEN"
 
 `GET /settlements/history` は、**精算を完了した月**のスナップショット（完了時点の精算内容）を新しい月順に返す。精算未完了の月は含まれない。各エントリは精算レスポンスと同等の内訳（`members` / `transfer` / `settlementTransfer` / `directTransfer` / `totalExpenseYen` / `totalDirectTransferYen`）に加え、完了日時 `settledAt`（RFC3339）と、当月の共有支出明細 `expenses`（固定費由来は `recurring=true`）・立替精算明細 `directTransfers` を含む。スナップショットは完了時点の内容を保持するため、後から固定費や収支・比重を変更しても履歴の内容は変わらない（背景と保存方式は [data-model.md](data-model.md#精算スナップショット精算完了時点の内容を凍結) を参照）。
 
+## 予約（金額未確定の収入・支出）
+
+「発生する予定はあるが金額が確定していない」収入・支出を予約として登録しておき、金額が確定したら入力する。予約そのものは精算に影響せず、入力して初めて共有支出／追加収入として精算に反映される。
+
+```mermaid
+stateDiagram-v2
+    [*] --> 未入力: POST /reservations
+    未入力 --> 入力済み: POST /reservations/{id}/fulfill
+    未入力 --> 今月はなし: PUT /reservations/{id}/skip skipped=true・毎月の予約のみ
+    今月はなし --> 未入力: PUT /reservations/{id}/skip skipped=false
+    今月はなし --> 入力済み: fulfill でスキップも解除
+    入力済み --> 未入力: 登録された支出・収入を DELETE
+```
+
+- 入力状況（`status`）は**精算月ごと**に決まる。毎月の予約は月ごとに入力・スキップする。
+- 毎月の予約は `startMonth`（Web UI は登録時に表示中の月）より前の月には現れない。単発から毎月へ変更して `startMonth` を省略すると、元の対象月が開始月になる。
+- 「今月はなし」（スキップ）は**毎月の予約のみ**。今月だけ（単発）の予約が不要になったら削除する（スキップは 400）。
+- 入力済みの予約の `fulfilledIds` は、その月に紐づく支出／収入IDのすべて（通常は1件）。入力を取り消すにはすべて削除する。
+- 頻度は更新で変更できる（`month` 空で毎月、指定でその月のみ）。予約IDは頻度に依存せず変わらないので、入力済みの月はそのまま入力済み。単発へ変更すると「今月はなし」の記録は消える。
+- 同じ予約・月への二重入力（同時入力・再送）は入力ロックで防ぎ、後着側は 400（`VALIDATION_ERROR`）になる。
+- 金額入力で登録された支出・収入は `reservationId` を持ち、通常の `/expenses`・`/incomes` と同じく編集・削除できる。ただし予約から登録した支出は、日付の変更で別の精算月へ移せない（400。月を変えるには入力を取り消して入力し直す）。紐づく予約を削除した後は、支出・収入の編集時に紐づけが外れて通常の支出・収入になる（支出は別の月へ移せる）。支出の予約は `date` が必須で、指定 `month` の精算期間（締め日考慮）内の日付でなければ 400。
+- 精算の確定（`PUT /months/{month}/settlement/status`）自体は未入力の予約があっても拒否しない。クライアントは確定前に `GET /reservations?month=` の `pendingCount` を確認して警告する（Web UI は未入力の予約一覧と「金額を入力」「今月はなし」「未入力のまま完了する」を表示する）。
+
+```bash
+# 毎月の支出予約（見込み 8,000円）を登録 → 10月分の金額を入力
+curl -X POST $BASE/reservations -H "Authorization: Bearer $TOKEN" \
+  -d '{"kind":"expense","memberId":"<AccountID>","description":"電気代","estimatedAmountYen":8000,"month":""}'
+curl -X POST $BASE/reservations/<予約ID>/fulfill -H "Authorization: Bearer $TOKEN" \
+  -d '{"month":"2026-10","amountYen":7820,"date":"2026-10-25"}'
+# 未入力の予約の件数
+curl "$BASE/reservations?month=2026-10" -H "Authorization: Bearer $TOKEN"   # → {"pendingCount": ...}
+```
+
 ## エラーレスポンス
 
 すべてのエラーは共通形式:
@@ -143,9 +182,10 @@ curl $BASE/months/2026-07/settlement -H "Authorization: Bearer $TOKEN"
 
 - 共有支出（`/expenses`。支出日が締め日設定に基づき確定済み月に属するもの。登録先・移動先のいずれかが確定済みなら不可）
 - 給与（`/months/{month}/salaries/{memberId}`）
-- 追加収入・立替精算のうち**その月単発**のもの（`month` 指定あり）
+- 追加収入・立替精算・予約のうち**その月単発**のもの（`month` 指定あり）
+- その月への予約の金額入力・スキップ（`/reservations/{id}/fulfill`・`/reservations/{id}/skip`。毎月の予約でも、対象月が確定済みなら不可）
 
-一方、特定月に紐づかない項目は確定済み月があってもロックされない: **毎月継続**の追加収入・立替精算（`month` 空）と、**固定費**（`/recurring-expenses`。全月に効くため）。これらを後から変更しても、確定済み月の履歴スナップショットは凍結されたまま変わらない。
+一方、特定月に紐づかない項目は確定済み月があってもロックされない: **毎月継続**の追加収入・立替精算・予約（`month` 空）の登録内容と、**固定費**（`/recurring-expenses`。全月に効くため）。これらを後から変更しても、確定済み月の履歴スナップショットは凍結されたまま変わらない。
 
 ### アクセス制限ヘッダ
 

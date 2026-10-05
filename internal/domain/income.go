@@ -46,10 +46,11 @@ func (id IncomeID) Month() (YearMonth, error) {
 // Month がゼロ値なら毎月継続（継続）、値ありならその精算月のみ有効（単発）。
 type Income struct {
 	ID          IncomeID
-	MemberID    MemberID  // 収入を得るメンバー
-	Amount      Money     // 正の金額（円）
-	Description string    // 内容
-	Month       YearMonth // ゼロ値なら毎月継続
+	MemberID    MemberID       // 収入を得るメンバー
+	Amount      Money          // 正の金額（円）
+	Description string         // 内容
+	Month       YearMonth      // ゼロ値なら毎月継続
+	Reservation ReservationRef // 登録元の予約（ゼロ値は予約に由来しない）
 }
 
 // NewIncome は収入を生成する。month がゼロ値なら継続として扱う。

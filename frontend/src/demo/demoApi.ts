@@ -7,7 +7,7 @@
 import { ApiError, type HttpMethod } from "../lib/apiClient";
 import { store } from "./store";
 import { computeSettlement, settlementMonthOf } from "./settlement";
-import type { DemoDb, ExpensesResponse, SettlementHistoryEntry, Settlement, SnapshotExpense, Weights } from "../types";
+import type { DemoDb, DemoReservation, ExpensesResponse, Reservation, ReservationsResponse, SettlementHistoryEntry, Settlement, SnapshotExpense, Weights } from "../types";
 
 // デモが受け取り得るリクエストボディのフィールド（すべて任意）。
 interface DemoBody {
@@ -27,6 +27,10 @@ interface DemoBody {
   newPassword?: string;
   closingDay?: number;
   month?: string;
+  kind?: string;
+  estimatedAmountYen?: number;
+  skipped?: boolean;
+  startMonth?: string;
 }
 
 // --- エラーヘルパー（apiClient の ApiError 形状に合わせる） ---
@@ -124,6 +128,44 @@ function buildSnapshot(db: DemoDb, month: string): SettlementHistoryEntry {
   return { ...s, settledAt: nowISO(), expenses, directTransfers };
 }
 
+// 予約の対象精算月における入力状況を判定する（domain.ResolveReservations と同じ規則）。
+// 予約IDを持つ支出／収入が対象月にあれば入力済み、なければスキップ記録を見て、どちらでもなければ未入力。
+function reservationState(db: DemoDb, r: DemoReservation, month: string): Reservation {
+  const linked =
+    r.kind === "expense"
+      ? listExpenses(db, month).expenses.filter((e) => e.reservationId === r.id)
+      : db.incomes.filter((i) => !i.recurring && i.month === month && i.reservationId === r.id);
+  if (linked.length > 0) {
+    const ids = linked.map((x) => x.id).sort();
+    const amount = linked.reduce((sum, x) => sum + x.amountYen, 0);
+    return { ...r, status: "fulfilled", fulfilledIds: ids, fulfilledAmountYen: amount };
+  }
+  const skipped = (r.skippedMonths ?? []).includes(month);
+  return { ...r, status: skipped ? "skipped" : "pending", fulfilledIds: [], fulfilledAmountYen: 0 };
+}
+
+// 予約が精算月 month に存在するか（開始月以降の毎月、または対象月が一致する単発）。domain.Reservation.AppliesTo と同じ規則。
+// YYYY-MM は文字列比較で月の前後を判定できる。
+function reservationAppliesTo(r: DemoReservation, month: string): boolean {
+  if (!r.recurring) return r.month === month;
+  return !r.startMonth || month >= r.startMonth;
+}
+
+// 対象精算月に存在する予約（毎月分＋当月単発分）。毎月を先に、各グループ内は内容の昇順。
+function reservationsFor(db: DemoDb, month: string, kind: string | null): ReservationsResponse {
+  const byDesc = (x: DemoReservation, y: DemoReservation) =>
+    x.description < y.description ? -1 : x.description > y.description ? 1 : 0;
+  const applicable = db.reservations.filter((r) => reservationAppliesTo(r, month) && (!kind || r.kind === kind));
+  const ordered = [...applicable.filter((r) => r.recurring).sort(byDesc), ...applicable.filter((r) => !r.recurring).sort(byDesc)];
+  const reservations = ordered.map((r) => reservationState(db, r, month));
+  return {
+    month,
+    reservations,
+    pendingCount: reservations.filter((r) => r.status === "pending").length,
+    settled: Boolean(db.snapshots[month]),
+  };
+}
+
 // demoApi は (method, path, body) を実ハンドラ相当のレスポンスへマッピングする。
 // path は必要に応じてクエリ文字列を含む（例: /expenses?month=2026-07）。
 export async function demoApi(method: HttpMethod, path: string, body?: unknown): Promise<unknown> {
@@ -141,6 +183,7 @@ export async function demoApi(method: HttpMethod, path: string, body?: unknown):
     store.save();
   }
   if (!db.incomes) db.incomes = [];
+  if (!db.reservations) db.reservations = [];
   const key = `${method} ${rawPath}`;
 
   let mm: RegExpMatchArray | null;
@@ -180,6 +223,7 @@ export async function demoApi(method: HttpMethod, path: string, body?: unknown):
       date,
       month,
       createdAt: nowISO(),
+      reservationId: "",
     };
     db.expenses.push(expense);
     store.save();
@@ -193,6 +237,14 @@ export async function demoApi(method: HttpMethod, path: string, body?: unknown):
   if (method === "PUT" && (mm = rawPath.match(/^\/expenses\/([^/]+)$/))) {
     const expense = db.expenses.find((e) => e.id === mm![1]);
     if (!expense) notFound("支出が見つかりません");
+    // 紐づく予約が削除済みなら紐づけを外す。予約から登録した支出は別の精算月へ移せない（domain.Expense.EnsureMovableTo と同じ規則）。
+    if (expense.reservationId && !db.reservations.some((r) => r.id === expense.reservationId)) expense.reservationId = "";
+    if (expense.reservationId && b.date != null) {
+      const cd = db.closingDay ?? 1;
+      const from = settlementMonthOf(expense.date, cd);
+      const to = settlementMonthOf(b.date, cd);
+      if (from !== to) validation(`予約から登録した支出は別の精算月（${from} → ${to}）へ移せません。入力を取り消して、移したい月で入力し直してください`);
+    }
     if (b.paidBy != null) expense.paidBy = b.paidBy;
     if (b.amountYen != null) expense.amountYen = b.amountYen;
     if (b.description != null) expense.description = b.description;
@@ -258,6 +310,7 @@ export async function demoApi(method: HttpMethod, path: string, body?: unknown):
       description: b.description,
       recurring,
       month: recurring ? "" : b.month!,
+      reservationId: "",
     };
     db.incomes.push(item);
     store.save();
@@ -266,6 +319,8 @@ export async function demoApi(method: HttpMethod, path: string, body?: unknown):
   if (method === "PUT" && (mm = rawPath.match(/^\/incomes\/([^/]+)$/))) {
     const item = db.incomes.find((i) => i.id === mm![1]);
     if (!item) notFound("収入が見つかりません");
+    // 紐づく予約が削除済みなら紐づけを外す（IncomeUsecase.Update と同じ規則）。
+    if (item.reservationId && !db.reservations.some((r) => r.id === item.reservationId)) item.reservationId = "";
     if (b.memberId != null) {
       if (!db.members.some((m) => m.id === b.memberId)) validation("不明なメンバーです");
       item.memberId = b.memberId;
@@ -279,6 +334,118 @@ export async function demoApi(method: HttpMethod, path: string, body?: unknown):
     const idx = db.incomes.findIndex((i) => i.id === mm![1]);
     if (idx < 0) notFound("収入が見つかりません");
     db.incomes.splice(idx, 1);
+    store.save();
+    return null;
+  }
+
+  // --- 予約（金額未確定の収入・支出） ---
+  if (method === "GET" && rawPath === "/reservations") {
+    const month = q.get("month");
+    if (!month) validation("month は必須です");
+    const kind = q.get("kind");
+    if (kind && kind !== "expense" && kind !== "income") validation("予約の種別は expense か income で指定してください");
+    return reservationsFor(db, month, kind);
+  }
+  if (method === "POST" && rawPath === "/reservations") {
+    if (b.kind !== "expense" && b.kind !== "income") validation("予約の種別は expense か income で指定してください");
+    if (!b.description?.trim()) validation("予約の内容は必須です");
+    if ((b.estimatedAmountYen ?? 0) < 0) validation("見込み額は0以上で入力してください");
+    const memberId = b.memberId ?? "";
+    if (!db.members.some((m) => m.id === memberId)) validation("不明なメンバーです");
+    const recurring = !b.month;
+    const item: DemoReservation = {
+      id: `rsv_${randHex()}`, // 予約IDは頻度に依存しない
+      kind: b.kind,
+      memberId,
+      description: b.description.trim(),
+      estimatedAmountYen: b.estimatedAmountYen ?? 0,
+      recurring,
+      month: recurring ? "" : b.month!,
+      startMonth: recurring ? b.startMonth ?? "" : "",
+    };
+    db.reservations.push(item);
+    store.save();
+    return { ...item, status: "pending", fulfilledIds: [], fulfilledAmountYen: 0 };
+  }
+  if (method === "POST" && (mm = rawPath.match(/^\/reservations\/([^/]+)\/fulfill$/))) {
+    const r = db.reservations.find((x) => x.id === mm![1]);
+    if (!r) notFound("予約が見つかりません");
+    const month = b.month ?? "";
+    if (!reservationAppliesTo(r, month)) validation(`この予約は ${month} には存在しません`);
+    if (reservationState(db, r, month).status === "fulfilled") validation(`この予約は${month}に入力済みです`);
+    if (!b.amountYen || b.amountYen <= 0) validation("金額は1円以上で入力してください");
+    if (r.kind === "expense") {
+      const date = b.date ?? "";
+      if (!date) validation("支出日は必須です");
+      if (settlementMonthOf(date, db.closingDay ?? 1) !== month) validation(`支出日 ${date} は ${month} の精算期間に含まれません`);
+      db.expenses.push({
+        id: `${date.slice(0, 7)}_${randHex()}`,
+        paidBy: r.memberId,
+        amountYen: b.amountYen,
+        description: r.description,
+        date,
+        month: date.slice(0, 7),
+        createdAt: nowISO(),
+        reservationId: r.id,
+      });
+    } else {
+      db.incomes.push({
+        id: `${month}_${randHex()}`,
+        memberId: r.memberId,
+        amountYen: b.amountYen,
+        description: r.description,
+        recurring: false,
+        month,
+        reservationId: r.id,
+      });
+    }
+    r.skippedMonths = (r.skippedMonths ?? []).filter((m) => m !== month);
+    store.save();
+    return reservationState(db, r, month);
+  }
+  if (method === "PUT" && (mm = rawPath.match(/^\/reservations\/([^/]+)\/skip$/))) {
+    const r = db.reservations.find((x) => x.id === mm![1]);
+    if (!r) notFound("予約が見つかりません");
+    const month = b.month ?? "";
+    if (!reservationAppliesTo(r, month)) validation(`この予約は ${month} には存在しません`);
+    const others = (r.skippedMonths ?? []).filter((m) => m !== month);
+    if (b.skipped) {
+      if (!r.recurring) validation("今月だけの予約は「今月はなし」にできません。不要なら予約を削除してください");
+      if (reservationState(db, r, month).status === "fulfilled") validation("入力済みの予約はスキップできません");
+      r.skippedMonths = [...others, month].sort();
+    } else {
+      r.skippedMonths = others;
+    }
+    store.save();
+    return reservationState(db, r, month);
+  }
+  if (method === "PUT" && (mm = rawPath.match(/^\/reservations\/([^/]+)$/))) {
+    const r = db.reservations.find((x) => x.id === mm![1]);
+    if (!r) notFound("予約が見つかりません");
+    if (b.memberId != null) {
+      if (!db.members.some((m) => m.id === b.memberId)) validation("不明なメンバーです");
+      r.memberId = b.memberId;
+    }
+    if (b.description != null) {
+      if (!b.description.trim()) validation("予約の内容は必須です");
+      r.description = b.description.trim();
+    }
+    if (b.estimatedAmountYen != null) r.estimatedAmountYen = b.estimatedAmountYen;
+    // 頻度の変更（month 空=毎月）。IDは変わらない。単発へ変更すると「今月はなし」の記録は消える（Reservation.Revise と同じ規則）。
+    const nextMonth = b.month ?? "";
+    // 開始月: 指定があればそれ、なければ毎月のままは現在の開始月、単発から毎月へ変えるなら元の対象月（Reservation.Revise と同じ規則）。
+    const start = b.startMonth || (r.recurring ? r.startMonth : r.month);
+    r.recurring = !nextMonth;
+    r.month = nextMonth;
+    r.startMonth = r.recurring ? start : "";
+    if (!r.recurring) r.skippedMonths = [];
+    store.save();
+    return { ...r, status: "pending", fulfilledIds: [], fulfilledAmountYen: 0 };
+  }
+  if (method === "DELETE" && (mm = rawPath.match(/^\/reservations\/([^/]+)$/))) {
+    const idx = db.reservations.findIndex((x) => x.id === mm![1]);
+    if (idx < 0) notFound("予約が見つかりません");
+    db.reservations.splice(idx, 1);
     store.save();
     return null;
   }

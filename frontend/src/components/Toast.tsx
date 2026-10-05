@@ -20,7 +20,7 @@ export default function Toast({ toast }: ToastProps) {
 
   const error = toast.kind === "error";
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-24 z-30 flex justify-center px-4">
+    <div className="pointer-events-none fixed inset-x-0 bottom-24 z-50 flex justify-center px-4">
       <div
         className={
           "pointer-events-auto flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium text-white shadow-lg " +

@@ -2,8 +2,8 @@
 //
 // シングルテーブル設計で、全エンティティを1テーブルの PK/SK で表現する。キー設計は
 // 下記の定数に集約し、各エンティティの実装は同名のファイル（expense.go / income.go /
-// settlement_snapshot.go / recurring_expense.go / direct_transfer.go / settings.go /
-// account.go）に分割している。
+// settlement_snapshot.go / recurring_expense.go / direct_transfer.go / reservation.go /
+// settings.go / account.go）に分割している。
 package dynamodb
 
 import (
@@ -12,45 +12,49 @@ import (
 
 // テーブル全体の PK/SK 設計。詳細は docs/data-model.md を参照。
 const (
-	expensePKPrefix = "EXPENSE#"
-	monthPKPrefix   = "MONTH#"
-	salarySKPrefix  = "SALARY#" // 給与: PK=MONTH#<month> / SK=SALARY#<memberID>
-	incomePKPrefix  = "INCOME#" // 追加収入: 単発 INCOME#<month> / 継続 INCOME#RECURRING
-	incomeRecurring = "RECURRING"
-	settingsPK      = "SETTINGS"
-	weightSK        = "WEIGHT"
-	profileSKPrefix = "PROFILE#"
-	closingDaySK    = "CLOSINGDAY"
-	recurringPK     = "RECURRING"
-	directPKPrefix  = "DIRECTTRANSFER#" // 単発: DIRECTTRANSFER#<month> / 継続: DIRECTTRANSFER#RECURRING
-	directRecurring = "RECURRING"
-	snapshotSK      = "SNAPSHOT" // 精算スナップショット: PK=MONTH#<month> / SK=SNAPSHOT
-	accountPK       = "ACCOUNT"
-	accountSKPrefix = "ACCT#"
+	expensePKPrefix         = "EXPENSE#"
+	monthPKPrefix           = "MONTH#"
+	salarySKPrefix          = "SALARY#" // 給与: PK=MONTH#<month> / SK=SALARY#<memberID>
+	incomePKPrefix          = "INCOME#" // 追加収入: 単発 INCOME#<month> / 継続 INCOME#RECURRING
+	incomeRecurring         = "RECURRING"
+	settingsPK              = "SETTINGS"
+	weightSK                = "WEIGHT"
+	profileSKPrefix         = "PROFILE#"
+	closingDaySK            = "CLOSINGDAY"
+	recurringPK             = "RECURRING"
+	directPKPrefix          = "DIRECTTRANSFER#" // 単発: DIRECTTRANSFER#<month> / 継続: DIRECTTRANSFER#RECURRING
+	directRecurring         = "RECURRING"
+	snapshotSK              = "SNAPSHOT"         // 精算スナップショット: PK=MONTH#<month> / SK=SNAPSHOT
+	reservationPK           = "RESERVATION"      // 予約: PK=RESERVATION / SK=<予約ID>（頻度・対象月は属性）
+	reservationFillPKPrefix = "RESERVATIONFILL#" // 予約の入力ロック: PK=RESERVATIONFILL#<month> / SK=<予約ID>
+	accountPK               = "ACCOUNT"
+	accountSKPrefix         = "ACCT#"
 )
 
 // Repositories は DynamoDB 実装のリポジトリ群。
 type Repositories struct {
-	Expenses  *ExpenseRepository
-	Salaries  *SalaryRepository
-	Incomes   *IncomeRepository
-	Recurring *RecurringExpenseRepository
-	Direct    *DirectTransferRepository
-	Settings  *SettingsRepository
-	Snapshots *SettlementSnapshotRepository
-	Accounts  *AccountRepository
+	Expenses     *ExpenseRepository
+	Salaries     *SalaryRepository
+	Incomes      *IncomeRepository
+	Recurring    *RecurringExpenseRepository
+	Direct       *DirectTransferRepository
+	Reservations *ReservationRepository
+	Settings     *SettingsRepository
+	Snapshots    *SettlementSnapshotRepository
+	Accounts     *AccountRepository
 }
 
 // NewRepositories は同一テーブルを共有するリポジトリ群を生成する。
 func NewRepositories(client *dynamodb.Client, tableName string) Repositories {
 	return Repositories{
-		Expenses:  &ExpenseRepository{client: client, table: tableName},
-		Salaries:  &SalaryRepository{client: client, table: tableName},
-		Incomes:   &IncomeRepository{client: client, table: tableName},
-		Recurring: &RecurringExpenseRepository{client: client, table: tableName},
-		Direct:    &DirectTransferRepository{client: client, table: tableName},
-		Settings:  &SettingsRepository{client: client, table: tableName},
-		Snapshots: &SettlementSnapshotRepository{client: client, table: tableName},
-		Accounts:  &AccountRepository{client: client, table: tableName},
+		Expenses:     &ExpenseRepository{client: client, table: tableName},
+		Salaries:     &SalaryRepository{client: client, table: tableName},
+		Incomes:      &IncomeRepository{client: client, table: tableName},
+		Recurring:    &RecurringExpenseRepository{client: client, table: tableName},
+		Direct:       &DirectTransferRepository{client: client, table: tableName},
+		Reservations: &ReservationRepository{client: client, table: tableName},
+		Settings:     &SettingsRepository{client: client, table: tableName},
+		Snapshots:    &SettlementSnapshotRepository{client: client, table: tableName},
+		Accounts:     &AccountRepository{client: client, table: tableName},
 	}
 }

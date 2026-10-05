@@ -31,6 +31,14 @@ func ParseYearMonth(s string) (YearMonth, error) {
 	return NewYearMonth(t.Year(), t.Month())
 }
 
+// ParseOptionalYearMonth は空文字ならゼロ値（毎月・対象月なしを表す）、それ以外は ParseYearMonth で解釈する。
+func ParseOptionalYearMonth(s string) (YearMonth, error) {
+	if s == "" {
+		return YearMonth{}, nil
+	}
+	return ParseYearMonth(s)
+}
+
 // YearMonthOf は日付から YearMonth を導出する。
 func YearMonthOf(t time.Time) YearMonth {
 	return YearMonth{year: t.Year(), month: t.Month()}
@@ -57,6 +65,14 @@ func (ym YearMonth) Prev() YearMonth {
 // String は "2006-01" 形式の文字列を返す。
 func (ym YearMonth) String() string {
 	return fmt.Sprintf("%04d-%02d", ym.year, int(ym.month))
+}
+
+// Before は ym が o より前の月かを返す。
+func (ym YearMonth) Before(o YearMonth) bool {
+	if ym.year != o.year {
+		return ym.year < o.year
+	}
+	return ym.month < o.month
 }
 
 // IsZero は未初期化かどうかを返す。

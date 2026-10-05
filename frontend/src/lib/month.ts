@@ -27,3 +27,22 @@ export function settlementMonthOf(dateISO: string, closingDay: number): string {
   }
   return ym(y, m);
 }
+
+// settlementPeriodStart は精算月(YYYY-MM)の精算期間の初日(YYYY-MM-DD)を返す。
+// 締め日=1 はその月の1日。D>=2 は前月の実効締め日 min(D, 前月の日数)（settlementMonthOf の逆算）。
+export function settlementPeriodStart(month: string, closingDay: number): string {
+  const [y, m] = month.split("-").map(Number);
+  const iso = (yy: number, mm: number, dd: number) =>
+    `${yy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
+  if (!closingDay || closingDay <= 1) return iso(y, m, 1);
+  const [py, pm] = m === 1 ? [y - 1, 12] : [y, m - 1];
+  const eff = Math.min(closingDay, new Date(py, pm, 0).getDate());
+  return iso(py, pm, eff);
+}
+
+// defaultDateInSettlementMonth は精算月に属する日付の入力初期値を返す。
+// 今日がその精算月に属するなら今日、そうでなければ精算期間の初日。
+export function defaultDateInSettlementMonth(month: string, closingDay: number): string {
+  const today = todayISO();
+  return settlementMonthOf(today, closingDay) === month ? today : settlementPeriodStart(month, closingDay);
+}

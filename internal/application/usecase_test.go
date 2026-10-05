@@ -23,6 +23,9 @@ type fixture struct {
 	recurring  *application.RecurringExpenseUsecase
 	direct     *application.DirectTransferUsecase
 	income     *application.IncomeUsecase
+	reserve    *application.ReservationUsecase
+	// reserveRepo は予約の入力ロックを直接操作するテスト（同時入力の再現）で使う。
+	reserveRepo *memory.ReservationRepository
 }
 
 func newFixture(t *testing.T) fixture {
@@ -39,16 +42,19 @@ func newFixture(t *testing.T) fixture {
 	incomeRepo := memory.NewIncomeRepository()
 	recurringRepo := memory.NewRecurringExpenseRepository()
 	directRepo := memory.NewDirectTransferRepository()
+	reserveRepo := memory.NewReservationRepository()
 	settingsRepo := memory.NewSettingsRepository()
 	snapshotRepo := memory.NewSettlementSnapshotRepository()
 	now := func() time.Time { return time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC) }
 	return fixture{
-		expenses:   application.NewExpenseUsecase(couple, expenseRepo, settingsRepo, snapshotRepo, now),
-		settlement: application.NewSettlementUsecase(couple, expenseRepo, salaryRepo, incomeRepo, recurringRepo, directRepo, settingsRepo, snapshotRepo, now),
-		settings:   application.NewSettingsUsecase(couple, settingsRepo),
-		recurring:  application.NewRecurringExpenseUsecase(couple, recurringRepo),
-		direct:     application.NewDirectTransferUsecase(couple, directRepo, snapshotRepo),
-		income:     application.NewIncomeUsecase(couple, incomeRepo, snapshotRepo),
+		expenses:    application.NewExpenseUsecase(couple, expenseRepo, settingsRepo, snapshotRepo, reserveRepo, now),
+		settlement:  application.NewSettlementUsecase(couple, expenseRepo, salaryRepo, incomeRepo, recurringRepo, directRepo, settingsRepo, snapshotRepo, now),
+		settings:    application.NewSettingsUsecase(couple, settingsRepo),
+		recurring:   application.NewRecurringExpenseUsecase(couple, recurringRepo),
+		direct:      application.NewDirectTransferUsecase(couple, directRepo, snapshotRepo),
+		income:      application.NewIncomeUsecase(couple, incomeRepo, snapshotRepo, reserveRepo),
+		reserve:     application.NewReservationUsecase(couple, reserveRepo, expenseRepo, incomeRepo, settingsRepo, snapshotRepo, now),
+		reserveRepo: reserveRepo,
 	}
 }
 

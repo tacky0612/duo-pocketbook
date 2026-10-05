@@ -16,6 +16,8 @@ var ErrNotFound = errors.New("not found")
 type ExpenseRepository interface {
 	Save(ctx context.Context, e domain.Expense) error
 	FindByID(ctx context.Context, id domain.ExpenseID) (domain.Expense, error)
+	// FindByIDConsistent は強い整合性で支出を取得する（直前の書き込みを見落とせない、予約の入力ロック保持者の確認用）。
+	FindByIDConsistent(ctx context.Context, id domain.ExpenseID) (domain.Expense, error)
 	FindByMonth(ctx context.Context, month domain.YearMonth) ([]domain.Expense, error)
 	Delete(ctx context.Context, id domain.ExpenseID) error
 }
@@ -31,6 +33,8 @@ type SalaryRepository interface {
 type IncomeRepository interface {
 	Save(ctx context.Context, income domain.Income) error
 	FindByID(ctx context.Context, id domain.IncomeID) (domain.Income, error)
+	// FindByIDConsistent は強い整合性で収入を取得する（予約の入力ロック保持者の確認用）。
+	FindByIDConsistent(ctx context.Context, id domain.IncomeID) (domain.Income, error)
 	// FindRecurring は毎月継続の収入をすべて返す。
 	FindRecurring(ctx context.Context) ([]domain.Income, error)
 	// FindByMonth は指定精算月の単発の収入を返す（継続分は含まない）。
@@ -67,6 +71,30 @@ type DirectTransferRepository interface {
 	// FindByMonth は指定精算月の単発の立替精算を返す（継続分は含まない）。
 	FindByMonth(ctx context.Context, month domain.YearMonth) ([]domain.DirectTransfer, error)
 	Delete(ctx context.Context, id domain.DirectTransferID) error
+}
+
+// ReservationRepository は収入・支出の予約と、精算月ごとの入力ロックの永続化を担う。
+type ReservationRepository interface {
+	// Save は予約の内容（種別・メンバー・内容・見込み額・頻度・開始月）を保存する。
+	// 「今月はなし」の記録（SkippedMonths）は AddSkip / RemoveSkip でのみ更新し、Save では上書きしない
+	// （同時に行われたスキップを失わないため）。ただし単発の予約は記録を持てないため、単発なら記録を消す。
+	Save(ctx context.Context, r domain.Reservation) error
+	// AddSkip / RemoveSkip は予約の「今月はなし」に精算月を追加・削除する（他の属性に触れない原子的な更新）。
+	// 予約が存在しなければ ErrNotFound を返す。
+	AddSkip(ctx context.Context, id domain.ReservationID, month domain.YearMonth) error
+	RemoveSkip(ctx context.Context, id domain.ReservationID, month domain.YearMonth) error
+	FindByID(ctx context.Context, id domain.ReservationID) (domain.Reservation, error)
+	// FindAll はすべての予約（毎月・単発）を返す。2人分で件数が少ないため月での絞り込みは呼び出し側で行う。
+	FindAll(ctx context.Context) ([]domain.Reservation, error)
+	Delete(ctx context.Context, id domain.ReservationID) error
+
+	// AcquireFulfillment は予約 id の精算月 month に対する入力ロックを、登録した実データの ID target で
+	// 条件付き取得する（同じ予約・月への二重入力を防ぐ）。既に取得済みなら acquired=false と、
+	// 現在ロックを持つ実データの ID を返す。
+	AcquireFulfillment(ctx context.Context, id domain.ReservationID, month domain.YearMonth, target string) (acquired bool, current string, err error)
+	// ReplaceFulfillment は入力ロックの保持者が stale のときだけ next に置き換える
+	// （ロックを持つ実データが削除済みのとき、ロックを引き継ぐために使う）。置き換えられなければ false。
+	ReplaceFulfillment(ctx context.Context, id domain.ReservationID, month domain.YearMonth, stale, next string) (bool, error)
 }
 
 // MemberProfile はメンバーごとの上書き可能なプロフィール（表示名・カラー）。

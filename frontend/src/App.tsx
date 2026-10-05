@@ -13,7 +13,7 @@ import ExpenseScreen from "./screens/ExpenseScreen";
 import DirectTransferScreen from "./screens/DirectTransferScreen";
 import HistoryScreen from "./screens/HistoryScreen";
 import SettingsScreen from "./screens/SettingsScreen";
-import type { ClosingDayResponse, Member, MembersResponse, MemberView, ScreenName, ScreenProps, ToastKind, ToastMessage } from "./types";
+import type { ClosingDayResponse, ExpenseTab, Member, MembersResponse, MemberView, NavigateOptions, ScreenName, ScreenProps, ToastKind, ToastMessage } from "./types";
 
 export default function App() {
   const theme = useTheme();
@@ -21,11 +21,17 @@ export default function App() {
   const [members, setMembers] = useState<MemberView[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const [screen, setScreen] = useState<ScreenName>("settlement");
+  // 支出画面を開いたときの初期タブ（精算画面から「予約」タブを直接開く場合などに指定する）。
+  const [expenseTab, setExpenseTab] = useState<ExpenseTab>("variable");
+  // 支出画面の予約タブで金額入力フォームを開いておく予約（精算画面の「金額を入力」から遷移した場合）。
+  const [fulfillReservationId, setFulfillReservationId] = useState<string | undefined>(undefined);
   // 初期値は暦当月。締め日取得後に「今日が属する精算月」へ補正する（下記 effect）。
   const [month, setMonth] = useState<string>(currentYearMonth());
   // 締め日に基づく初期表示月の補正を一度だけ行うためのフラグ。
   const defaultMonthApplied = useRef(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
+  // 締め日。予約の金額入力の日付初期値などに使うため、各画面へ渡す（取得失敗時は暦月どおりの1）。
+  const [closingDay, setClosingDay] = useState(1);
 
   const notify = useCallback((message: string, kind: ToastKind = "success") => {
     setToast({ message, kind, at: Date.now() });
@@ -39,6 +45,7 @@ export default function App() {
     // 次回ログイン時に締め日ベースの初期月補正を再適用できるようリセットする。
     defaultMonthApplied.current = false;
     setMonth(currentYearMonth());
+    setClosingDay(1);
   }, []);
 
   // スクロールを最上部へ戻す。iOS(WebKit)ではスクロールの実体が documentElement か
@@ -52,8 +59,10 @@ export default function App() {
   // 画面切替はまず（前画面の高さがある状態で）スクロールを0にしてから差し替える。
   // 切替後のスピナー表示・レイアウト未確定な状態でリセットするより iOS では確実。
   const navigate = useCallback(
-    (next: ScreenName) => {
+    (next: ScreenName, options?: NavigateOptions) => {
       scrollToTop();
+      setExpenseTab(options?.expenseTab ?? "variable");
+      setFulfillReservationId(options?.fulfillReservationId);
       setScreen(next);
     },
     [scrollToTop]
@@ -101,6 +110,7 @@ export default function App() {
     api<ClosingDayResponse>("GET", "/settings/closing-day")
       .then((res) => {
         defaultMonthApplied.current = true;
+        setClosingDay(res.closingDay);
         const target = settlementMonthOf(todayISO(), res.closingDay);
         setMonth((cur) => (cur === currentYearMonth() ? target : cur));
       })
@@ -134,6 +144,7 @@ export default function App() {
     onError: handleError,
     onNavigate: navigate,
     onMonthChange: setMonth,
+    closingDay,
   };
 
   return (
@@ -145,7 +156,7 @@ export default function App() {
       ) : screen === "income" ? (
         <IncomeScreen {...shared} />
       ) : screen === "expense" ? (
-        <ExpenseScreen {...shared} />
+        <ExpenseScreen {...shared} initialTab={expenseTab} fulfillReservationId={fulfillReservationId} />
       ) : screen === "directTransfer" ? (
         <DirectTransferScreen {...shared} />
       ) : screen === "history" ? (
@@ -156,6 +167,7 @@ export default function App() {
           theme={theme}
           onLogout={logout}
           onMemberUpdated={handleMemberUpdated}
+          onClosingDayUpdated={setClosingDay}
         />
       )}
       <Toast toast={toast} />

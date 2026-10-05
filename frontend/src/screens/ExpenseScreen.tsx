@@ -4,9 +4,12 @@ import { yen } from "../lib/format";
 import { useAsync } from "../hooks";
 import { Card, SectionTitle, Field, Input, NumberInput, Select, Button, Spinner, Empty, MemberBadge, Tabs, AnimatedPanel } from "../components/ui";
 import { PlusIcon, TrashIcon, EditIcon } from "../components/Icons";
+import ReservationSection from "../components/ReservationSection";
+import { ReservedBadge } from "../components/ReservationParts";
 import type {
   Expense,
   ExpensesResponse,
+  ExpenseTab,
   MemberId,
   MemberView,
   Notify,
@@ -24,7 +27,6 @@ interface SectionProps {
   onError: (err: unknown) => void;
 }
 
-type Tab = "variable" | "fixed";
 
 interface ExpenseDraft {
   paidBy: MemberId;
@@ -45,25 +47,34 @@ function today(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
-export default function ExpenseScreen({ month, members, me, notify, onError }: ScreenProps) {
-  const [tab, setTab] = useState<Tab>("variable");
+export default function ExpenseScreen({
+  month, members, me, notify, onError, closingDay, initialTab = "variable", fulfillReservationId,
+}: ScreenProps & { initialTab?: ExpenseTab; fulfillReservationId?: string }) {
+  const [tab, setTab] = useState<ExpenseTab>(initialTab);
   const section: SectionProps = { members, me, notify, onError };
 
   return (
     <div className="space-y-4">
-      {/* 変動費・固定費の切り替えタブ。画面が縦長にならないよう入力欄をタブで出し分ける。
+      {/* 変動費・固定費・予約の切り替えタブ。画面が縦長にならないよう入力欄をタブで出し分ける。
           アクティブなピルがスライドし、パネルはフェード＋スライドでしなやかに切り替わる。 */}
-      <Tabs<Tab>
+      <Tabs<ExpenseTab>
         tabs={[
           { key: "variable", label: "変動費" },
           { key: "fixed", label: "固定費" },
+          { key: "reservation", label: "予約" },
         ]}
         value={tab}
         onChange={setTab}
       />
 
       <AnimatedPanel motionKey={tab}>
-        {tab === "variable" ? <VariableExpenses month={month} {...section} /> : <FixedExpenses {...section} />}
+        {tab === "variable" ? (
+          <VariableExpenses month={month} {...section} />
+        ) : tab === "fixed" ? (
+          <FixedExpenses {...section} />
+        ) : (
+          <ReservationSection kind="expense" month={month} closingDay={closingDay} fulfillReservationId={fulfillReservationId} {...section} />
+        )}
       </AnimatedPanel>
     </div>
   );
@@ -285,7 +296,10 @@ function VariableExpenses({ month, members, me, notify, onError }: SectionProps 
               ) : (
                 <li key={e.id} className="flex items-center gap-2 py-3">
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">{e.description || "（内容なし）"}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="truncate font-medium">{e.description || "（内容なし）"}</span>
+                      {e.reservationId && <ReservedBadge />}
+                    </div>
                     <div className="mt-0.5 flex flex-col items-start gap-0.5 text-xs text-slate-400">
                       <MemberBadge name={memberName(e.paidBy)} color={memberColor(e.paidBy)} />
                       <span className="tabular-nums">{e.date}</span>

@@ -40,6 +40,11 @@ func (r *ExpenseRepository) FindByID(_ context.Context, id domain.ExpenseID) (do
 	return e, nil
 }
 
+// FindByIDConsistent はIDで支出を取得する（インメモリは常に強い整合性）。
+func (r *ExpenseRepository) FindByIDConsistent(ctx context.Context, id domain.ExpenseID) (domain.Expense, error) {
+	return r.FindByID(ctx, id)
+}
+
 // FindByMonth は対象月の支出を返す。
 func (r *ExpenseRepository) FindByMonth(_ context.Context, month domain.YearMonth) ([]domain.Expense, error) {
 	r.mu.RLock()
@@ -127,6 +132,11 @@ func (r *IncomeRepository) FindByID(_ context.Context, id domain.IncomeID) (doma
 	return inc, nil
 }
 
+// FindByIDConsistent はIDで収入を取得する（インメモリは常に強い整合性）。
+func (r *IncomeRepository) FindByIDConsistent(ctx context.Context, id domain.IncomeID) (domain.Income, error) {
+	return r.FindByID(ctx, id)
+}
+
 // FindRecurring は毎月継続の収入をすべて返す。
 func (r *IncomeRepository) FindRecurring(_ context.Context) ([]domain.Income, error) {
 	r.mu.RLock()
@@ -159,6 +169,115 @@ func (r *IncomeRepository) Delete(_ context.Context, id domain.IncomeID) error {
 	defer r.mu.Unlock()
 	delete(r.items, id)
 	return nil
+}
+
+// ReservationRepository は application.ReservationRepository のインメモリ実装（予約・入力ロック）。
+type ReservationRepository struct {
+	mu    sync.RWMutex
+	items map[domain.ReservationID]domain.Reservation
+	locks map[string]string // key: 精算月#予約ID → 入力ロックを持つ実データのID
+}
+
+// NewReservationRepository は空の ReservationRepository を生成する。
+func NewReservationRepository() *ReservationRepository {
+	return &ReservationRepository{
+		items: map[domain.ReservationID]domain.Reservation{},
+		locks: map[string]string{},
+	}
+}
+
+// Save は予約の内容を保存する。「今月はなし」の記録は既存のものを維持する（単発なら消す）。
+func (r *ReservationRepository) Save(_ context.Context, rsv domain.Reservation) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	rsv.SkippedMonths = nil
+	if existing, ok := r.items[rsv.ID]; ok {
+		rsv = rsv.RestoreSkippedMonths(existing.SkippedMonths)
+	}
+	r.items[rsv.ID] = rsv
+	return nil
+}
+
+// AddSkip は予約の「今月はなし」に精算月を追加する。
+func (r *ReservationRepository) AddSkip(_ context.Context, id domain.ReservationID, month domain.YearMonth) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	rsv, ok := r.items[id]
+	if !ok {
+		return application.ErrNotFound
+	}
+	r.items[id] = rsv.RestoreSkippedMonths(append(append([]domain.YearMonth{}, rsv.SkippedMonths...), month))
+	return nil
+}
+
+// RemoveSkip は予約の「今月はなし」から精算月を削除する。
+func (r *ReservationRepository) RemoveSkip(_ context.Context, id domain.ReservationID, month domain.YearMonth) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	rsv, ok := r.items[id]
+	if !ok {
+		return application.ErrNotFound
+	}
+	r.items[id] = rsv.Unskip(month)
+	return nil
+}
+
+// FindByID はIDで予約を取得する。
+func (r *ReservationRepository) FindByID(_ context.Context, id domain.ReservationID) (domain.Reservation, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	rsv, ok := r.items[id]
+	if !ok {
+		return domain.Reservation{}, application.ErrNotFound
+	}
+	return rsv, nil
+}
+
+// FindAll はすべての予約を返す。
+func (r *ReservationRepository) FindAll(_ context.Context) ([]domain.Reservation, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	list := make([]domain.Reservation, 0, len(r.items))
+	for _, rsv := range r.items {
+		list = append(list, rsv)
+	}
+	return list, nil
+}
+
+// Delete は予約を削除する。
+func (r *ReservationRepository) Delete(_ context.Context, id domain.ReservationID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.items, id)
+	return nil
+}
+
+func fulfillmentKey(id domain.ReservationID, month domain.YearMonth) string {
+	return month.String() + "#" + string(id)
+}
+
+// AcquireFulfillment は入力ロックを条件付きで取得する。
+func (r *ReservationRepository) AcquireFulfillment(_ context.Context, id domain.ReservationID, month domain.YearMonth, target string) (bool, string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	key := fulfillmentKey(id, month)
+	if current, ok := r.locks[key]; ok {
+		return false, current, nil
+	}
+	r.locks[key] = target
+	return true, target, nil
+}
+
+// ReplaceFulfillment は入力ロックの保持者が stale のときだけ next に置き換える。
+func (r *ReservationRepository) ReplaceFulfillment(_ context.Context, id domain.ReservationID, month domain.YearMonth, stale, next string) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	key := fulfillmentKey(id, month)
+	if r.locks[key] != stale {
+		return false, nil
+	}
+	r.locks[key] = next
+	return true, nil
 }
 
 // RecurringExpenseRepository は application.RecurringExpenseRepository のインメモリ実装。

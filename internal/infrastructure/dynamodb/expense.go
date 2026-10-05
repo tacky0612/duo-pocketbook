@@ -28,6 +28,8 @@ type expenseItem struct {
 	Description string `dynamodbav:"Description"`
 	Date        string `dynamodbav:"Date"`      // YYYY-MM-DD
 	CreatedAt   string `dynamodbav:"CreatedAt"` // RFC3339
+	// ReservationID は予約から登録された支出のみ持つ（通常の支出は属性なし）。
+	ReservationID string `dynamodbav:"ReservationID,omitempty"`
 }
 
 func expenseKey(id domain.ExpenseID) (map[string]types.AttributeValue, error) {
@@ -57,19 +59,21 @@ func toExpense(item expenseItem) (domain.Expense, error) {
 		Description: item.Description,
 		Date:        date,
 		CreatedAt:   createdAt,
+		Reservation: domain.NewReservationRef(domain.ReservationID(item.ReservationID)),
 	}, nil
 }
 
 // Save は支出を保存する。
 func (r *ExpenseRepository) Save(ctx context.Context, e domain.Expense) error {
 	item, err := attributevalue.MarshalMap(expenseItem{
-		PK:          expensePKPrefix + e.Month().String(),
-		SK:          string(e.ID),
-		PaidBy:      string(e.PaidBy),
-		AmountYen:   int64(e.Amount),
-		Description: e.Description,
-		Date:        e.Date.Format("2006-01-02"),
-		CreatedAt:   e.CreatedAt.UTC().Format(time.RFC3339),
+		PK:            expensePKPrefix + e.Month().String(),
+		SK:            string(e.ID),
+		PaidBy:        string(e.PaidBy),
+		AmountYen:     int64(e.Amount),
+		Description:   e.Description,
+		Date:          e.Date.Format("2006-01-02"),
+		CreatedAt:     e.CreatedAt.UTC().Format(time.RFC3339),
+		ReservationID: e.Reservation.String(),
 	})
 	if err != nil {
 		return err
@@ -83,13 +87,23 @@ func (r *ExpenseRepository) Save(ctx context.Context, e domain.Expense) error {
 
 // FindByID はIDで支出を取得する。
 func (r *ExpenseRepository) FindByID(ctx context.Context, id domain.ExpenseID) (domain.Expense, error) {
+	return r.findByID(ctx, id, false)
+}
+
+// FindByIDConsistent は強い整合性の GetItem で支出を取得する（読み取りコストは2倍）。
+func (r *ExpenseRepository) FindByIDConsistent(ctx context.Context, id domain.ExpenseID) (domain.Expense, error) {
+	return r.findByID(ctx, id, true)
+}
+
+func (r *ExpenseRepository) findByID(ctx context.Context, id domain.ExpenseID, consistent bool) (domain.Expense, error) {
 	key, err := expenseKey(id)
 	if err != nil {
 		return domain.Expense{}, err
 	}
 	out, err := r.client.GetItem(ctx, &dynamodb.GetItemInput{
-		TableName: aws.String(r.table),
-		Key:       key,
+		TableName:      aws.String(r.table),
+		Key:            key,
+		ConsistentRead: aws.Bool(consistent),
 	})
 	if err != nil {
 		return domain.Expense{}, err
