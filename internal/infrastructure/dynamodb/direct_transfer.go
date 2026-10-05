@@ -123,32 +123,7 @@ func (r *DirectTransferRepository) FindByMonth(ctx context.Context, month domain
 }
 
 func (r *DirectTransferRepository) queryByPK(ctx context.Context, pk string) ([]domain.DirectTransfer, error) {
-	paginator := dynamodb.NewQueryPaginator(r.client, &dynamodb.QueryInput{
-		TableName:              aws.String(r.table),
-		KeyConditionExpression: aws.String("PK = :pk"),
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":pk": &types.AttributeValueMemberS{Value: pk},
-		},
-	})
-	var list []domain.DirectTransfer
-	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(ctx)
-		if err != nil {
-			return nil, err
-		}
-		for _, raw := range page.Items {
-			var item directTransferItem
-			if err := attributevalue.UnmarshalMap(raw, &item); err != nil {
-				return nil, err
-			}
-			dt, err := toDirectTransfer(item)
-			if err != nil {
-				return nil, err
-			}
-			list = append(list, dt)
-		}
-	}
-	return list, nil
+	return queryByPK(ctx, r.client, r.table, pk, toDirectTransfer)
 }
 
 // Delete は立替精算を削除する。

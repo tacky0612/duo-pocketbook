@@ -6,7 +6,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
 	"github.com/tacky0612/duo-pocketbook/internal/application"
 	"github.com/tacky0612/duo-pocketbook/internal/domain"
@@ -30,33 +29,14 @@ type accountItem struct {
 
 // List は全アカウントを返す。
 func (r *AccountRepository) List(ctx context.Context) ([]application.Account, error) {
-	paginator := dynamodb.NewQueryPaginator(r.client, &dynamodb.QueryInput{
-		TableName:              aws.String(r.table),
-		KeyConditionExpression: aws.String("PK = :pk"),
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":pk": &types.AttributeValueMemberS{Value: accountPK},
-		},
+	return queryByPK(ctx, r.client, r.table, accountPK, func(item accountItem) (application.Account, error) {
+		return application.Account{
+			ID:           domain.MemberID(item.AccountID),
+			Slot:         item.Slot,
+			LoginID:      item.LoginID,
+			PasswordHash: item.PasswordHash,
+		}, nil
 	})
-	var list []application.Account
-	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(ctx)
-		if err != nil {
-			return nil, err
-		}
-		for _, raw := range page.Items {
-			var item accountItem
-			if err := attributevalue.UnmarshalMap(raw, &item); err != nil {
-				return nil, err
-			}
-			list = append(list, application.Account{
-				ID:           domain.MemberID(item.AccountID),
-				Slot:         item.Slot,
-				LoginID:      item.LoginID,
-				PasswordHash: item.PasswordHash,
-			})
-		}
-	}
-	return list, nil
 }
 
 // Save はアカウントを保存（upsert）する。
