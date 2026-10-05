@@ -26,6 +26,8 @@ type incomeItem struct {
 	AmountYen   int64  `dynamodbav:"AmountYen"`
 	Description string `dynamodbav:"Description"`
 	Month       string `dynamodbav:"Month"` // YYYY-MM。継続は空文字
+	// ReservationID は予約から登録された収入のみ持つ（通常の収入は属性なし）。
+	ReservationID string `dynamodbav:"ReservationID,omitempty"`
 }
 
 // incomePK はエンティティから格納先パーティションを決める。
@@ -57,7 +59,12 @@ func toIncome(item incomeItem) (domain.Income, error) {
 		}
 		month = ym
 	}
-	return domain.NewIncome(item.SK, domain.MemberID(item.MemberID), domain.Money(item.AmountYen), item.Description, month)
+	inc, err := domain.NewIncome(item.SK, domain.MemberID(item.MemberID), domain.Money(item.AmountYen), item.Description, month)
+	if err != nil {
+		return domain.Income{}, err
+	}
+	inc.Reservation = domain.NewReservationRef(domain.ReservationID(item.ReservationID))
+	return inc, nil
 }
 
 // Save は収入を保存する。
@@ -67,12 +74,13 @@ func (r *IncomeRepository) Save(ctx context.Context, inc domain.Income) error {
 		monthStr = inc.Month.String()
 	}
 	item, err := attributevalue.MarshalMap(incomeItem{
-		PK:          incomePK(inc),
-		SK:          string(inc.ID),
-		MemberID:    string(inc.MemberID),
-		AmountYen:   int64(inc.Amount),
-		Description: inc.Description,
-		Month:       monthStr,
+		PK:            incomePK(inc),
+		SK:            string(inc.ID),
+		MemberID:      string(inc.MemberID),
+		AmountYen:     int64(inc.Amount),
+		Description:   inc.Description,
+		Month:         monthStr,
+		ReservationID: inc.Reservation.String(),
 	})
 	if err != nil {
 		return err
@@ -86,12 +94,22 @@ func (r *IncomeRepository) Save(ctx context.Context, inc domain.Income) error {
 
 // FindByID はIDで収入を取得する。
 func (r *IncomeRepository) FindByID(ctx context.Context, id domain.IncomeID) (domain.Income, error) {
+	return r.findByID(ctx, id, false)
+}
+
+// FindByIDConsistent は強い整合性の GetItem で収入を取得する（読み取りコストは2倍）。
+func (r *IncomeRepository) FindByIDConsistent(ctx context.Context, id domain.IncomeID) (domain.Income, error) {
+	return r.findByID(ctx, id, true)
+}
+
+func (r *IncomeRepository) findByID(ctx context.Context, id domain.IncomeID, consistent bool) (domain.Income, error) {
 	pk, err := incomePKForID(id)
 	if err != nil {
 		return domain.Income{}, err
 	}
 	out, err := r.client.GetItem(ctx, &dynamodb.GetItemInput{
-		TableName: aws.String(r.table),
+		TableName:      aws.String(r.table),
+		ConsistentRead: aws.Bool(consistent),
 		Key: map[string]types.AttributeValue{
 			"PK": &types.AttributeValueMemberS{Value: pk},
 			"SK": &types.AttributeValueMemberS{Value: string(id)},

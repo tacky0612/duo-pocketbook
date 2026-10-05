@@ -31,6 +31,7 @@ function normalize(raw: DemoDb): DemoDb {
     directTransfers: raw.directTransfers ?? [],
     salaries: raw.salaries ?? [],
     incomes: raw.incomes ?? [],
+    reservations: raw.reservations ?? [],
     snapshots: raw.snapshots ?? {},
     closingDay: raw.closingDay ?? 1,
   };

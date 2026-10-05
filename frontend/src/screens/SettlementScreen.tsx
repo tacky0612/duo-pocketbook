@@ -3,16 +3,26 @@ import { api, ApiError } from "../lib/apiClient";
 import { yen } from "../lib/format";
 import { useAsync } from "../hooks";
 import { Card, Spinner, Button, Empty } from "../components/ui";
-import { ArrowRightIcon, CheckIcon } from "../components/Icons";
+import { AlertIcon, ArrowRightIcon, CheckIcon } from "../components/Icons";
 import Celebration from "../components/Celebration";
-import type { DirectTransfer, DirectTransfersResponse, Expense, ExpensesResponse, MemberId, RecurringExpense, RecurringExpensesResponse, ScreenProps, Settlement, Transfer } from "../types";
+import PendingReservationsDialog from "../components/PendingReservationsDialog";
+import { FrequencyBadge, ReservedBadge } from "../components/ReservationParts";
+import type { DirectTransfer, DirectTransfersResponse, Expense, ExpensesResponse, MemberId, RecurringExpense, RecurringExpensesResponse, Reservation, ReservationsResponse, ScreenProps, Settlement, Transfer } from "../types";
 
 interface SettlementData {
+  // 取得対象の月。月を切り替えた直後は前の月のデータが残るため、表示中の月と照合する。
+  month: string;
   settlement: Settlement | null;
   settlementError: ApiError | null;
   expenses: Expense[];
   recurring: RecurringExpense[];
   directTransfers: DirectTransfer[];
+  // 未入力（status=pending）の予約。精算完了時の警告に使う。
+  pendingReservations: Reservation[];
+  // 当月の未入力の支出予約。各メンバーの共有費カードの下部に表示する（入力済み・今月はなしは表示しない）。
+  pendingExpenseReservations: Reservation[];
+  // 予約の取得に失敗したときのメッセージ。予約は補助情報なので、失敗しても精算は表示する。
+  reservationsError: string | null;
 }
 
 interface SettlementItem {
@@ -21,18 +31,26 @@ interface SettlementItem {
   amountYen: number;
   date?: string;
   recurring: boolean;
+  reserved: boolean; // 予約から登録した支出
 }
 
-export default function SettlementScreen({ month, members, notify, onError, onNavigate }: ScreenProps) {
+export default function SettlementScreen({ month, members, notify, onError, onNavigate, closingDay }: ScreenProps) {
   const [busy, setBusy] = useState(false);
   const [celebrating, setCelebrating] = useState(false);
+  const [warningOpen, setWarningOpen] = useState(false);
 
   const { loading, data, error, reload } = useAsync<SettlementData>(async () => {
     // 支出・固定費・立替精算は収入の有無に関わらず表示したいので先に取得する。
-    const [expensesRes, recurringRes, directRes] = await Promise.all([
+    // 予約は補助情報（未入力の警告用）なので、取得に失敗しても他の表示は続ける。
+    const reservationsReq = api<ReservationsResponse>("GET", `/reservations?month=${month}`).then(
+      (res) => ({ reservations: res.reservations, error: null }),
+      (e: unknown) => ({ reservations: [] as Reservation[], error: e instanceof Error ? e.message : String(e) })
+    );
+    const [expensesRes, recurringRes, directRes, reservationsRes] = await Promise.all([
       api<ExpensesResponse>("GET", `/expenses?month=${month}`),
       api<RecurringExpensesResponse>("GET", "/recurring-expenses"),
       api<DirectTransfersResponse>("GET", `/direct-transfers?month=${month}`),
+      reservationsReq,
     ]);
     // 精算は収入未入力だと 409 になるため、失敗しても他の表示は続ける。
     let settlement: Settlement | null = null;
@@ -43,15 +61,22 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
       settlementError = e instanceof ApiError ? e : new ApiError(String(e), undefined, 0);
     }
     return {
+      month,
       settlement,
       settlementError,
       expenses: expensesRes.expenses,
       recurring: recurringRes.recurringExpenses,
       directTransfers: directRes.directTransfers,
+      pendingReservations: reservationsRes.reservations.filter((r) => r.status === "pending"),
+      pendingExpenseReservations: reservationsRes.reservations.filter((r) => r.kind === "expense" && r.status === "pending"),
+      reservationsError: reservationsRes.error,
     };
   }, [month]);
 
-  if (loading) return <Spinner />;
+  // 同じ月の再取得中は直前のデータを表示し続ける（警告ダイアログでの操作後に画面がちらつかないように）。
+  // 月を切り替えた直後は前の月のデータが残っているため、表示せず読み込み中にする
+  // （前の月の未入力件数のまま「精算を完了する」が押せてしまうのを防ぐ）。
+  if ((loading && !data) || (data && data.month !== month)) return <Spinner />;
   if (error) {
     const e = error instanceof ApiError ? error : null;
     if (e?.status === 401) onError(e);
@@ -69,6 +94,9 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
   const settled = Boolean(settlement?.settled);
   // 立替精算が当月に適用されているか（金額ベース。相殺されても内訳は見せたい）。
   const hasDirect = (settlement?.totalDirectTransferYen ?? 0) > 0;
+  const pendingCount = data.pendingReservations.length;
+  // 予約を確認できなかった場合も、完了前にダイアログで確認を挟む。
+  const needsWarning = pendingCount > 0 || data.reservationsError !== null;
 
   // 内訳行: from → to amount（振込がなければ zeroLabel を表示）。
   // 狭い画面ではラベルと値を行単位で折り返しつつ、値（名前→名前 金額）は塊として改行させない。
@@ -92,6 +120,7 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
     setBusy(true);
     try {
       await api("PUT", `/months/${month}/settlement/status`, { settled: value });
+      setWarningOpen(false);
       if (celebrate) setCelebrating(true);
       else notify("精算済みを取り消しました");
       reload();
@@ -102,14 +131,17 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
     }
   };
 
+  // 各メンバーが支払う予定の、金額が未入力の支出予約
+  const pendingFor = (memberId: MemberId) => data.pendingExpenseReservations.filter((r) => r.memberId === memberId);
+
   // その月に各メンバーが支払った共有費（通常支出 + 固定費）をまとめる
   const itemsFor = (memberId: MemberId): SettlementItem[] => {
     const oneOff: SettlementItem[] = data.expenses
       .filter((e) => e.paidBy === memberId)
-      .map((e) => ({ id: e.id, description: e.description, amountYen: e.amountYen, date: e.date, recurring: false }));
+      .map((e) => ({ id: e.id, description: e.description, amountYen: e.amountYen, date: e.date, recurring: false, reserved: Boolean(e.reservationId) }));
     const recurring: SettlementItem[] = data.recurring
       .filter((e) => e.paidBy === memberId)
-      .map((e) => ({ id: "r-" + e.id, description: e.description, amountYen: e.amountYen, recurring: true }));
+      .map((e) => ({ id: "r-" + e.id, description: e.description, amountYen: e.amountYen, recurring: true, reserved: false }));
     return [...oneOff, ...recurring];
   };
 
@@ -176,20 +208,33 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
                 </div>
               )}
 
+              {/* 未入力の予約の警告（未精算の月のみ） */}
+              {!settled && pendingCount > 0 && (
+                <button
+                  onClick={() => setWarningOpen(true)}
+                  className="mt-4 flex w-full items-center gap-2 rounded-xl bg-amber-400/20 p-3 text-left text-sm ring-1 ring-amber-200/40 hover:bg-amber-400/30"
+                >
+                  <AlertIcon className="h-5 w-5 shrink-0 text-amber-200" />
+                  <span className="flex-1">未入力の予約が {pendingCount}件 あります</span>
+                  <span className="text-xs font-semibold text-white/80">確認する</span>
+                </button>
+              )}
+
               {/* 精算完了ボタン / 取り消し */}
               <div className="mt-5 flex justify-center">
                 {settled ? (
                   <button
                     onClick={() => setSettled(false, false)}
-                    disabled={busy}
+                    disabled={busy || loading}
                     className="rounded-xl bg-white/15 px-4 py-2 text-sm font-medium text-white hover:bg-white/25 disabled:opacity-50"
                   >
                     精算済みを取り消す
                   </button>
                 ) : (
                   <button
-                    onClick={() => setSettled(true, true)}
-                    disabled={busy}
+                    // 未入力の予約が残っていれば、完了前に警告ダイアログを挟む。
+                    onClick={() => (needsWarning ? setWarningOpen(true) : setSettled(true, true))}
+                    disabled={busy || loading}
                     className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-2.5 text-sm font-bold text-blue-700 shadow hover:bg-blue-50 disabled:opacity-50"
                   >
                     <CheckIcon className="h-5 w-5" />
@@ -281,6 +326,7 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
                               固定
                             </span>
                           )}
+                          {e.reserved && <ReservedBadge />}
                         </div>
                         {e.date && <div className="text-xs text-slate-400 tabular-nums">{e.date}</div>}
                       </div>
@@ -291,6 +337,45 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
                   ))}
                 </ul>
               )}
+
+              {/* この人が支払う予定の、金額が未入力の支出予約（精算には含まれない）。確定済みの月は入力できないため出さない。 */}
+              {!settled && (data.reservationsError ? (
+                <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-400 dark:border-slate-800">
+                  予約を取得できませんでした（{data.reservationsError}）
+                </p>
+              ) : (
+                pendingFor(m.id).length > 0 && (
+                  <div className="mt-3 border-t border-dashed border-slate-200 pt-3 dark:border-slate-700">
+                    <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400">
+                      <AlertIcon className="h-4 w-4" />
+                      未入力の予約（精算に含まれていません）
+                    </p>
+                    <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {pendingFor(m.id).map((r) => (
+                        <li key={r.id} className="flex items-center gap-3 py-2.5">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="truncate text-sm font-medium">{r.description}</span>
+                              <FrequencyBadge recurring={r.recurring} />
+                            </div>
+                            <div className="text-xs tabular-nums text-slate-400">
+                              見込み {r.estimatedAmountYen > 0 ? yen(r.estimatedAmountYen) : "未定"}
+                            </div>
+                          </div>
+                          <Button
+                            variant="secondary"
+                            onClick={() => onNavigate("expense", { expenseTab: "reservation", fulfillReservationId: r.id })}
+                            className="shrink-0 px-3 py-1.5 text-xs"
+                          >
+                            金額を入力
+                            <ArrowRightIcon className="h-4 w-4" />
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )
+              ))}
             </Card>
           );
         })}
@@ -333,6 +418,21 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
           </ul>
         </Card>
       )}
+
+      <PendingReservationsDialog
+        open={warningOpen}
+        month={month}
+        pending={data.pendingReservations}
+        loadError={data.reservationsError}
+        members={members}
+        closingDay={closingDay}
+        busy={busy || loading}
+        notify={notify}
+        onError={onError}
+        onClose={() => setWarningOpen(false)}
+        onChanged={reload}
+        onConfirm={() => setSettled(true, true)}
+      />
 
       {celebrating && <Celebration onDone={() => setCelebrating(false)} />}
     </div>

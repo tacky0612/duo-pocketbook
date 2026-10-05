@@ -24,6 +24,7 @@ type Handler struct {
 	recurring  *application.RecurringExpenseUsecase
 	direct     *application.DirectTransferUsecase
 	income     *application.IncomeUsecase
+	reserve    *application.ReservationUsecase
 }
 
 // NewHandler は Handler を生成する。
@@ -37,6 +38,7 @@ func NewHandler(
 	recurring *application.RecurringExpenseUsecase,
 	direct *application.DirectTransferUsecase,
 	income *application.IncomeUsecase,
+	reserve *application.ReservationUsecase,
 ) *Handler {
 	return &Handler{
 		couple:     couple,
@@ -48,6 +50,7 @@ func NewHandler(
 		recurring:  recurring,
 		direct:     direct,
 		income:     income,
+		reserve:    reserve,
 	}
 }
 
@@ -126,17 +129,20 @@ type expenseDTO struct {
 	Date        string `json:"date" example:"2026-07-01"`
 	Month       string `json:"month" example:"2026-07"`
 	CreatedAt   string `json:"createdAt" example:"2026-07-01T09:00:00Z"`
+	// ReservationID は予約の入力で登録された支出ならその予約ID。通常の支出は空文字。
+	ReservationID string `json:"reservationId" example:""`
 }
 
 func toExpenseDTO(e domain.Expense) expenseDTO {
 	return expenseDTO{
-		ID:          string(e.ID),
-		PaidBy:      string(e.PaidBy),
-		AmountYen:   int64(e.Amount),
-		Description: e.Description,
-		Date:        e.Date.Format("2006-01-02"),
-		Month:       e.Month().String(),
-		CreatedAt:   e.CreatedAt.UTC().Format(time.RFC3339),
+		ID:            string(e.ID),
+		PaidBy:        string(e.PaidBy),
+		AmountYen:     int64(e.Amount),
+		Description:   e.Description,
+		Date:          e.Date.Format("2006-01-02"),
+		Month:         e.Month().String(),
+		CreatedAt:     e.CreatedAt.UTC().Format(time.RFC3339),
+		ReservationID: e.Reservation.String(),
 	}
 }
 
@@ -154,6 +160,8 @@ type incomeDTO struct {
 	Description string `json:"description" example:"副業"`
 	Recurring   bool   `json:"recurring" example:"false"`
 	Month       string `json:"month" example:"2026-07"`
+	// ReservationID は予約の入力で登録された収入ならその予約ID。通常の収入は空文字。
+	ReservationID string `json:"reservationId" example:""`
 }
 
 func toIncomeDTO(inc domain.Income) incomeDTO {
@@ -162,12 +170,13 @@ func toIncomeDTO(inc domain.Income) incomeDTO {
 		month = inc.Month.String()
 	}
 	return incomeDTO{
-		ID:          string(inc.ID),
-		MemberID:    string(inc.MemberID),
-		AmountYen:   int64(inc.Amount),
-		Description: inc.Description,
-		Recurring:   inc.IsRecurring(),
-		Month:       month,
+		ID:            string(inc.ID),
+		MemberID:      string(inc.MemberID),
+		AmountYen:     int64(inc.Amount),
+		Description:   inc.Description,
+		Recurring:     inc.IsRecurring(),
+		Month:         month,
+		ReservationID: inc.Reservation.String(),
 	}
 }
 
@@ -501,6 +510,7 @@ func (h *Handler) RegisterExpense(w http.ResponseWriter, r *http.Request) {
 // UpdateExpense godoc
 //
 //	@Summary		共有支出の更新
+//	@Description	予約から登録した支出（reservationId あり）は、日付の変更で別の精算月へ移すことはできない（400）。紐づく予約が削除済みなら紐づけを外して通常の支出として更新する。
 //	@Tags			expenses
 //	@Accept			json
 //	@Produce		json

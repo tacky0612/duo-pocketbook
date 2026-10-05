@@ -8,10 +8,12 @@
 
 | エンティティ | PK | SK | 属性 |
 |---|---|---|---|
-| 共有支出 | `EXPENSE#<yyyy-MM>` | `<expenseID>` | `PaidBy`, `AmountYen`, `Description`, `Date`(YYYY-MM-DD), `CreatedAt`(RFC3339) |
+| 共有支出 | `EXPENSE#<yyyy-MM>` | `<expenseID>` | `PaidBy`, `AmountYen`, `Description`, `Date`(YYYY-MM-DD), `CreatedAt`(RFC3339), `ReservationID`(予約から登録した場合のみ) |
 | 給与 | `MONTH#<yyyy-MM>` | `SALARY#<memberID>` | `MemberID`, `AmountYen` |
 | 追加収入（継続） | `INCOME#RECURRING` | `<収入ID>` | `MemberID`, `AmountYen`, `Description`, `Month`(空文字) |
-| 追加収入（単発） | `INCOME#<yyyy-MM>` | `<収入ID>` | `MemberID`, `AmountYen`, `Description`, `Month`(YYYY-MM) |
+| 追加収入（単発） | `INCOME#<yyyy-MM>` | `<収入ID>` | `MemberID`, `AmountYen`, `Description`, `Month`(YYYY-MM), `ReservationID`(予約から登録した場合のみ) |
+| 予約 | `RESERVATION` | `<予約ID>`（`rsv_<hex>`） | `Kind`(expense/income), `MemberID`, `Description`, `EstimatedAmountYen`(0=未定), `Month`(YYYY-MM。毎月は空文字), `StartMonth`(毎月の予約の開始月。空文字は制限なし), `SkippedMonths`(「今月はなし」の月の文字列セット。毎月の予約のみ) |
+| 予約の入力ロック | `RESERVATIONFILL#<yyyy-MM>` | `<予約ID>` | `TargetID`（その月の入力で登録した支出／収入のID） |
 | 精算スナップショット | `MONTH#<yyyy-MM>` | `SNAPSHOT` | 完了時点の精算結果（`Members`, `Transfer`/`SettlementTransfer`/`DirectTransfer`, `TotalExpenseYen`, `TotalDirectTransferYen`）＋明細（`Expenses`, `DirectTransfers`）＋`SettledAt`(RFC3339) |
 | 固定費 | `RECURRING` | `<固定費ID>` | `PaidBy`, `AmountYen`, `Description` |
 | 立替精算（継続） | `DIRECTTRANSFER#RECURRING` | `<立替精算ID>` | `FromID`, `ToID`, `AmountYen`, `Description`, `Month`(空文字) |
@@ -53,6 +55,26 @@
 
 ある精算月の収入は「給与（`SALARY#`）＋継続の追加収入（`INCOME#RECURRING`）＋当月単発の追加収入（`INCOME#<月>`）」を合算して算出する。
 
+### 予約（金額未確定の収入・支出）と入力状況
+
+予約（`Reservation`, `internal/domain/reservation.go`）は「発生する予定はあるが金額が確定していない」収入・支出の予定。追加収入や立替精算と違い、**頻度（毎月/単発）と対象月をIDに含めず属性として持ち、単一パーティション `PK=RESERVATION` に保存する**。
+
+- ID は頻度に関わらず `rsv_<hex>` で固定。頻度を変更しても予約1件の `PutItem` で完結し、予約に紐づく支出・収入（`ReservationID`）を付け替える必要がない。途中失敗で予約が分裂することもない。
+- 予約は2人分で件数が少ないため、月別一覧はパーティション全体を `Query` して対象月に存在するもの（`StartMonth` 以降の毎月、または `Month` が一致する単発）に絞り込む。毎月の予約は登録時に表示中の月を `StartMonth` にし、登録より前の月に未入力として現れないようにする。
+- 「今月はなし」にした月は予約自身の `SkippedMonths`（文字列セット）に持ち、予約を削除すれば記録も一緒に消える。スキップ/解除は `UpdateItem` の `ADD`/`DELETE` で月単位に原子的に更新し、予約の内容の保存も `UpdateItem` の `SET` で `SkippedMonths` に触れない（同時に行われた別の月のスキップや編集を上書きしない）。単発の予約は「今月はなし」にできず（不要なら削除する）、単発へ変更すると `REMOVE` で記録を消す。
+
+予約自体は精算に影響しない。精算月ごとの**入力状況は保存せず、都度導出する**:
+
+| 状況 | 判定 |
+|---|---|
+| 入力済み（`fulfilled`） | その精算月に、`ReservationID` がこの予約を指す実データがある（支出の予約は精算期間内の共有支出、収入の予約は当月単発の追加収入） |
+| 今月はなし（`skipped`） | 予約の `SkippedMonths` にその月が含まれる |
+| 未入力（`pending`） | 上記のどちらでもない |
+
+金額入力（`POST /reservations/{id}/fulfill`）は予約IDを付けた共有支出／追加収入を通常どおり保存するだけなので、精算・スナップショット・確定済み月ロックは既存の仕組みがそのまま効く。入力した支出・収入を削除すれば自動的に未入力へ戻り、状態の二重管理による不整合が起きない。
+
+**二重入力の防止（入力ロック）**: 同時入力や再送で同じ予約・月に2件登録されないよう、金額入力では実データを保存した後に `PK=RESERVATIONFILL#<月>, SK=<予約ID>` を `attribute_not_exists(PK)` 条件付きで書き込む（`TargetID` に実データのID）。条件で失敗したら、ロック保持者の実データを強い整合性の `GetItem` で確認し、それが「存在し、この予約に紐づき、この精算月に計上されている」なら入力済みとして拒否して自分が保存した実データを削除する。保持者が削除済み（入力の取り消し後など）や、締め日の変更で別の月の計上になった場合は古いロックとみなし、`TargetID` が一致する条件付きで自分のIDへ置き換えて入力を続ける。ロックは入力の取り消しで消さず、次の入力時にこの手順で引き継ぐ。予約から登録した支出の日付変更で支出IDが変わった場合（精算月は同じまま暦月だけ変わる）は、ロックの保持者も新しいIDへ置き換える。
+
 ### 精算スナップショット（精算完了時点の内容を凍結）
 
 精算履歴は、元データ（給与・追加収入・共有支出・固定費・比重・締め日）を後から変更しても**完了した時点の内容を保ち続ける**必要がある。毎回再計算すると、例えば固定費の金額を後で更新したり過去月の収支を直したりしたときに、履歴の表示が実際に精算した内容と乖離してしまう。
@@ -79,6 +101,11 @@
 | 追加収入の登録/更新 | `PutItem`（継続 `PK=INCOME#RECURRING` / 単発 `PK=INCOME#<月>`） |
 | 追加収入の取得/削除 | `GetItem` / `DeleteItem`（IDから継続か単発の月を導出してキー構築） |
 | 追加収入の月別一覧 | `Query`（`INCOME#RECURRING` と `INCOME#<月>` の2パーティション） |
+| 予約の登録/更新（頻度変更を含む） | `UpdateItem`（`SET` で内容のみ更新。単発なら `REMOVE SkippedMonths`） |
+| 予約の今月はなし/解除 | `UpdateItem`（`ADD`/`DELETE SkippedMonths`、`attribute_exists(PK)` 条件） |
+| 予約の取得/削除 | `GetItem` / `DeleteItem`（`PK=RESERVATION, SK=<予約ID>`） |
+| 予約の月別一覧（入力状況つき） | `Query (PK = RESERVATION)` → 対象月に存在するものを抽出。照合に `INCOME#<月>`（収入の予約がある場合）と締め期間の支出集計（支出の予約がある場合） |
+| 予約の入力ロック | `PutItem`（`attribute_not_exists(PK)` 条件）→ 競合時は `GetItem`（強い整合性）で保持者を確認 → 保持者が削除済みなら `PutItem`（`TargetID = :stale` 条件）で置き換え |
 | 精算スナップショットの取得/保存/削除 | `GetItem` / `PutItem` / `DeleteItem`（`PK=MONTH#<月>, SK=SNAPSHOT`） |
 | 固定費の登録/更新 | `PutItem`（`PK=RECURRING`） |
 | 固定費の取得/削除 | `GetItem` / `DeleteItem` |

@@ -21,6 +21,7 @@ func BuildHandler(ctx context.Context, cfg config.Config, opt RouterOption) (htt
 		incomeRepo    application.IncomeRepository
 		recurringRepo application.RecurringExpenseRepository
 		directRepo    application.DirectTransferRepository
+		reserveRepo   application.ReservationRepository
 		settings      application.SettingsRepository
 		snapshotRepo  application.SettlementSnapshotRepository
 		accountRepo   application.AccountRepository
@@ -37,14 +38,15 @@ func BuildHandler(ctx context.Context, cfg config.Config, opt RouterOption) (htt
 			}
 		}
 		repos := dynamoinfra.NewRepositories(client, cfg.TableName)
-		expenseRepo, salaryRepo, incomeRepo, recurringRepo, directRepo, settings, snapshotRepo, accountRepo =
-			repos.Expenses, repos.Salaries, repos.Incomes, repos.Recurring, repos.Direct, repos.Settings, repos.Snapshots, repos.Accounts
+		expenseRepo, salaryRepo, incomeRepo, recurringRepo, directRepo, reserveRepo, settings, snapshotRepo, accountRepo =
+			repos.Expenses, repos.Salaries, repos.Incomes, repos.Recurring, repos.Direct, repos.Reservations, repos.Settings, repos.Snapshots, repos.Accounts
 	} else {
 		expenseRepo = memory.NewExpenseRepository()
 		salaryRepo = memory.NewSalaryRepository()
 		incomeRepo = memory.NewIncomeRepository()
 		recurringRepo = memory.NewRecurringExpenseRepository()
 		directRepo = memory.NewDirectTransferRepository()
+		reserveRepo = memory.NewReservationRepository()
 		settings = memory.NewSettingsRepository()
 		snapshotRepo = memory.NewSettlementSnapshotRepository()
 		accountRepo = memory.NewAccountRepository()
@@ -68,12 +70,13 @@ func BuildHandler(ctx context.Context, cfg config.Config, opt RouterOption) (htt
 		couple,
 		auth,
 		account,
-		application.NewExpenseUsecase(couple, expenseRepo, settings, snapshotRepo, nil),
+		application.NewExpenseUsecase(couple, expenseRepo, settings, snapshotRepo, reserveRepo, nil),
 		application.NewSettlementUsecase(couple, expenseRepo, salaryRepo, incomeRepo, recurringRepo, directRepo, settings, snapshotRepo, nil),
 		application.NewSettingsUsecase(couple, settings),
 		application.NewRecurringExpenseUsecase(couple, recurringRepo),
 		application.NewDirectTransferUsecase(couple, directRepo, snapshotRepo),
-		application.NewIncomeUsecase(couple, incomeRepo, snapshotRepo),
+		application.NewIncomeUsecase(couple, incomeRepo, snapshotRepo, reserveRepo),
+		application.NewReservationUsecase(couple, reserveRepo, expenseRepo, incomeRepo, settings, snapshotRepo, nil),
 	)
 	// 事前共有キー検証を有効化（設定時のみ）。
 	opt.ClientKey = cfg.ClientKey

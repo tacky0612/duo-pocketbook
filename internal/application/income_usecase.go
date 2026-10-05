@@ -13,11 +13,13 @@ type IncomeUsecase struct {
 	couple    domain.Couple
 	incomes   IncomeRepository
 	snapshots SettlementSnapshotRepository
+	// reservations は予約から登録した収入の編集時に、紐づく予約がまだ存在するかの確認に使う。
+	reservations ReservationRepository
 }
 
 // NewIncomeUsecase は IncomeUsecase を生成する。
-func NewIncomeUsecase(couple domain.Couple, incomes IncomeRepository, snapshots SettlementSnapshotRepository) *IncomeUsecase {
-	return &IncomeUsecase{couple: couple, incomes: incomes, snapshots: snapshots}
+func NewIncomeUsecase(couple domain.Couple, incomes IncomeRepository, snapshots SettlementSnapshotRepository, reservations ReservationRepository) *IncomeUsecase {
+	return &IncomeUsecase{couple: couple, incomes: incomes, snapshots: snapshots, reservations: reservations}
 }
 
 // RegisterIncomeInput は収入登録の入力。
@@ -90,6 +92,10 @@ func (u *IncomeUsecase) Update(ctx context.Context, id domain.IncomeID, in Regis
 	// 継続/単発の別と対象月は既存の値を維持する（変更するには削除して再登録する）。
 	inc, err := domain.NewIncome(string(id), in.MemberID, domain.Money(in.AmountYen), in.Description, existing.Month)
 	if err != nil {
+		return domain.Income{}, err
+	}
+	// 予約から登録された収入は、編集後も予約との紐づけを維持する（予約が削除済みなら紐づけを外す）。
+	if inc.Reservation, err = liveReservationRef(ctx, u.reservations, existing.Reservation); err != nil {
 		return domain.Income{}, err
 	}
 	if err := u.incomes.Save(ctx, inc); err != nil {

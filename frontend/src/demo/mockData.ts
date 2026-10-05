@@ -55,6 +55,7 @@ export function seedData(): DemoDb {
     date: dateStr(month, day),
     month,
     createdAt: `${dateStr(month, day)}T09:00:00Z`,
+    reservationId: "",
   });
 
   // 固定費（月に依存せず全月の精算へ自動加算される）
@@ -76,6 +77,7 @@ export function seedData(): DemoDb {
     description,
     recurring: true,
     month: "",
+    reservationId: "",
   });
   const incOnce = (month: string, memberId: MemberId, amountYen: number, description: string): Income => ({
     id: `${month}_${nextHex()}`,
@@ -84,6 +86,7 @@ export function seedData(): DemoDb {
     description,
     recurring: false,
     month,
+    reservationId: "",
   });
 
   // 立替精算（共有支出とは別の A→B 送金。比重按分せず振込額へ加算）
@@ -146,6 +149,11 @@ export function seedData(): DemoDb {
       incRec("taro", 20000, "副業"),
       // 今月だけ: アカウントB の臨時収入
       incOnce(m0, "hanako", 15000, "臨時収入"),
+    ],
+    // 予約（金額未確定の予定）。今月は電気代・賞与が未入力の状態で始まる。
+    reservations: [
+      { id: `rsv_${nextHex()}`, kind: "expense", memberId: "taro", description: "電気代", estimatedAmountYen: 8000, recurring: true, month: "", startMonth: m0 },
+      { id: `rsv_${nextHex()}`, kind: "income", memberId: "hanako", description: "賞与", estimatedAmountYen: 0, recurring: false, month: m0, startMonth: "" },
     ],
     // スナップショットは下で m1・m2 を精算済みとして埋める
     snapshots: {},

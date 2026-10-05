@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -16,15 +17,17 @@ type ExpenseUsecase struct {
 	expenses  ExpenseRepository
 	settings  SettingsRepository
 	snapshots SettlementSnapshotRepository
-	now       func() time.Time
+	// reservations は予約から登録した支出の編集時に、紐づく予約がまだ存在するかの確認に使う。
+	reservations ReservationRepository
+	now          func() time.Time
 }
 
 // NewExpenseUsecase は ExpenseUsecase を生成する。
-func NewExpenseUsecase(couple domain.Couple, expenses ExpenseRepository, settings SettingsRepository, snapshots SettlementSnapshotRepository, now func() time.Time) *ExpenseUsecase {
+func NewExpenseUsecase(couple domain.Couple, expenses ExpenseRepository, settings SettingsRepository, snapshots SettlementSnapshotRepository, reservations ReservationRepository, now func() time.Time) *ExpenseUsecase {
 	if now == nil {
 		now = time.Now
 	}
-	return &ExpenseUsecase{couple: couple, expenses: expenses, settings: settings, snapshots: snapshots, now: now}
+	return &ExpenseUsecase{couple: couple, expenses: expenses, settings: settings, snapshots: snapshots, reservations: reservations, now: now}
 }
 
 // RegisterExpenseInput は支出登録の入力。
@@ -87,17 +90,35 @@ func (u *ExpenseUsecase) Update(ctx context.Context, id domain.ExpenseID, in Reg
 	if err := ensureMonthNotSettled(ctx, u.snapshots, closingDay.SettlementMonth(date)); err != nil {
 		return domain.Expense{}, err
 	}
+	// 紐づく予約が削除済みなら紐づけを外し、通常の支出として扱う（別の精算月へ移せるようになる）。
+	if existing.Reservation, err = liveReservationRef(ctx, u.reservations, existing.Reservation); err != nil {
+		return domain.Expense{}, err
+	}
+	if err := existing.EnsureMovableTo(date, closingDay); err != nil {
+		return domain.Expense{}, err
+	}
 	// 既存IDのサフィックスを引き継ぐ。対象月が同じなら同一IDのまま上書きになる。
 	_, suffix, _ := strings.Cut(string(id), "_")
 	updated, err := domain.NewExpense(suffix, in.PaidBy, domain.Money(in.AmountYen), in.Description, date, existing.CreatedAt)
 	if err != nil {
 		return domain.Expense{}, err
 	}
+	// 予約から登録された支出は、編集後も予約との紐づけを維持する。
+	updated.Reservation = existing.Reservation
 	if err := u.expenses.Save(ctx, updated); err != nil {
 		return domain.Expense{}, fmt.Errorf("支出の更新に失敗しました: %w", err)
 	}
 	// 月が変わってIDが変化した場合は旧レコードを削除する。
 	if updated.ID != id {
+		// 予約から登録した支出は、精算月が同じまま暦月だけ変わる（締め日 >= 2）とIDが変わる。予約の入力ロックが
+		// 旧IDを指したままだと古いロックとみなされ二重入力を防げないため、旧レコードを削除する前に新IDへ移す
+		// （旧IDがまだ存在する間に移すことで、同時入力にロックを奪われない）。保持者が旧IDでなければ何もしない。
+		// 支出の更新自体は成立しているため、ロックの移動に失敗しても更新は失敗にせずログだけ残す。
+		if rid, ok := updated.Reservation.ID(); ok {
+			if _, err := u.reservations.ReplaceFulfillment(ctx, rid, closingDay.SettlementMonth(updated.Date), string(id), string(updated.ID)); err != nil {
+				slog.Warn("予約の入力ロックの移動に失敗しました", "reservationId", rid, "from", id, "to", updated.ID, "error", err)
+			}
+		}
 		if err := u.expenses.Delete(ctx, id); err != nil {
 			return domain.Expense{}, fmt.Errorf("旧支出の削除に失敗しました: %w", err)
 		}

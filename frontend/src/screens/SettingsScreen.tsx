@@ -10,6 +10,8 @@ interface SettingsScreenProps extends ScreenProps {
   theme: Theme;
   onLogout: () => void;
   onMemberUpdated: (member: MemberView) => void;
+  // 締め日を保存したときに呼ぶ（App が保持する締め日を更新するため）。
+  onClosingDayUpdated: (closingDay: number) => void;
 }
 
 interface ThemeOption {
@@ -86,7 +88,7 @@ function ThemeSegmented({ mode, onChange }: ThemeSegmentedProps) {
   );
 }
 
-export default function SettingsScreen({ members, me, theme, notify, onError, onLogout, onMemberUpdated }: SettingsScreenProps) {
+export default function SettingsScreen({ members, me, theme, notify, onError, onLogout, onMemberUpdated, onClosingDayUpdated }: SettingsScreenProps) {
   const { loading, data, error, reload } = useAsync<WeightsResponse>(() => api<WeightsResponse>("GET", "/settings/weight"), []);
   const account = useAsync<AccountResponse>(() => api<AccountResponse>("GET", "/account"), []);
   const closing = useAsync<ClosingDayResponse>(() => api<ClosingDayResponse>("GET", "/settings/closing-day"), []);
@@ -202,6 +204,7 @@ export default function SettingsScreen({ members, me, theme, notify, onError, on
       for (const m of members) body[m.id] = Number(weights[m.id]);
       await api("PUT", "/settings/weight", { weights: body });
       await api("PUT", "/settings/closing-day", { closingDay: Number(closingDay) });
+      onClosingDayUpdated(Number(closingDay));
       notify("精算設定を保存しました");
       reload();
       closing.reload();
