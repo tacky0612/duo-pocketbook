@@ -138,6 +138,10 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
     }
   };
 
+  // 当月に適用される立替精算のうち、そのメンバーが送金する側の金額の合計（内訳の「立替」）
+  const directSentYen = (memberId: MemberId) =>
+    data.directTransfers.filter((t) => t.from === memberId).reduce((sum, t) => sum + t.amountYen, 0);
+
   // 各メンバーが支払う予定の、金額が未入力の支出予約
   const pendingFor = (memberId: MemberId) => data.pendingExpenseReservations.filter((r) => r.memberId === memberId);
 
@@ -317,16 +321,20 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
                         )}
                       </div>
                       <div>
-                        <dt className="text-xs text-slate-400">立替支出</dt>
+                        <dt className="text-xs text-slate-400">支出</dt>
                         <dd className="text-sm font-medium tabular-nums">{yen(m.paidExpenseYen)}</dd>
                       </div>
                       <div>
-                        <dt className="text-xs text-slate-400">精算後の可処分</dt>
-                        <dd className="text-sm font-bold tabular-nums text-blue-600 dark:text-blue-400">
-                          {yen(m.disposableYen)}
-                        </dd>
+                        <dt className="text-xs text-slate-400">立替</dt>
+                        <dd className="text-sm font-medium tabular-nums">{yen(directSentYen(m.id))}</dd>
                       </div>
                     </dl>
+                    <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3 dark:border-slate-700">
+                      <span className="text-xs text-slate-400">精算後の可処分</span>
+                      <span className="text-base font-bold tabular-nums text-blue-600 dark:text-blue-400">
+                        {yen(m.disposableYen)}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
