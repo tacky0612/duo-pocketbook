@@ -83,3 +83,10 @@ APIインターフェイス。リクエスト/レスポンスの変換のみを�
 ## フロントエンド — `frontend/`
 
 TypeScript（strict）+ React + Vite + Tailwind CSS。UIはコンポーネント（`src/components/`）で組み立てており、API呼び出しは `src/lib/apiClient.ts`、セッション管理は `src/lib/session.ts` に集約している。`App.tsx` がデータ取得と状態を保持し、各コンポーネントへ渡す。ドメイン／API の共有型は `src/types.ts` に定義し、`api<T>()` の戻り値型として利用する。
+
+グラフ描画には [Recharts](https://recharts.org/) を使う。
+
+- 精算画面の内訳: 収入と支出（支払った共有費）をメンバーごとの比率で示す比率バー（`src/components/SettlementRatioChart.tsx`）
+- 履歴画面: 精算済みの月ごとに各メンバーが支払った共有費を積み上げた積層面グラフ（`src/components/ExpenseHistoryChart.tsx`）。精算済みの月が2か月以上あるときに表示する
+
+メンバーの系列は `/members` のアカウントカラーで塗り（共通処理は `src/lib/chart.ts`、凡例は `src/components/ChartLegend.tsx`）、初期表示時にアニメーションさせる（OS の「視差効果を減らす」設定では無効）。ライブラリが大きいため `React.lazy` で別チャンクに分けて遅延読み込みしている。

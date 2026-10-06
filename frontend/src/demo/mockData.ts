@@ -1,7 +1,7 @@
 // デモモードの初期シードデータを生成する。
 //
-// 実行時の「今月」を基準に直近3か月分のデータを作るため、いつデモを触っても
-// 精算・履歴が自然に見える。各オブジェクトのフィールド名は実 API（Go ハンドラの
+// 実行時の「今月」を基準に、今月（未精算）と過去11か月分（精算済み）のデータを作るため、
+// いつデモを触っても精算・履歴（共有費の推移グラフ）が自然に見える。各オブジェクトのフィールド名は実 API（Go ハンドラの
 // json タグ）に厳密一致させている（amountYen / paidBy / incomeYen など）。
 
 import { computeSettlement, settlementMonthOf } from "./settlement";
@@ -21,7 +21,7 @@ import type {
 // デモの2アカウント。id はログインに使い、color は支出一覧のバッジ色に使う。
 const MEMBERS: MemberView[] = [
   { id: "taro", name: "アカウントA", color: "#2563eb" },
-  { id: "hanako", name: "アカウントB", color: "#4f46e5" },
+  { id: "hanako", name: "アカウントB", color: "#ea580c" },
 ];
 
 function ymOf(date: Date): string {
@@ -40,8 +40,8 @@ function dateStr(month: string, day: number): string {
 export function seedData(): DemoDb {
   const now = new Date();
   const m0 = ymOf(now); // 今月
-  const m1 = ymOf(shiftMonth(now, -1)); // 先月
-  const m2 = ymOf(shiftMonth(now, -2)); // 先々月
+  // 精算済みにする過去の月（先月から11か月前まで）。履歴画面の初期表示（12か月）に収まる数にする。
+  const pastMonths = Array.from({ length: PAST_MONTHS }, (_, i) => shiftMonth(now, -(i + 1)));
 
   let seq = 0;
   const nextHex = () => (++seq).toString(16).padStart(6, "0");
@@ -117,13 +117,8 @@ export function seedData(): DemoDb {
       exp(m0, 15, "taro", 4800, "スーパー"),
       exp(m0, 12, "hanako", 2600, "日用品"),
       exp(m0, 8, "taro", 3200, "外食"),
-      // 先月
-      exp(m1, 20, "hanako", 5400, "スーパー"),
-      exp(m1, 14, "taro", 8900, "外食"),
-      exp(m1, 5, "hanako", 1800, "日用品"),
-      // 先々月
-      exp(m2, 18, "taro", 6200, "スーパー"),
-      exp(m2, 9, "hanako", 3300, "医療費"),
+      // 過去の月（精算済み）
+      ...pastMonths.flatMap((d, i) => pastExpenses(i + 1).map(([day, paidBy, amount, desc]) => exp(ymOf(d), day, paidBy, amount, desc))),
     ],
     recurring: [
       rec("rent", "taro", 90000, "家賃"),
@@ -139,10 +134,11 @@ export function seedData(): DemoDb {
     salaries: [
       sal(m0, "taro", 320000),
       sal(m0, "hanako", 280000),
-      sal(m1, "taro", 320000),
-      sal(m1, "hanako", 260000),
-      sal(m2, "taro", 315000),
-      sal(m2, "hanako", 280000),
+      // 過去の月は少しずつ揺らす（決定的な値にして、リセットしても同じ履歴になるようにする）
+      ...pastMonths.flatMap((d, i) => [
+        sal(ymOf(d), "taro", 315000 + ((i * 3) % 4) * 2500),
+        sal(ymOf(d), "hanako", 260000 + ((i * 5) % 4) * 6000),
+      ]),
     ],
     incomes: [
       // 毎月継続: アカウントA の副業収入
@@ -155,19 +151,54 @@ export function seedData(): DemoDb {
       { id: `rsv_${nextHex()}`, kind: "expense", memberId: "taro", description: "電気代", recurring: true, month: "", startMonth: m0 },
       { id: `rsv_${nextHex()}`, kind: "income", memberId: "hanako", description: "賞与", recurring: false, month: m0, startMonth: "" },
     ],
-    // スナップショットは下で m1・m2 を精算済みとして埋める
+    // スナップショットは下で過去の月を精算済みとして埋める
     snapshots: {},
     // 締め日は暦月どおり（1）を初期値にする
     closingDay: 1,
   };
 
-  // 過去2か月（先月・先々月）は精算完了済みとして、その時点のスナップショットを保存する。
-  // 今月は未精算のまま。
-  db.snapshots = {
-    [m1]: snapshotFor(db, m1),
-    [m2]: snapshotFor(db, m2),
-  };
+  // 過去の月は精算完了済みとして、その時点のスナップショットを保存する。今月は未精算のまま。
+  db.snapshots = Object.fromEntries(pastMonths.map((d) => [ymOf(d), snapshotFor(db, ymOf(d))]));
   return db;
+}
+
+type PastItem = [day: number, paidBy: MemberId, amountYen: number, description: string];
+
+// 過去の月ごとの支出パターン（添字0が先月）。推移に起伏が出るよう、
+// 日々の買い物の量（scale）と主に買い物をした人（lead）を月ごとに変え、
+// 大きな出費（events）のある月・ない月を混ぜて、支出の偏りが A・B どちらにも出るようにする。
+const PAST_PLANS: { scale: number; lead: MemberId; events: PastItem[] }[] = [
+  { scale: 1.1, lead: "hanako", events: [[13, "hanako", 62000, "旅行"]] },
+  { scale: 0.6, lead: "taro", events: [] },
+  { scale: 1.0, lead: "taro", events: [[7, "taro", 45000, "家具"], [22, "taro", 9800, "外食（記念日）"]] },
+  { scale: 1.3, lead: "hanako", events: [[16, "hanako", 38000, "家電の買い替え"], [25, "hanako", 8500, "医療費"]] },
+  { scale: 0.7, lead: "hanako", events: [] },
+  { scale: 1.0, lead: "taro", events: [[10, "taro", 26000, "車の点検"]] },
+  { scale: 1.2, lead: "hanako", events: [[19, "hanako", 30000, "冠婚葬祭"]] },
+  { scale: 1.4, lead: "taro", events: [[3, "taro", 68000, "旅行"]] },
+  { scale: 0.75, lead: "taro", events: [] },
+  { scale: 1.1, lead: "hanako", events: [[12, "hanako", 24000, "家具"], [27, "hanako", 9000, "日用品のまとめ買い"]] },
+  { scale: 0.9, lead: "taro", events: [[8, "taro", 18000, "家電"]] },
+];
+
+// 精算済みにする過去の月数。
+const PAST_MONTHS = PAST_PLANS.length;
+
+// pastExpenses は過去の月（ago か月前）の通常の共有支出を返す。
+// 乱数は使わず PAST_PLANS から決定的に金額を決める（リセットしても同じ履歴になる）。
+function pastExpenses(ago: number): PastItem[] {
+  const { scale, lead, events } = PAST_PLANS[ago - 1];
+  const other: MemberId = lead === "taro" ? "hanako" : "taro";
+  const amt = (base: number) => Math.round((base * scale) / 100) * 100;
+  return [
+    // 主に買い物をした人（lead）が日々の支出の大半を払う
+    [5, lead, amt(14000), "スーパー"],
+    [18, lead, amt(11000), "スーパー"],
+    [11, lead, amt(4500), "日用品"],
+    [24, other, amt(5000), "スーパー"],
+    [15, other, amt(6000), "外食"],
+    ...events,
+  ];
 }
 
 // snapshotFor はシード用に、対象月の精算内容をスナップショット（履歴エントリ）へ組み立てる。

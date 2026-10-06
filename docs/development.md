@@ -124,7 +124,7 @@ cd frontend && npm run docs:api   # OpenAPIからAPIドキュメント生成（d
 
 | ファイル | 責務 |
 |---|---|
-| `mockData.ts` | 初期シードデータ（実行時の直近3か月分を生成） |
+| `mockData.ts` | 初期シードデータ（実行時の今月を未精算、過去11か月を精算済みとして生成。履歴画面の共有費の推移グラフに起伏や支払者の偏りが出るよう、月ごとの支出パターン `PAST_PLANS` から決定的に生成する） |
 | `store.ts` | インメモリ可変ストア（localStorage 永続化・リセット） |
 | `settlement.ts` | 精算計算の TypeScript 移植（`internal/domain/settlement.go` と同一ロジック） |
 | `demoApi.ts` | 各エンドポイントをモックへマッピングするルーター |

@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { api } from "../lib/apiClient";
 import { yen } from "../lib/format";
 import { useAsync } from "../hooks";
 import { Card, SectionTitle, Button, Spinner, Empty, Collapse } from "../components/ui";
 import { ArrowRightIcon, CheckIcon, ChevronRight } from "../components/Icons";
 import type { HistoryResponse, MemberId, MemberView, ScreenProps, SettlementHistoryEntry, Transfer } from "../types";
+
+// グラフ描画ライブラリ（recharts）は重いため、本体とは別チャンクに分けて遅延読み込みする。
+const ExpenseHistoryChart = lazy(() => import("../components/ExpenseHistoryChart"));
 
 const WINDOW_MONTHS = 12;
 // バックエンド（application.maxHistoryMonths）と一致させる、一度に遡れる最大月数。
@@ -67,6 +70,19 @@ export default function HistoryScreen({ members, onError }: ScreenProps) {
 
   return (
     <div className="space-y-4">
+      {/* 共有費の推移。面にするには2点以上必要なので、精算済みの月が2か月以上あるときだけ出す。 */}
+      {entries.length >= 2 && (
+        <Card>
+          <SectionTitle>共有費の推移</SectionTitle>
+          <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
+            精算済みの月ごとに、それぞれが支払った共有費を積み上げて表示します。上端が共有支出の合計です。
+          </p>
+          <Suspense fallback={<div className="h-64" />}>
+            <ExpenseHistoryChart entries={entries} members={members} />
+          </Suspense>
+        </Card>
+      )}
+
       <Card>
         <SectionTitle>精算履歴</SectionTitle>
         <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
