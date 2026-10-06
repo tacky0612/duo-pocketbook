@@ -152,8 +152,8 @@ export function seedData(): DemoDb {
     ],
     // 予約（金額未確定の予定）。今月は電気代・賞与が未入力の状態で始まる。
     reservations: [
-      { id: `rsv_${nextHex()}`, kind: "expense", memberId: "taro", description: "電気代", estimatedAmountYen: 8000, recurring: true, month: "", startMonth: m0 },
-      { id: `rsv_${nextHex()}`, kind: "income", memberId: "hanako", description: "賞与", estimatedAmountYen: 0, recurring: false, month: m0, startMonth: "" },
+      { id: `rsv_${nextHex()}`, kind: "expense", memberId: "taro", description: "電気代", recurring: true, month: "", startMonth: m0 },
+      { id: `rsv_${nextHex()}`, kind: "income", memberId: "hanako", description: "賞与", recurring: false, month: m0, startMonth: "" },
     ],
     // スナップショットは下で m1・m2 を精算済みとして埋める
     snapshots: {},

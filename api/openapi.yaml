@@ -295,9 +295,6 @@ components:
         description:
           example: 電気代
           type: string
-        estimatedAmountYen:
-          example: 8000
-          type: integer
         kind:
           description: Kind は "expense"（支出の予約）か "income"（収入の予約）。更新時は無視される。
           enum:
@@ -324,10 +321,6 @@ components:
         description:
           example: 電気代
           type: string
-        estimatedAmountYen:
-          description: EstimatedAmountYen は見込み額。0 は未定。精算には影響しない。
-          example: 8000
-          type: integer
         fulfilledAmountYen:
           description: FulfilledAmountYen は入力済みのとき、対象月に紐づく支出／収入の合計額。
           example: 0
@@ -1794,7 +1787,7 @@ paths:
       - reservations
     put:
       description: |-
-        メンバー・内容・見込み額・頻度（month が空なら毎月、指定するとその精算月のみ）を更新する。種別は変更できない。
+        メンバー・内容・頻度（month が空なら毎月、指定するとその精算月のみ）を更新する。種別は変更できない。
         頻度を変えても予約IDは変わらず、予約から登録済みの支出・収入との紐づけもそのまま有効。単発へ変更すると「今月はなし」の記録は消える。
         レスポンスは予約の内容のみを表し、status 等の入力状況は反映しない（月ごとの入力状況は一覧 API で取得する）。
       parameters:

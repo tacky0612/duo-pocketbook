@@ -21,7 +21,6 @@ func TestReservationAPI(t *testing.T) {
 		Status             string   `json:"status"`
 		FulfilledIDs       []string `json:"fulfilledIds"`
 		FulfilledAmountYen int64    `json:"fulfilledAmountYen"`
-		EstimatedAmountYen int64    `json:"estimatedAmountYen"`
 	}
 	decode := func(body []byte, v any) {
 		t.Helper()
@@ -31,14 +30,14 @@ func TestReservationAPI(t *testing.T) {
 	}
 
 	resp, body := doJSON(t, http.MethodPost, srv.URL+"/reservations", token, map[string]any{
-		"kind": "expense", "memberId": taro.AccountID, "description": "電気代", "estimatedAmountYen": 8000, "month": "",
+		"kind": "expense", "memberId": taro.AccountID, "description": "電気代", "month": "",
 	})
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("status = %d, body = %s", resp.StatusCode, body)
 	}
 	var power reservation
 	decode(body, &power)
-	if !power.Recurring || power.Status != "pending" || power.EstimatedAmountYen != 8000 {
+	if !power.Recurring || power.Status != "pending" {
 		t.Errorf("created = %+v", power)
 	}
 
@@ -123,7 +122,7 @@ func TestReservationAPI(t *testing.T) {
 
 	// 更新・削除。
 	if resp, body = doJSON(t, http.MethodPut, srv.URL+"/reservations/"+power.ID, token, map[string]any{
-		"memberId": hanako.AccountID, "description": "電気代", "estimatedAmountYen": 9000,
+		"memberId": hanako.AccountID, "description": "電気代",
 	}); resp.StatusCode != http.StatusOK {
 		t.Errorf("update status = %d, body = %s", resp.StatusCode, body)
 	}

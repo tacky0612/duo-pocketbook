@@ -72,12 +72,11 @@ func (r ReservationRef) String() string { return string(r.id) }
 // 追加収入（収入の予約）として入力し、その実データが精算に反映される。
 // Month がゼロ値なら毎月、値ありならその精算月のみ（単発）の予約。
 type Reservation struct {
-	ID              ReservationID
-	Kind            ReservationKind
-	MemberID        MemberID // 支出なら支払う人、収入なら収入を得る人
-	Description     string
-	EstimatedAmount Money     // 見込み額（円）。0 は未定
-	Month           YearMonth // ゼロ値なら毎月
+	ID          ReservationID
+	Kind        ReservationKind
+	MemberID    MemberID // 支出なら支払う人、収入なら収入を得る人
+	Description string
+	Month       YearMonth // ゼロ値なら毎月
 	// StartMonth は毎月の予約が始まる精算月。これより前の月には存在しない（登録前の月に未入力として現れないように）。
 	// ゼロ値なら制限なし。単発の予約では使わない（Month のみ有効）。
 	StartMonth YearMonth
@@ -88,7 +87,7 @@ type Reservation struct {
 
 // NewReservation は予約を生成する。month がゼロ値なら毎月の予約として扱い、start をその開始月にする
 // （単発の予約では start は無視する）。SkippedMonths は空で生成する（永続化からの復元時は RestoreSkippedMonths で設定する）。
-func NewReservation(id string, kind ReservationKind, memberID MemberID, description string, estimated Money, month, start YearMonth) (Reservation, error) {
+func NewReservation(id string, kind ReservationKind, memberID MemberID, description string, month, start YearMonth) (Reservation, error) {
 	if id == "" {
 		return Reservation{}, fmt.Errorf("%w: 予約IDは必須です", ErrValidation)
 	}
@@ -101,20 +100,16 @@ func NewReservation(id string, kind ReservationKind, memberID MemberID, descript
 	if strings.TrimSpace(description) == "" {
 		return Reservation{}, fmt.Errorf("%w: 予約の内容は必須です", ErrValidation)
 	}
-	if estimated < 0 {
-		return Reservation{}, fmt.Errorf("%w: 見込み額は0以上の整数（円）で指定してください: %d", ErrValidation, estimated)
-	}
 	if !month.IsZero() {
 		start = YearMonth{}
 	}
 	return Reservation{
-		ID:              ReservationID(id),
-		Kind:            kind,
-		MemberID:        memberID,
-		Description:     strings.TrimSpace(description),
-		EstimatedAmount: estimated,
-		Month:           month,
-		StartMonth:      start,
+		ID:          ReservationID(id),
+		Kind:        kind,
+		MemberID:    memberID,
+		Description: strings.TrimSpace(description),
+		Month:       month,
+		StartMonth:  start,
 	}, nil
 }
 
@@ -134,12 +129,12 @@ func (r Reservation) RestoreSkippedMonths(months []YearMonth) Reservation {
 // IsRecurring は毎月の予約かどうかを返す。
 func (r Reservation) IsRecurring() bool { return r.Month.IsZero() }
 
-// Revise はメンバー・内容・見込み額・頻度（month がゼロ値なら毎月）を変更した予約を返す。IDと種別は変わらない。
+// Revise はメンバー・内容・頻度（month がゼロ値なら毎月）を変更した予約を返す。IDと種別は変わらない。
 //
 // 毎月の開始月は start で指定する。start がゼロ値なら、毎月のままなら現在の開始月を、単発から毎月へ
 // 変えるなら元の対象月を開始月にする。単発へ変更すると「今月はなし」の記録は消える（単発の予約は
 // スキップを持てない）。毎月のまま変更する場合は記録を維持する。
-func (r Reservation) Revise(memberID MemberID, description string, estimated Money, month, start YearMonth) (Reservation, error) {
+func (r Reservation) Revise(memberID MemberID, description string, month, start YearMonth) (Reservation, error) {
 	if start.IsZero() {
 		if r.IsRecurring() {
 			start = r.StartMonth
@@ -147,7 +142,7 @@ func (r Reservation) Revise(memberID MemberID, description string, estimated Mon
 			start = r.Month
 		}
 	}
-	next, err := NewReservation(string(r.ID), r.Kind, memberID, description, estimated, month, start)
+	next, err := NewReservation(string(r.ID), r.Kind, memberID, description, month, start)
 	if err != nil {
 		return Reservation{}, err
 	}

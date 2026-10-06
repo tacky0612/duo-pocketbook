@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { api } from "../lib/apiClient";
-import { Card, SectionTitle, Field, Input, NumberInput, Select, Button } from "./ui";
+import { Card, SectionTitle, Field, Input, Select, Button } from "./ui";
 import { PlusIcon } from "./Icons";
 import FrequencyToggle from "./FrequencyToggle";
 import ReservationList from "./ReservationList";
@@ -24,7 +24,6 @@ interface ReservationSectionProps {
 export default function ReservationSection({ kind, month, members, me, notify, onError, closingDay, fulfillReservationId }: ReservationSectionProps) {
   const [memberId, setMemberId] = useState<MemberId>(me?.id || "");
   const [description, setDescription] = useState("");
-  const [estimated, setEstimated] = useState("");
   // 支出の予約は「今月だけ発生する予定」（車検など）が多いため、対象月のみを初期値にする。
   const [recurring, setRecurring] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -42,13 +41,11 @@ export default function ReservationSection({ kind, month, members, me, notify, o
         kind,
         memberId: selectedMemberId,
         description,
-        estimatedAmountYen: Number(estimated || 0),
         month: recurring ? "" : month,
         // 毎月の予約は表示中の月から始める（登録より前の月に未入力として現れないように）。
         startMonth: recurring ? month : "",
       });
       setDescription("");
-      setEstimated("");
       notify(`${label}の予約を登録しました`);
       setVersion((v) => v + 1);
     } catch (err) {
@@ -73,25 +70,9 @@ export default function ReservationSection({ kind, month, members, me, notify, o
               ))}
             </Select>
           </Field>
-          <div className="grid grid-cols-5 gap-3">
-            <div className="col-span-3">
-              <Field label="内容">
-                <Input type="text" required placeholder={reservationPlaceholder[kind]} value={description} onChange={(e) => setDescription(e.target.value)} />
-              </Field>
-            </div>
-            <div className="col-span-2">
-              <Field label="見込み額">
-                <div className="relative">
-                  <NumberInput
-                    placeholder="未定"
-                    value={estimated} onChange={setEstimated}
-                    className="pr-8 text-right tabular-nums"
-                  />
-                  <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-400">円</span>
-                </div>
-              </Field>
-            </div>
-          </div>
+          <Field label="内容">
+            <Input type="text" required placeholder={reservationPlaceholder[kind]} value={description} onChange={(e) => setDescription(e.target.value)} />
+          </Field>
           <Field label="頻度">
             <FrequencyToggle recurring={recurring} onChange={setRecurring} month={month} />
           </Field>

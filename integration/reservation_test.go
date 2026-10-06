@@ -59,7 +59,7 @@ func TestReservation(t *testing.T) {
 		}
 		return r
 	}
-	power := register(map[string]any{"kind": "expense", "memberId": taroID, "description": "電気代", "estimatedAmountYen": 8000, "month": "", "startMonth": month})
+	power := register(map[string]any{"kind": "expense", "memberId": taroID, "description": "電気代", "month": "", "startMonth": month})
 	bonus := register(map[string]any{"kind": "income", "memberId": hanakoID, "description": "賞与", "month": month})
 	t.Cleanup(func() {
 		doJSON(t, http.MethodDelete, "/reservations/"+power.ID, taro, nil)
@@ -152,7 +152,7 @@ func TestReservation(t *testing.T) {
 
 	// 頻度の変更: 毎月の電気代を当月のみへ → IDは変わらず、翌月には現れなくなる。
 	status, body = doJSON(t, http.MethodPut, "/reservations/"+power.ID, taro, map[string]any{
-		"memberId": taroID, "description": "電気代", "estimatedAmountYen": 8000, "month": month,
+		"memberId": taroID, "description": "電気代", "month": month,
 	})
 	if status != http.StatusOK {
 		t.Fatalf("update frequency status = %d, body = %s", status, body)

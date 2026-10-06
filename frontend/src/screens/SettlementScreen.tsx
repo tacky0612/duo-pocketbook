@@ -358,9 +358,6 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
                               <span className="truncate text-sm font-medium">{r.description}</span>
                               <FrequencyBadge recurring={r.recurring} />
                             </div>
-                            <div className="text-xs tabular-nums text-slate-400">
-                              見込み {r.estimatedAmountYen > 0 ? yen(r.estimatedAmountYen) : "未定"}
-                            </div>
                           </div>
                           <Button
                             variant="secondary"

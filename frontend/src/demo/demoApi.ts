@@ -28,7 +28,6 @@ interface DemoBody {
   closingDay?: number;
   month?: string;
   kind?: string;
-  estimatedAmountYen?: number;
   skipped?: boolean;
   startMonth?: string;
 }
@@ -349,7 +348,6 @@ export async function demoApi(method: HttpMethod, path: string, body?: unknown):
   if (method === "POST" && rawPath === "/reservations") {
     if (b.kind !== "expense" && b.kind !== "income") validation("予約の種別は expense か income で指定してください");
     if (!b.description?.trim()) validation("予約の内容は必須です");
-    if ((b.estimatedAmountYen ?? 0) < 0) validation("見込み額は0以上で入力してください");
     const memberId = b.memberId ?? "";
     if (!db.members.some((m) => m.id === memberId)) validation("不明なメンバーです");
     const recurring = !b.month;
@@ -358,7 +356,6 @@ export async function demoApi(method: HttpMethod, path: string, body?: unknown):
       kind: b.kind,
       memberId,
       description: b.description.trim(),
-      estimatedAmountYen: b.estimatedAmountYen ?? 0,
       recurring,
       month: recurring ? "" : b.month!,
       startMonth: recurring ? b.startMonth ?? "" : "",
@@ -430,7 +427,6 @@ export async function demoApi(method: HttpMethod, path: string, body?: unknown):
       if (!b.description.trim()) validation("予約の内容は必須です");
       r.description = b.description.trim();
     }
-    if (b.estimatedAmountYen != null) r.estimatedAmountYen = b.estimatedAmountYen;
     // 頻度の変更（month 空=毎月）。IDは変わらない。単発へ変更すると「今月はなし」の記録は消える（Reservation.Revise と同じ規則）。
     const nextMonth = b.month ?? "";
     // 開始月: 指定があればそれ、なければ毎月のままは現在の開始月、単発から毎月へ変えるなら元の対象月（Reservation.Revise と同じ規則）。

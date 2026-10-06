@@ -16,10 +16,8 @@ type reservationDTO struct {
 	// MemberID は支出なら支払う人、収入なら収入を得る人。
 	MemberID    string `json:"memberId" example:"acct_9f3c1a2b7d4e5f60"`
 	Description string `json:"description" example:"電気代"`
-	// EstimatedAmountYen は見込み額。0 は未定。精算には影響しない。
-	EstimatedAmountYen int64  `json:"estimatedAmountYen" example:"8000"`
-	Recurring          bool   `json:"recurring" example:"true"`
-	Month              string `json:"month" example:""` // 毎月は空文字
+	Recurring   bool   `json:"recurring" example:"true"`
+	Month       string `json:"month" example:""` // 毎月は空文字
 	// StartMonth は毎月の予約の開始月。これより前の月には現れない。空文字は制限なし（単発は常に空文字）。
 	StartMonth string `json:"startMonth" example:"2026-10"`
 	// Status は指定精算月の入力状況。pending=未入力 / fulfilled=入力済み / skipped=今月はなし。
@@ -44,7 +42,6 @@ func toReservationDTO(s domain.ReservationState) reservationDTO {
 		Kind:               string(r.Kind),
 		MemberID:           string(r.MemberID),
 		Description:        r.Description,
-		EstimatedAmountYen: int64(r.EstimatedAmount),
 		Recurring:          r.IsRecurring(),
 		Month:              month,
 		StartMonth:         start,
@@ -56,10 +53,9 @@ func toReservationDTO(s domain.ReservationState) reservationDTO {
 
 type registerReservationRequest struct {
 	// Kind は "expense"（支出の予約）か "income"（収入の予約）。更新時は無視される。
-	Kind               string `json:"kind" example:"expense" enums:"expense,income"`
-	MemberID           string `json:"memberId" example:"acct_9f3c1a2b7d4e5f60"`
-	Description        string `json:"description" example:"電気代"`
-	EstimatedAmountYen int64  `json:"estimatedAmountYen" example:"8000"`
+	Kind        string `json:"kind" example:"expense" enums:"expense,income"`
+	MemberID    string `json:"memberId" example:"acct_9f3c1a2b7d4e5f60"`
+	Description string `json:"description" example:"電気代"`
 	// Month は空文字なら毎月、"YYYY-MM" ならその精算月のみの単発。更新時も指定した頻度へ変更する。
 	Month string `json:"month" example:""`
 	// StartMonth は毎月の予約の開始月（"YYYY-MM"）。これより前の月には現れない。登録時に空なら制限なし。
@@ -69,12 +65,11 @@ type registerReservationRequest struct {
 
 func (req registerReservationRequest) toInput() application.RegisterReservationInput {
 	return application.RegisterReservationInput{
-		Kind:               req.Kind,
-		MemberID:           domain.MemberID(req.MemberID),
-		Description:        req.Description,
-		EstimatedAmountYen: req.EstimatedAmountYen,
-		Month:              req.Month,
-		StartMonth:         req.StartMonth,
+		Kind:        req.Kind,
+		MemberID:    domain.MemberID(req.MemberID),
+		Description: req.Description,
+		Month:       req.Month,
+		StartMonth:  req.StartMonth,
 	}
 }
 
@@ -109,7 +104,7 @@ func (h *Handler) RegisterReservation(w http.ResponseWriter, r *http.Request) {
 // UpdateReservation godoc
 //
 //	@Summary		予約の更新
-//	@Description	メンバー・内容・見込み額・頻度（month が空なら毎月、指定するとその精算月のみ）を更新する。種別は変更できない。
+//	@Description	メンバー・内容・頻度（month が空なら毎月、指定するとその精算月のみ）を更新する。種別は変更できない。
 //	@Description	頻度を変えても予約IDは変わらず、予約から登録済みの支出・収入との紐づけもそのまま有効。単発へ変更すると「今月はなし」の記録は消える。
 //	@Description	レスポンスは予約の内容のみを表し、status 等の入力状況は反映しない（月ごとの入力状況は一覧 API で取得する）。
 //	@Tags			reservations

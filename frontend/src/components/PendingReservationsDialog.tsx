@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { yen } from "../lib/format";
 import { AlertIcon, CheckIcon } from "./Icons";
 import { Button, MemberBadge, Modal } from "./ui";
 import { FrequencyBadge, FulfillReservationForm, kindLabel, setReservationSkipped } from "./ReservationParts";
@@ -122,7 +121,6 @@ export default function PendingReservationsDialog({
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
                       <MemberBadge name={memberName(r.memberId)} color={memberColor(r.memberId)} />
-                      <span className="tabular-nums">見込み {r.estimatedAmountYen > 0 ? yen(r.estimatedAmountYen) : "未定"}</span>
                     </div>
                   </div>
                 </div>
