@@ -1,7 +1,8 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, useState } from "react";
 import { api, ApiError } from "../lib/apiClient";
 import { yen } from "../lib/format";
 import { useAsync } from "../hooks";
+import ChartBoundary from "../components/ChartBoundary";
 import { Card, Spinner, Button, Empty } from "../components/ui";
 import { AlertIcon, ArrowRightIcon, CheckIcon } from "../components/Icons";
 import Celebration from "../components/Celebration";
@@ -291,9 +292,9 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
               <h3 className="mb-3 text-sm font-semibold text-slate-500 dark:text-slate-400">内訳</h3>
               {/* ふたりの比率（収入・支出）をアカウントカラーの比率バーで示す */}
               <div className="mb-4">
-                <Suspense fallback={<div className="h-32" />}>
+                <ChartBoundary placeholder={<div className="h-32" />}>
                   <SettlementRatioChart members={settlement.members} memberViews={members} />
-                </Suspense>
+                </ChartBoundary>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 {settlement.members.map((m) => (

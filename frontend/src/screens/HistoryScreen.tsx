@@ -1,7 +1,8 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, useState } from "react";
 import { api } from "../lib/apiClient";
 import { yen } from "../lib/format";
 import { useAsync } from "../hooks";
+import ChartBoundary from "../components/ChartBoundary";
 import { Card, SectionTitle, Button, Spinner, Empty, Collapse } from "../components/ui";
 import { ArrowRightIcon, CheckIcon, ChevronRight } from "../components/Icons";
 import type { HistoryResponse, MemberId, MemberView, ScreenProps, SettlementHistoryEntry, Transfer } from "../types";
@@ -77,9 +78,9 @@ export default function HistoryScreen({ members, onError }: ScreenProps) {
           <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
             精算済みの月ごとに、それぞれが支払った共有費を積み上げて表示します。上端が共有支出の合計です。
           </p>
-          <Suspense fallback={<div className="h-64" />}>
+          <ChartBoundary placeholder={<div className="h-64" />}>
             <ExpenseHistoryChart entries={entries} members={members} />
-          </Suspense>
+          </ChartBoundary>
         </Card>
       )}
 
