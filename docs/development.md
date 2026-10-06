@@ -64,6 +64,7 @@ make up && make test-integration
 | `income_test.go` | 追加収入の CRUD（更新含む）と精算への合算 |
 | `direct_transfer_test.go` | 立替精算の CRUD（更新含む）と精算への反映 |
 | `settlement_test.go` | 締め日集計・精算履歴・精算済みフラグ |
+| `settlement_estimate_test.go` | 前月の給与実績による概算精算（`estimate=true`。前月の単発収入は持ち越さない・概算のままは完了不可・当月が揃うと確定値） |
 | `settings_test.go` | 精算比重・締め日の設定 |
 | `validation_test.go` | 各エンドポイントの入力検証（400/404） |
 
@@ -117,6 +118,7 @@ cd frontend && npm run docs:api   # OpenAPIからAPIドキュメント生成（d
 - 有効化フラグは `session.demo`（localStorage キー `demo`）。ボタン押下で `true` になり、ログアウトで解除される
 - API 通信の唯一の集約点 `frontend/src/lib/apiClient.ts` の `api()` が、デモ時は `frontend/src/demo/` を**動的 import** してモックへ委譲する（本体とは別チャンクに分割され、デモを起動したときだけ読み込まれる）
 - 編集データ（支出・収入・比重など）は localStorage キー `demo:db` に保存され、リロードしても維持される。設定画面の「デモデータをリセット」で初期状態へ戻せる
+- デモモード中は画面下部に「デモモード」と小さく半透明で表示し、API に接続した通常の画面と区別できるようにしている（`frontend/src/components/AppShell.tsx` の `demo`）
 
 デモ用コードは `frontend/src/demo/` に集約している:
 

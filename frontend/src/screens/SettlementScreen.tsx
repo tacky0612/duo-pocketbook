@@ -56,7 +56,8 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
     let settlement: Settlement | null = null;
     let settlementError: ApiError | null = null;
     try {
-      settlement = await api<Settlement>("GET", `/months/${month}/settlement`);
+      // 給与が未入力でも前月の給与実績で概算した精算額を表示する（estimated=true で返る）。
+      settlement = await api<Settlement>("GET", `/months/${month}/settlement?estimate=true`);
     } catch (e) {
       settlementError = e instanceof ApiError ? e : new ApiError(String(e), undefined, 0);
     }
@@ -92,6 +93,9 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
   const memberName = (id: MemberId) => members.find((m) => m.id === id)?.name || id;
   const memberColor = (id: MemberId) => members.find((m) => m.id === id)?.color;
   const settled = Boolean(settlement?.settled);
+  // 給与が未入力のメンバーを前月実績で補った概算か。確定（精算完了）はできない。
+  const estimated = !settled && Boolean(settlement?.estimated);
+  const estimatedIds = settlement?.estimatedMemberIds ?? [];
   // 立替精算が当月に適用されているか（金額ベース。相殺されても内訳は見せたい）。
   const hasDirect = (settlement?.totalDirectTransferYen ?? 0) > 0;
   const pendingCount = data.pendingReservations.length;
@@ -154,9 +158,12 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
             <div
               className={
                 "overflow-hidden rounded-2xl p-6 text-white shadow-lg " +
+                // 確定（緑）・収入入力済み（青）・概算（橙）で背景色を分け、状態をひと目で区別できるようにする。
                 (settled
                   ? "bg-gradient-to-br from-emerald-600 to-teal-600 shadow-emerald-600/20"
-                  : "bg-gradient-to-br from-blue-600 to-indigo-600 shadow-blue-600/20")
+                  : estimated
+                    ? "bg-gradient-to-br from-amber-600 to-orange-700 shadow-orange-600/20"
+                    : "bg-gradient-to-br from-blue-600 to-indigo-600 shadow-blue-600/20")
               }
             >
               {/* ステータス表示 */}
@@ -165,6 +172,11 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
                   <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold">
                     <CheckIcon className="h-4 w-4" />
                     精算済み
+                  </span>
+                ) : estimated ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-dashed border-white/60 bg-white/15 px-3 py-1 text-xs font-semibold">
+                    <AlertIcon className="h-4 w-4" />
+                    概算（先月の収入から）
                   </span>
                 ) : (
                   <span className="inline-flex items-center rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white/90">
@@ -175,13 +187,14 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
 
               {settlement.transfer ? (
                 <>
-                  <p className="text-center text-sm text-white/80">今月の振込</p>
+                  <p className="text-center text-sm text-white/80">{estimated ? "今月の振込（概算）" : "今月の振込"}</p>
                   <div className="mt-3 flex items-center justify-center gap-3 text-lg font-semibold">
                     <span>{memberName(settlement.transfer.from)}</span>
                     <ArrowRightIcon className="h-5 w-5 text-white/70" />
                     <span>{memberName(settlement.transfer.to)}</span>
                   </div>
                   <p className="mt-2 text-center text-4xl font-bold tabular-nums">
+                    {estimated && "約 "}
                     {yen(settlement.transfer.amountYen)}
                   </p>
                   <p className="mt-2 text-center text-xs text-white/80">
@@ -193,7 +206,7 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
               ) : (
                 <div className="flex flex-col items-center py-2">
                   <CheckIcon className="h-10 w-10" />
-                  <p className="mt-2 text-lg font-semibold">振込は不要です</p>
+                  <p className="mt-2 text-lg font-semibold">{estimated ? "振込は不要の見込みです" : "振込は不要です"}</p>
                   <p className="text-sm text-white/80">
                     {hasDirect ? "精算分と立替精算が相殺されています 🎉" : "今月はぴったり均衡しています 🎉"}
                   </p>
@@ -208,13 +221,27 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
                 </div>
               )}
 
+              {/* 概算の根拠（前月の給与実績で補ったメンバー） */}
+              {estimated && (
+                <p className="mt-4 rounded-xl bg-white/15 p-3 text-center text-xs text-white/90">
+                  {estimatedIds.map(memberName).join("・")} の今月の収入が未入力のため、先月の給与で概算しています。
+                  収入を入力すると確定額になります。
+                </p>
+              )}
+
               {/* 未入力の予約の警告（未精算の月のみ） */}
               {!settled && pendingCount > 0 && (
                 <button
                   onClick={() => setWarningOpen(true)}
-                  className="mt-4 flex w-full items-center gap-2 rounded-xl bg-amber-400/20 p-3 text-left text-sm ring-1 ring-amber-200/40 hover:bg-amber-400/30"
+                  className={
+                    "mt-4 flex w-full items-center gap-2 rounded-xl p-3 text-left text-sm ring-1 " +
+                    // 概算時は背景が橙のため、警告は白系にして埋もれないようにする。
+                    (estimated
+                      ? "bg-white/15 ring-white/40 hover:bg-white/25"
+                      : "bg-amber-400/20 ring-amber-200/40 hover:bg-amber-400/30")
+                  }
                 >
-                  <AlertIcon className="h-5 w-5 shrink-0 text-amber-200" />
+                  <AlertIcon className={"h-5 w-5 shrink-0 " + (estimated ? "text-white" : "text-amber-200")} />
                   <span className="flex-1">未入力の予約が {pendingCount}件 あります</span>
                   <span className="text-xs font-semibold text-white/80">確認する</span>
                 </button>
@@ -229,6 +256,15 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
                     className="rounded-xl bg-white/15 px-4 py-2 text-sm font-medium text-white hover:bg-white/25 disabled:opacity-50"
                   >
                     精算済みを取り消す
+                  </button>
+                ) : estimated ? (
+                  // 概算のままは確定できないため、収入の入力へ誘導する。
+                  <button
+                    onClick={() => onNavigate("income")}
+                    className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-2.5 text-sm font-bold text-orange-700 shadow hover:bg-orange-50"
+                  >
+                    収入を入力する
+                    <ArrowRightIcon className="h-5 w-5" />
                   </button>
                 ) : (
                   <button
@@ -257,8 +293,19 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
                     </div>
                     <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
                       <div>
-                        <dt className="text-xs text-slate-400">収入</dt>
-                        <dd className="text-sm font-medium tabular-nums">{yen(m.incomeYen)}</dd>
+                        {estimated && estimatedIds.includes(m.id) ? (
+                          <>
+                            <dt className="text-xs text-orange-600 dark:text-orange-400">収入（概算）</dt>
+                            <dd className="text-sm font-medium tabular-nums text-orange-600 dark:text-orange-400">
+                              {yen(m.incomeYen)}
+                            </dd>
+                          </>
+                        ) : (
+                          <>
+                            <dt className="text-xs text-slate-400">収入</dt>
+                            <dd className="text-sm font-medium tabular-nums">{yen(m.incomeYen)}</dd>
+                          </>
+                        )}
                       </div>
                       <div>
                         <dt className="text-xs text-slate-400">立替支出</dt>

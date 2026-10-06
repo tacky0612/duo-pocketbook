@@ -34,7 +34,7 @@ flowchart TD
 | `member.go` | `Member` / `Couple`（常にちょうど2人という制約を型で表現） |
 | `weight.go` | `Weight`（精算比重。正整数のみ） |
 | `expense.go` | `Expense`（共有支出）。IDは `<yyyy-MM>_<hex>` 形式で対象月を内包 |
-| `salary.go` | `Salary`（月次給与。メンバーごと・月ごとに1件。精算の可否判定に使う） |
+| `salary.go` | `Salary`（月次給与。メンバーごと・月ごとに1件。精算の可否判定に使う）、未入力分を前月の給与で補う概算用の `EstimateSalaries` |
 | `income.go` | `Income`（給与とは別の追加収入。内容付き・日付なし・継続/単発）。IDは継続 `inc_<hex>` / 単発 `<yyyy-MM>_<hex>` |
 | `recurring_expense.go` | `RecurringExpense`（固定費）。`AsExpenseFor` で対象月の共有支出として実体化する |
 | `reservation.go` | `Reservation`（金額未確定の収入・支出の予約。毎月/単発。IDは頻度に依存しない `rsv_<hex>` で、「今月はなし」の月 `SkippedMonths` も持つ）、実データの登録元を表す値オブジェクト `ReservationRef`（ゼロ値＝予約に由来しない）、予約から支出／収入を生成する `FulfillAsExpense` / `FulfillAsIncome`、精算月ごとの入力状況を判定する `ResolveReservations`（入力済み/今月はなし/未入力） |
@@ -47,7 +47,7 @@ flowchart TD
 ユースケース（アプリケーションとしての動作）を定義する。永続化は `repository.go` の**インターフェイス**（`ExpenseRepository` / `SalaryRepository` / `IncomeRepository` / `RecurringExpenseRepository` / `DirectTransferRepository` / `ReservationRepository` / `SettlementSnapshotRepository` / `SettingsRepository` / `AccountRepository`）経由でのみアクセスし、実装には依存しない。
 
 - `ExpenseUsecase` — 支出の登録・更新・月別一覧（日付降順）・削除
-- `SettlementUsecase` — 給与の入力/取得、精算結果の計算、精算の完了/取り消し（完了時点の精算内容をスナップショットとして保存/削除）、精算履歴（スナップショット）の取得（給与＋追加収入を各メンバーの収入として合算し、固定費を対象月の支出として合算し、立替精算を振込額へ加算する）
+- `SettlementUsecase` — 給与の入力/取得、精算結果の計算、前月の給与実績で補った概算（`EstimateSettlement`）、精算の完了/取り消し（完了時点の精算内容をスナップショットとして保存/削除）、精算履歴（スナップショット）の取得（給与＋追加収入を各メンバーの収入として合算し、固定費を対象月の支出として合算し、立替精算を振込額へ加算する）
 - `IncomeUsecase` — 追加収入の登録・更新・月別一覧・削除（継続/単発）
 - `ReservationUsecase` — 予約の登録・更新・月別一覧（入力状況つき）・削除、金額入力（予約IDを紐づけた共有支出／単発の追加収入として登録）、「今月はなし」のスキップ/解除、同じ予約・月への二重入力を防ぐ入力ロック
 - `RecurringExpenseUsecase` — 固定費の登録・更新・一覧・削除

@@ -3,7 +3,9 @@ package web
 // 月次精算・精算の確定状態・精算履歴 API。
 
 import (
+	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/tacky0612/duo-pocketbook/internal/domain"
@@ -37,6 +39,10 @@ type settlementResponse struct {
 	// TotalDirectTransferYen は当月に適用された立替精算の総額（方向を問わない絶対額の合計）。
 	TotalDirectTransferYen int64 `json:"totalDirectTransferYen" example:"5000"`
 	Settled                bool  `json:"settled" example:"false"`
+	// Estimated は前月の給与実績で補った概算値かどうか（estimate=true 指定時のみ true になりうる）。
+	Estimated bool `json:"estimated" example:"false"`
+	// EstimatedMemberIDs は給与を前月実績で補ったメンバーの ID。概算でなければ空配列。
+	EstimatedMemberIDs []string `json:"estimatedMemberIds"`
 }
 
 // toTransferDTO は domain.Transfer を DTO へ変換する（nil はそのまま nil）。
@@ -51,10 +57,12 @@ func toTransferDTO(t *domain.Transfer) *transferDTO {
 //
 //	@Summary		月次精算の取得
 //	@Description	比重に応じて双方の可処分所得が揃うよう振込額を算出する。給与が両者分そろっていない場合は 409（INCOME_NOT_READY）。
+//	@Description	estimate=true を指定すると、当月の給与が未入力のメンバーは前月の給与実績で補った概算を返す（estimated=true）。前月も未入力なら 409。
 //	@Tags			settlement
 //	@Produce		json
-//	@Param			month	path		string	true	"対象月（YYYY-MM）"
-//	@Success		200		{object}	settlementResponse
+//	@Param			month		path		string	true	"対象月（YYYY-MM）"
+//	@Param			estimate	query		bool	false	"給与未入力のメンバーを前月の給与実績で補って概算する"
+//	@Success		200			{object}	settlementResponse
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse
 //	@Failure		409		{object}	errorResponse	"収入未入力"
@@ -62,7 +70,25 @@ func toTransferDTO(t *domain.Transfer) *transferDTO {
 //	@Router			/months/{month}/settlement [get]
 func (h *Handler) GetSettlement(w http.ResponseWriter, r *http.Request) {
 	month := r.PathValue("month")
-	s, err := h.settlement.GetSettlement(r.Context(), month)
+	estimate := false
+	if v := r.URL.Query().Get("estimate"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			writeUsecaseError(w, fmt.Errorf("%w: estimate は true または false で指定してください", domain.ErrValidation))
+			return
+		}
+		estimate = b
+	}
+	var (
+		s         *domain.Settlement
+		estimated []domain.MemberID
+		err       error
+	)
+	if estimate {
+		s, estimated, err = h.settlement.EstimateSettlement(r.Context(), month)
+	} else {
+		s, err = h.settlement.GetSettlement(r.Context(), month)
+	}
 	if err != nil {
 		writeUsecaseError(w, err)
 		return
@@ -80,6 +106,11 @@ func (h *Handler) GetSettlement(w http.ResponseWriter, r *http.Request) {
 		DirectTransfer:         toTransferDTO(s.DirectTransfer),
 		TotalDirectTransferYen: int64(s.TotalDirectTransfer),
 		Settled:                settled,
+		Estimated:              len(estimated) > 0,
+		EstimatedMemberIDs:     make([]string, 0, len(estimated)),
+	}
+	for _, id := range estimated {
+		resp.EstimatedMemberIDs = append(resp.EstimatedMemberIDs, string(id))
 	}
 	for _, m := range s.Members {
 		resp.Members = append(resp.Members, settlementMemberDTO{

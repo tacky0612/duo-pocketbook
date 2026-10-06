@@ -148,7 +148,7 @@ export default function App() {
   };
 
   return (
-    <AppShell screen={screen} onNavigate={navigate} month={month} onMonthChange={setMonth}>
+    <AppShell screen={screen} onNavigate={navigate} month={month} onMonthChange={setMonth} demo={session.demo}>
       {membersLoading || members.length === 0 ? (
         <Spinner />
       ) : screen === "settlement" ? (
