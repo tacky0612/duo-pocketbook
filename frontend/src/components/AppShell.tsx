@@ -25,10 +25,12 @@ interface AppShellProps {
   onNavigate: (screen: ScreenName) => void;
   month: string;
   onMonthChange: (month: string) => void;
+  // デモモード（API ではなくブラウザ内のモックで動作中）のとき画面下部に表示を出す。
+  demo?: boolean;
   children?: ReactNode;
 }
 
-export default function AppShell({ screen, onNavigate, month, onMonthChange, children }: AppShellProps) {
+export default function AppShell({ screen, onNavigate, month, onMonthChange, demo = false, children }: AppShellProps) {
   const active = NAV.find((n) => n.key === screen);
   const showMonth = active?.monthScoped;
 
@@ -90,6 +92,15 @@ export default function AppShell({ screen, onNavigate, month, onMonthChange, chi
           {children}
         </main>
       </div>
+
+      {/* デモモード表示。モバイルはボトムナビの上、PC はメイン列の下端に小さく出す（操作は妨げない） */}
+      {demo && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-[4.5rem] z-30 flex justify-center px-4 lg:bottom-3 lg:left-64">
+          <span className="rounded-full bg-slate-800/80 px-3 py-1 text-[11px] font-medium text-white opacity-70 shadow backdrop-blur dark:bg-slate-200/85 dark:text-slate-900">
+            デモモード
+          </span>
+        </div>
+      )}
 
       {/* ボトムナビ（モバイルのみ） */}
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/90 backdrop-blur lg:hidden dark:border-slate-800 dark:bg-slate-900/90">

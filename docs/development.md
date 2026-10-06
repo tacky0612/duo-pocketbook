@@ -118,6 +118,7 @@ cd frontend && npm run docs:api   # OpenAPIからAPIドキュメント生成（d
 - 有効化フラグは `session.demo`（localStorage キー `demo`）。ボタン押下で `true` になり、ログアウトで解除される
 - API 通信の唯一の集約点 `frontend/src/lib/apiClient.ts` の `api()` が、デモ時は `frontend/src/demo/` を**動的 import** してモックへ委譲する（本体とは別チャンクに分割され、デモを起動したときだけ読み込まれる）
 - 編集データ（支出・収入・比重など）は localStorage キー `demo:db` に保存され、リロードしても維持される。設定画面の「デモデータをリセット」で初期状態へ戻せる
+- デモモード中は画面下部に「デモモード」と小さく半透明で表示し、API に接続した通常の画面と区別できるようにしている（`frontend/src/components/AppShell.tsx` の `demo`）
 
 デモ用コードは `frontend/src/demo/` に集約している:
 
