@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { api, ApiError } from "../lib/apiClient";
 import { yen } from "../lib/format";
 import { useAsync } from "../hooks";
@@ -8,6 +8,9 @@ import Celebration from "../components/Celebration";
 import PendingReservationsDialog from "../components/PendingReservationsDialog";
 import { FrequencyBadge, ReservedBadge } from "../components/ReservationParts";
 import type { DirectTransfer, DirectTransfersResponse, Expense, ExpensesResponse, MemberId, RecurringExpense, RecurringExpensesResponse, Reservation, ReservationsResponse, ScreenProps, Settlement, Transfer } from "../types";
+
+// グラフ描画ライブラリ（recharts）は重いため、本体とは別チャンクに分けて遅延読み込みする。
+const SettlementRatioChart = lazy(() => import("../components/SettlementRatioChart"));
 
 interface SettlementData {
   // 取得対象の月。月を切り替えた直後は前の月のデータが残るため、表示中の月と照合する。
@@ -134,6 +137,10 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
       setBusy(false);
     }
   };
+
+  // 当月に適用される立替精算のうち、そのメンバーが送金する側の金額の合計（内訳の「立替」）
+  const directSentYen = (memberId: MemberId) =>
+    data.directTransfers.filter((t) => t.from === memberId).reduce((sum, t) => sum + t.amountYen, 0);
 
   // 各メンバーが支払う予定の、金額が未入力の支出予約
   const pendingFor = (memberId: MemberId) => data.pendingExpenseReservations.filter((r) => r.memberId === memberId);
@@ -282,6 +289,12 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
 
             <Card>
               <h3 className="mb-3 text-sm font-semibold text-slate-500 dark:text-slate-400">内訳</h3>
+              {/* ふたりの比率（収入・支出）をアカウントカラーの比率バーで示す */}
+              <div className="mb-4">
+                <Suspense fallback={<div className="h-32" />}>
+                  <SettlementRatioChart members={settlement.members} memberViews={members} />
+                </Suspense>
+              </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 {settlement.members.map((m) => (
                   <div key={m.id} className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800/50">
@@ -308,16 +321,20 @@ export default function SettlementScreen({ month, members, notify, onError, onNa
                         )}
                       </div>
                       <div>
-                        <dt className="text-xs text-slate-400">立替支出</dt>
+                        <dt className="text-xs text-slate-400">支出</dt>
                         <dd className="text-sm font-medium tabular-nums">{yen(m.paidExpenseYen)}</dd>
                       </div>
                       <div>
-                        <dt className="text-xs text-slate-400">精算後の可処分</dt>
-                        <dd className="text-sm font-bold tabular-nums text-blue-600 dark:text-blue-400">
-                          {yen(m.disposableYen)}
-                        </dd>
+                        <dt className="text-xs text-slate-400">立替</dt>
+                        <dd className="text-sm font-medium tabular-nums">{yen(directSentYen(m.id))}</dd>
                       </div>
                     </dl>
+                    <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3 dark:border-slate-700">
+                      <span className="text-xs text-slate-400">精算後の可処分</span>
+                      <span className="text-base font-bold tabular-nums text-blue-600 dark:text-blue-400">
+                        {yen(m.disposableYen)}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
