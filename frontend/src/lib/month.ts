@@ -46,3 +46,9 @@ export function defaultDateInSettlementMonth(month: string, closingDay: number):
   const today = todayISO();
   return settlementMonthOf(today, closingDay) === month ? today : settlementPeriodStart(month, closingDay);
 }
+
+// prevYearMonth は YYYY-MM の前月を YYYY-MM で返す。
+export function prevYearMonth(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+}
