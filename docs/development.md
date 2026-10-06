@@ -109,6 +109,11 @@ cd frontend && npm run docs:api   # OpenAPIからAPIドキュメント生成（d
 
 ログイン画面の「APIのURL」にAPIサーバー（例 `http://localhost:8080`）を入力する。値は localStorage に保存される。
 
+エラーバウンダリの表示は、開発サーバー（`npm run dev`）で URL にクエリを付けると確認できる（`src/components/DevCrash.tsx`。本番ビルドでは無効）。
+
+- `?crash`（例 `http://localhost:5173/?crash`）: アプリ全体のエラー表示（エラー内容と「再読み込み」ボタン）
+- `?crash=chart`: グラフ部分のエラー表示。精算画面・履歴画面のグラフだけがエラー表示に置き換わる
+
 フロントエンドは **TypeScript（strict）**。`tsconfig.json` で `strict: true` を有効にしており、`npm run build` はビルド前に `tsc --noEmit` で型チェックを行う（型エラーがあればビルドは失敗する）。CI（`frontend-build` ジョブ）でも `npm run build` を実行するため、型エラーは PR で検出される。共有ドメイン／API 型は `src/types.ts` に集約し、`api<T>()` の戻り値型として使う。
 
 ### デモモード（バックエンド不要）

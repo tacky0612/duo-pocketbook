@@ -90,3 +90,10 @@ TypeScript（strict）+ React + Vite + Tailwind CSS。UIはコンポーネント
 - 履歴画面: 精算済みの月ごとに各メンバーが支払った共有費を積み上げた積層面グラフ（`src/components/ExpenseHistoryChart.tsx`）。精算済みの月が2か月以上あるときに表示する
 
 メンバーの系列は `/members` のアカウントカラーで塗り（共通処理は `src/lib/chart.ts`、凡例は `src/components/ChartLegend.tsx`）、初期表示時にアニメーションさせる（OS の「視差効果を減らす」設定では無効）。ライブラリが大きいため `React.lazy` で別チャンクに分けて遅延読み込みしている。
+
+描画中のエラーで画面全体が真っ白にならないよう、エラーバウンダリ（`src/components/ErrorBoundary.tsx`）を2段で置いている。
+
+- アプリ全体（`src/main.tsx`）: エラー内容（エラー名・メッセージ・User-Agent）と「再読み込み」ボタンを表示する（`src/components/AppErrorFallback.tsx`）
+- グラフ（`src/components/ChartBoundary.tsx`）: 遅延読み込みの失敗（デプロイ後に古いチャンクを取りにいった場合など）や描画エラーをグラフ部分だけで受け止め、画面の他の部分は使えるようにする
+
+イベントハンドラや非同期処理のエラーはエラーバウンダリの対象外で、従来どおり各画面の `onError`（トースト表示など）で扱う。
