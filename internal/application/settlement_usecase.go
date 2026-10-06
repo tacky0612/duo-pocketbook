@@ -73,7 +73,11 @@ func (u *SettlementUsecase) SetSettled(ctx context.Context, month string, settle
 
 // buildSnapshot は対象月の精算内容を計算し、完了時点の記録としてスナップショットを組み立てる。
 func (u *SettlementUsecase) buildSnapshot(ctx context.Context, ym domain.YearMonth) (domain.SettlementSnapshot, error) {
-	settlement, expenseItems, directItems, err := u.computeSettlement(ctx, ym)
+	salaries, err := u.salaries.FindByMonth(ctx, ym)
+	if err != nil {
+		return domain.SettlementSnapshot{}, fmt.Errorf("給与の取得に失敗しました: %w", err)
+	}
+	settlement, expenseItems, directItems, err := u.computeSettlement(ctx, ym, salaries)
 	if err != nil {
 		return domain.SettlementSnapshot{}, err
 	}
@@ -127,18 +131,42 @@ func (u *SettlementUsecase) GetSettlement(ctx context.Context, month string) (*d
 	if err != nil {
 		return nil, err
 	}
-	s, _, _, err := u.computeSettlement(ctx, ym)
+	salaries, err := u.salaries.FindByMonth(ctx, ym)
+	if err != nil {
+		return nil, fmt.Errorf("給与の取得に失敗しました: %w", err)
+	}
+	s, _, _, err := u.computeSettlement(ctx, ym, salaries)
 	return s, err
 }
 
-// computeSettlement は対象月の精算に必要な入力を集めて精算結果を計算し、あわせて
-// スナップショット用の共有支出・立替精算の明細を返す。
-// 両メンバーの給与が入力されていない場合は domain.ErrIncomeNotReady を返す。
-func (u *SettlementUsecase) computeSettlement(ctx context.Context, ym domain.YearMonth) (*domain.Settlement, []domain.SettlementExpenseItem, []domain.SettlementDirectTransferItem, error) {
-	salaries, err := u.salaries.FindByMonth(ctx, ym)
+// EstimateSettlement は対象月の精算結果を、給与が未入力のメンバーについては前月の給与実績で補って
+// 概算する。estimated は前月実績で補ったメンバーの ID で、両者とも当月入力済みなら空（＝確定値と同じ）。
+// 前月の給与も未入力で補えない場合は domain.ErrIncomeNotReady を返す。
+func (u *SettlementUsecase) EstimateSettlement(ctx context.Context, month string) (*domain.Settlement, []domain.MemberID, error) {
+	ym, err := domain.ParseYearMonth(month)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("給与の取得に失敗しました: %w", err)
+		return nil, nil, err
 	}
+	current, err := u.salaries.FindByMonth(ctx, ym)
+	if err != nil {
+		return nil, nil, fmt.Errorf("給与の取得に失敗しました: %w", err)
+	}
+	previous, err := u.salaries.FindByMonth(ctx, ym.Prev())
+	if err != nil {
+		return nil, nil, fmt.Errorf("前月の給与の取得に失敗しました: %w", err)
+	}
+	salaries, estimated := domain.EstimateSalaries(ym, u.couple, current, previous)
+	s, _, _, err := u.computeSettlement(ctx, ym, salaries)
+	if err != nil {
+		return nil, nil, err
+	}
+	return s, estimated, nil
+}
+
+// computeSettlement は対象月の給与 salaries とその他の精算に必要な入力を集めて精算結果を計算し、
+// あわせてスナップショット用の共有支出・立替精算の明細を返す。
+// 両メンバーの給与が揃っていない場合は domain.ErrIncomeNotReady を返す。
+func (u *SettlementUsecase) computeSettlement(ctx context.Context, ym domain.YearMonth, salaries []domain.Salary) (*domain.Settlement, []domain.SettlementExpenseItem, []domain.SettlementDirectTransferItem, error) {
 	// 追加収入（毎月継続分＋当月単発分）を集める。給与と合算して各メンバーの収入とする。
 	incomeRecurring, err := u.incomes.FindRecurring(ctx)
 	if err != nil {

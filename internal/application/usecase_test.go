@@ -990,3 +990,67 @@ func TestClosingDaySettlementPeriod(t *testing.T) {
 		t.Errorf("8月の支出 = %+v, want [2026-07-15]", aug)
 	}
 }
+
+func TestEstimateSettlement(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	for _, in := range []application.RegisterExpenseInput{
+		{PaidBy: husband, AmountYen: 20_000, Description: "家賃(一部)", Date: "2026-07-01"},
+		{PaidBy: wife, AmountYen: 20_000, Description: "食費", Date: "2026-07-05"},
+	} {
+		if _, err := f.expenses.Register(ctx, in); err != nil {
+			t.Fatalf("Register: %v", err)
+		}
+	}
+
+	// 前月も当月も給与が無ければ概算できない
+	if _, _, err := f.settlement.EstimateSettlement(ctx, "2026-07"); !errors.Is(err, domain.ErrIncomeNotReady) {
+		t.Fatalf("err = %v, want ErrIncomeNotReady", err)
+	}
+
+	// 前月の給与実績で当月を概算する
+	if _, err := f.settlement.InputSalary(ctx, "2026-06", husband, 100_000); err != nil {
+		t.Fatalf("InputSalary: %v", err)
+	}
+	if _, err := f.settlement.InputSalary(ctx, "2026-06", wife, 50_000); err != nil {
+		t.Fatalf("InputSalary: %v", err)
+	}
+	got, estimated, err := f.settlement.EstimateSettlement(ctx, "2026-07")
+	if err != nil {
+		t.Fatalf("EstimateSettlement: %v", err)
+	}
+	if len(estimated) != 2 {
+		t.Errorf("estimated = %v, want both members", estimated)
+	}
+	if got.Transfer == nil || got.Transfer.From != husband || got.Transfer.To != wife || got.Transfer.Amount != 25_000 {
+		t.Errorf("Transfer = %+v, want taro→hanako 25000円", got.Transfer)
+	}
+	// 概算はあくまで表示用で、当月の通常の精算は未入力のまま
+	if _, err := f.settlement.GetSettlement(ctx, "2026-07"); !errors.Is(err, domain.ErrIncomeNotReady) {
+		t.Errorf("GetSettlement err = %v, want ErrIncomeNotReady", err)
+	}
+
+	// 当月に入力済みのメンバーは当月の値を使う
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", wife, 100_000); err != nil {
+		t.Fatalf("InputSalary: %v", err)
+	}
+	got, estimated, err = f.settlement.EstimateSettlement(ctx, "2026-07")
+	if err != nil {
+		t.Fatalf("EstimateSettlement: %v", err)
+	}
+	if len(estimated) != 1 || estimated[0] != husband {
+		t.Errorf("estimated = %v, want [taro]", estimated)
+	}
+	if got.Transfer != nil {
+		t.Errorf("Transfer = %+v, want nil（双方10万円で均衡）", got.Transfer)
+	}
+
+	// 両者が当月入力済みなら概算扱いのメンバーはいない
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", husband, 200_000); err != nil {
+		t.Fatalf("InputSalary: %v", err)
+	}
+	if _, estimated, err = f.settlement.EstimateSettlement(ctx, "2026-07"); err != nil || len(estimated) != 0 {
+		t.Errorf("estimated = %v, err = %v, want none", estimated, err)
+	}
+}

@@ -22,8 +22,33 @@ export interface SettlementInput {
   closingDay: number;
 }
 
-// settled を除いた精算結果（settled は呼び出し側でストアから付与する）。
-export type ComputedSettlement = Omit<Settlement, "settled">;
+// settled・概算フラグを除いた精算結果（呼び出し側で付与する）。
+export type ComputedSettlement = Omit<Settlement, "settled" | "estimated" | "estimatedMemberIds">;
+
+// estimateSalaries は対象月の給与が未入力のメンバーを前月の給与実績で補った給与一覧を返す
+// （domain.EstimateSalaries と同じ規則）。estimated は前月実績で補ったメンバーの ID。
+export function estimateSalaries(
+  month: string,
+  prevMonth: string,
+  members: Member[],
+  salaries: DemoSalary[]
+): { salaries: DemoSalary[]; estimated: string[] } {
+  const out: DemoSalary[] = [];
+  const estimated: string[] = [];
+  for (const m of members) {
+    const current = salaries.find((s) => s.month === month && s.memberId === m.id);
+    if (current) {
+      out.push(current);
+      continue;
+    }
+    const prev = salaries.find((s) => s.month === prevMonth && s.memberId === m.id);
+    if (prev) {
+      out.push({ month, memberId: m.id, amountYen: prev.amountYen });
+      estimated.push(m.id);
+    }
+  }
+  return { salaries: out, estimated };
+}
 
 // roundDiv は num/den を四捨五入（絶対値で half away from zero）した整数を返す。den は正であること。
 function roundDiv(num: number, den: number): number {

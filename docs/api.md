@@ -54,7 +54,7 @@ TOKEN=$(curl -s -X POST $BASE/login \
 | `DELETE /reservations/{id}` | 予約の削除（入力済みの支出・収入は残る） |
 | `POST /reservations/{id}/fulfill` | 予約の金額入力（支出の予約は共有支出、収入の予約はその月の追加収入として登録） |
 | `PUT /reservations/{id}/skip` | 予約を指定月で「今月はなし」にする／解除する |
-| `GET /months/{month}/settlement` | 月次精算の取得 |
+| `GET /months/{month}/settlement[?estimate=true]` | 月次精算の取得（`estimate=true` で給与未入力のメンバーを前月の給与実績で補った概算を返す） |
 | `PUT /months/{month}/settlement/status` | 精算の完了/取り消し（`settled=true` で完了時点のスナップショットを保存、`false` で削除） |
 | `GET /settlements/history?from=YYYY-MM&to=YYYY-MM` | 精算履歴（完了時点のスナップショット）の取得（新しい月順） |
 | `POST /recurring-expenses` | 固定費の登録 |
@@ -109,7 +109,9 @@ curl $BASE/months/2026-07/settlement -H "Authorization: Bearer $TOKEN"
   "transfer":           {"from": "taro", "to": "hanako", "amountYen": 28000},
   "settlementTransfer": {"from": "taro", "to": "hanako", "amountYen": 25000},
   "directTransfer":     {"from": "taro", "to": "hanako", "amountYen": 3000},
-  "totalDirectTransferYen": 3000
+  "totalDirectTransferYen": 3000,
+  "estimated": false,
+  "estimatedMemberIds": []
 }
 ```
 
@@ -117,6 +119,7 @@ curl $BASE/months/2026-07/settlement -H "Authorization: Bearer $TOKEN"
 - `settlementTransfer` / `directTransfer` は内訳（方向が逆になることもある）。`disposableYen`（精算後の可処分所得）は**共有支出の比重按分のみを反映**し、立替精算は含めない。
 - `totalDirectTransferYen` は当月に適用された立替精算の総額（方向を問わない絶対額の合計）。
 - `settled` はその月が精算完了済みか（スナップショットが保存されているか）を表す。`PUT /months/{month}/settlement/status` の `settled=true` で完了し、`false` で取り消す。`GET /months/{month}/settlement` 自体は常に現在のデータで再計算した**ライブの精算**を返す（`settled` の値は計算結果に影響しない）。
+- `estimate=true` を指定すると、当月の給与が未入力のメンバーは**前月の給与実績**で補って計算する（概算）。補ったメンバーは `estimatedMemberIds` に入り、`estimated=true` になる。両者とも当月入力済みなら通常の精算と同じ結果（`estimated=false`）。前月の給与も無いメンバーがいれば概算でも `409 INCOME_NOT_READY`。指定しない場合は従来どおり給与が揃うまで 409。概算は表示用で、精算の完了（`settled=true`）は当月の給与が揃うまでできない。Web UI の精算画面は常に `estimate=true` で取得し、概算・収入入力済み（未精算）・精算済みを異なる背景色で表示する。
 
 固定費（`recurring-expenses`）が登録されている場合、精算計算時に対象月の共有支出として自動的に合算される。立替精算（`direct-transfers`）は共有支出とは別枠で、比重按分せずに振込額へそのまま加算される（詳細は [settlement.md](settlement.md#立替精算共有支出とは別枠の送金)）。追加収入（`incomes`）は各メンバーの給与と合算して収入（`incomeYen`）に反映される（詳細は [settlement.md](settlement.md#収入給与と追加収入)）。
 

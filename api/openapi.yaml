@@ -485,6 +485,16 @@ components:
       properties:
         directTransfer:
           $ref: '#/components/schemas/web.transferDTO'
+        estimated:
+          description: Estimated は前月の給与実績で補った概算値かどうか（estimate=true 指定時のみ true になりうる）。
+          example: false
+          type: boolean
+        estimatedMemberIds:
+          description: EstimatedMemberIDs は給与を前月実績で補ったメンバーの ID。概算でなければ空配列。
+          items:
+            type: string
+          type: array
+          uniqueItems: false
         members:
           items:
             $ref: '#/components/schemas/web.settlementMemberDTO'
@@ -1444,7 +1454,9 @@ paths:
       - salaries
   /months/{month}/settlement:
     get:
-      description: 比重に応じて双方の可処分所得が揃うよう振込額を算出する。給与が両者分そろっていない場合は 409（INCOME_NOT_READY）。
+      description: |-
+        比重に応じて双方の可処分所得が揃うよう振込額を算出する。給与が両者分そろっていない場合は 409（INCOME_NOT_READY）。
+        estimate=true を指定すると、当月の給与が未入力のメンバーは前月の給与実績で補った概算を返す（estimated=true）。前月も未入力なら 409。
       parameters:
       - description: 対象月（YYYY-MM）
         in: path
@@ -1452,6 +1464,11 @@ paths:
         required: true
         schema:
           type: string
+      - description: 給与未入力のメンバーを前月の給与実績で補って概算する
+        in: query
+        name: estimate
+        schema:
+          type: boolean
       responses:
         "200":
           content:

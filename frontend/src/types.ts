@@ -125,6 +125,10 @@ export interface Settlement {
   /** 当月に適用された立替精算の総額（方向を問わない絶対額の合計）。 */
   totalDirectTransferYen: number;
   settled: boolean;
+  /** 前月の給与実績で補った概算値か（estimate=true 指定時のみ true になりうる）。 */
+  estimated: boolean;
+  /** 給与を前月実績で補ったメンバー。概算でなければ空配列。 */
+  estimatedMemberIds: MemberId[];
 }
 
 /** 精算スナップショットに含まれる共有支出1件の明細。 */

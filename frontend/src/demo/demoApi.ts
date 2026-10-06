@@ -6,7 +6,7 @@
 
 import { ApiError, type HttpMethod } from "../lib/apiClient";
 import { store } from "./store";
-import { computeSettlement, settlementMonthOf } from "./settlement";
+import { computeSettlement, estimateSalaries, settlementMonthOf } from "./settlement";
 import type { DemoDb, DemoReservation, ExpensesResponse, Reservation, ReservationsResponse, SettlementHistoryEntry, Settlement, SnapshotExpense, Weights } from "../types";
 
 // デモが受け取り得るリクエストボディのフィールド（すべて任意）。
@@ -80,20 +80,23 @@ function incomesFor(db: DemoDb, month: string): DemoDb["incomes"] {
 }
 
 // 対象月の精算（settled フラグ付き）。給与未入力なら computeSettlement が INCOME_NOT_READY を投げる。
-// settled はスナップショットの有無で判定する。
-function settlementOf(db: DemoDb, month: string): Settlement {
+// settled はスナップショットの有無で判定する。estimate=true なら未入力の給与を前月実績で補って概算する。
+function settlementOf(db: DemoDb, month: string, estimate: boolean): Settlement {
+  const est = estimate
+    ? estimateSalaries(month, shiftMonth(month, -1), db.members, db.salaries ?? [])
+    : { salaries: db.salaries ?? [], estimated: [] };
   const s = computeSettlement({
     month,
     members: db.members,
     weights: db.weights,
-    salaries: db.salaries ?? [],
+    salaries: est.salaries,
     incomes: db.incomes ?? [],
     expenses: db.expenses,
     recurring: db.recurring,
     directTransfers: directTransfersFor(db, month),
     closingDay: db.closingDay ?? 1,
   });
-  return { ...s, settled: Boolean(db.snapshots[month]) };
+  return { ...s, settled: Boolean(db.snapshots[month]), estimated: est.estimated.length > 0, estimatedMemberIds: est.estimated };
 }
 
 // 精算完了時点の内容をスナップショット（履歴エントリ）として組み立てる。
@@ -448,7 +451,9 @@ export async function demoApi(method: HttpMethod, path: string, body?: unknown):
 
   // --- 精算 ---
   if (method === "GET" && (mm = rawPath.match(/^\/months\/([^/]+)\/settlement$/))) {
-    return settlementOf(db, mm[1]); // 収入未入力なら INCOME_NOT_READY を投げる
+    const estimate = q.get("estimate");
+    if (estimate !== null && estimate !== "true" && estimate !== "false") validation("estimate は true または false で指定してください");
+    return settlementOf(db, mm[1], estimate === "true"); // 収入未入力（概算時は前月も未入力）なら INCOME_NOT_READY を投げる
   }
   if (method === "PUT" && (mm = rawPath.match(/^\/months\/([^/]+)\/settlement\/status$/))) {
     const month = mm[1];

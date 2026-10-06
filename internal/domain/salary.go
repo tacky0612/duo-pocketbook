@@ -23,3 +23,33 @@ func NewSalary(month YearMonth, memberID MemberID, amount Money) (Salary, error)
 	}
 	return Salary{Month: month, MemberID: memberID, Amount: amount}, nil
 }
+
+// EstimateSalaries は対象月の給与が未入力のメンバーについて、前月の給与実績で補った
+// 対象月の給与一覧を返す（概算精算用）。estimated は前月実績で補ったメンバーの ID。
+//
+// 対象月に入力済みのメンバーはその値をそのまま使う。前月も未入力のメンバーは補わないため、
+// その場合は精算計算で ErrIncomeNotReady となる。previous に前月以外の給与が含まれていても無視する。
+func EstimateSalaries(month YearMonth, couple Couple, current, previous []Salary) (salaries []Salary, estimated []MemberID) {
+	prevMonth := month.Prev()
+	for _, m := range couple.Members() {
+		if s, ok := findSalary(current, month, m.ID); ok {
+			salaries = append(salaries, s)
+			continue
+		}
+		if s, ok := findSalary(previous, prevMonth, m.ID); ok {
+			salaries = append(salaries, Salary{Month: month, MemberID: m.ID, Amount: s.Amount})
+			estimated = append(estimated, m.ID)
+		}
+	}
+	return salaries, estimated
+}
+
+// findSalary は list から指定月・メンバーの給与を探す。
+func findSalary(list []Salary, month YearMonth, memberID MemberID) (Salary, bool) {
+	for _, s := range list {
+		if s.Month == month && s.MemberID == memberID {
+			return s, true
+		}
+	}
+	return Salary{}, false
+}
