@@ -111,6 +111,25 @@ func (u *SettlementUsecase) InputSalary(ctx context.Context, month string, membe
 	return salary, nil
 }
 
+// DeleteSalary は対象月のメンバーの給与を削除し、未入力の状態に戻す。
+// 未入力のメンバーに対しても成功する（冪等）。精算確定済みの月は domain.ErrSettled を返す。
+func (u *SettlementUsecase) DeleteSalary(ctx context.Context, month string, memberID domain.MemberID) error {
+	ym, err := domain.ParseYearMonth(month)
+	if err != nil {
+		return err
+	}
+	if !u.couple.Contains(memberID) {
+		return fmt.Errorf("%w: 不明なメンバーです: %s", domain.ErrValidation, memberID)
+	}
+	if err := ensureMonthNotSettled(ctx, u.snapshots, ym); err != nil {
+		return err
+	}
+	if err := u.salaries.Delete(ctx, ym, memberID); err != nil {
+		return fmt.Errorf("給与の削除に失敗しました: %w", err)
+	}
+	return nil
+}
+
 // GetSalaries は対象月の入力済み給与を返す。
 func (u *SettlementUsecase) GetSalaries(ctx context.Context, month string) ([]domain.Salary, error) {
 	ym, err := domain.ParseYearMonth(month)

@@ -1396,6 +1396,47 @@ paths:
       tags:
       - salaries
   /months/{month}/salaries/{memberId}:
+    delete:
+      description: 対象月のメンバーの給与を削除し、未入力の状態に戻す。未入力のメンバーに対しても 204 を返す。
+      parameters:
+      - description: 対象月（YYYY-MM）
+        in: path
+        name: month
+        required: true
+        schema:
+          type: string
+      - description: メンバーID（AccountID）
+        in: path
+        name: memberId
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: 削除成功
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: 精算確定済みの月 (MONTH_SETTLED)
+      security:
+      - BearerAuth: []
+      summary: 月次給与の削除（未入力に戻す）
+      tags:
+      - salaries
     put:
       description: 精算の可否判定に使う基本の収入。メンバーごと・月ごとに1件。
       parameters:

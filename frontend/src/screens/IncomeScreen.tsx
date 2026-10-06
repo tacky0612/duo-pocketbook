@@ -96,10 +96,14 @@ export default function IncomeScreen({ month, members, me, notify, onError, clos
     ev.preventDefault();
     setSavingSalary(true);
     try {
+      const saved = salaries.data?.salaries ?? [];
       for (const m of members) {
         const v = salaryValues[m.id];
         if (v !== "" && v != null) {
           await api("PUT", `/months/${month}/salaries/${m.id}`, { amountYen: Number(v) });
+        } else if (saved.some((s) => s.memberId === m.id)) {
+          // 保存済みの給与を空欄にして保存したら、削除して未入力に戻す（0円の入力とは区別する）。
+          await api("DELETE", `/months/${month}/salaries/${m.id}`);
         }
       }
       notify("給与を保存しました");
@@ -199,7 +203,7 @@ export default function IncomeScreen({ month, members, me, notify, onError, clos
       <Card>
         <SectionTitle>給与</SectionTitle>
         <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
-          毎月発生するふたりの基本の収入（手取り）です。精算額の計算に使われます。
+          毎月発生するふたりの基本の収入（手取り）です。精算額の計算に使われます。欄を空にして保存すると未入力に戻ります。
         </p>
         {salaries.loading ? (
           <Spinner />
@@ -210,7 +214,8 @@ export default function IncomeScreen({ month, members, me, notify, onError, clos
                 <Field key={m.id} label={`${m.name} の給与`} hint={salaryHint(m.id)}>
                   <div className="relative">
                     <NumberInput
-                      placeholder="0"
+                      // 空欄は「未入力」（0円の入力とは別）。空欄で保存すると保存済みの給与を削除する。
+                      placeholder="未入力"
                       value={salaryValues[m.id] ?? ""}
                       onChange={(v) => setSalaryValues((p) => ({ ...p, [m.id]: v }))}
                       className="pr-10 text-right tabular-nums"

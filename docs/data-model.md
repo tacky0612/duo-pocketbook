@@ -97,6 +97,7 @@
 | 支出の月別一覧 | `Query (PK = EXPENSE#<月>)` |
 | 支出の取得/削除 | `GetItem` / `DeleteItem`（IDから月を導出してキー構築） |
 | 給与の入力（上書き） | `PutItem`（同キーへの上書きが自然に冪等） |
+| 給与の削除（未入力に戻す） | `DeleteItem`（キーが無くても成功するため冪等） |
 | 給与の月別一覧 | `Query (PK = MONTH#<月> AND begins_with(SK, SALARY#))` |
 | 追加収入の登録/更新 | `PutItem`（継続 `PK=INCOME#RECURRING` / 単発 `PK=INCOME#<月>`） |
 | 追加収入の取得/削除 | `GetItem` / `DeleteItem`（IDから継続か単発の月を導出してキー構築） |

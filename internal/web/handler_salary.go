@@ -58,6 +58,27 @@ func (h *Handler) InputSalary(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// DeleteSalary godoc
+//
+//	@Summary		月次給与の削除（未入力に戻す）
+//	@Description	対象月のメンバーの給与を削除し、未入力の状態に戻す。未入力のメンバーに対しても 204 を返す。
+//	@Tags			salaries
+//	@Param			month		path	string	true	"対象月（YYYY-MM）"
+//	@Param			memberId	path	string	true	"メンバーID（AccountID）"
+//	@Success		204			"削除成功"
+//	@Failure		400			{object}	errorResponse
+//	@Failure		401			{object}	errorResponse
+//	@Failure		409			{object}	errorResponse	"精算確定済みの月 (MONTH_SETTLED)"
+//	@Security		BearerAuth
+//	@Router			/months/{month}/salaries/{memberId} [delete]
+func (h *Handler) DeleteSalary(w http.ResponseWriter, r *http.Request) {
+	if err := h.settlement.DeleteSalary(r.Context(), r.PathValue("month"), domain.MemberID(r.PathValue("memberId"))); err != nil {
+		writeUsecaseError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // salariesResponse は対象月の給与一覧のレスポンス。
 type salariesResponse struct {
 	Month    string      `json:"month" example:"2026-07"`

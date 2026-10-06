@@ -279,6 +279,14 @@ export async function demoApi(method: HttpMethod, path: string, body?: unknown):
     store.save();
     return { month, salary: { memberId, amountYen: salary.amountYen } };
   }
+  if (method === "DELETE" && (mm = rawPath.match(/^\/months\/([^/]+)\/salaries\/([^/]+)$/))) {
+    // 給与を削除して未入力に戻す。未入力のメンバーでも成功する（冪等）。
+    const [, month, memberId] = mm;
+    if (!db.members.some((m) => m.id === memberId)) validation("不明なメンバーです");
+    db.salaries = db.salaries.filter((i) => !(i.month === month && i.memberId === memberId));
+    store.save();
+    return null;
+  }
   if (method === "GET" && (mm = rawPath.match(/^\/months\/([^/]+)\/salaries$/))) {
     const month = mm[1];
     const salaries = db.salaries

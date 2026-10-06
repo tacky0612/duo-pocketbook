@@ -107,3 +107,49 @@ func TestSalaryAndSettlement(t *testing.T) {
 		}
 	}
 }
+
+// TestDeleteSalary は給与の削除で未入力に戻ること（0円の給与も削除できる・冪等）を検証する。
+func TestDeleteSalary(t *testing.T) {
+	waitForHealthy(t)
+	taro, taroID, _, hanakoID := loginBoth(t)
+
+	// 他テストと衝突しない専用の月を使う。
+	const month = "2046-03"
+
+	for _, id := range []string{taroID, hanakoID} {
+		if status, body := doJSON(t, http.MethodPut, "/months/"+month+"/salaries/"+id, taro, map[string]any{"amountYen": 0}); status != http.StatusOK {
+			t.Fatalf("salary put status = %d, body = %s", status, body)
+		}
+	}
+	if status, _ := doJSON(t, http.MethodGet, "/months/"+month+"/settlement", taro, nil); status != http.StatusOK {
+		t.Fatalf("settlement(0円で入力済み) status = %d, want 200", status)
+	}
+
+	// 削除すると未入力に戻り、精算は 409
+	if status, body := doJSON(t, http.MethodDelete, "/months/"+month+"/salaries/"+hanakoID, taro, nil); status != http.StatusNoContent {
+		t.Fatalf("salary delete status = %d, body = %s", status, body)
+	}
+	status, body := doJSON(t, http.MethodGet, "/months/"+month+"/salaries", taro, nil)
+	if status != http.StatusOK {
+		t.Fatalf("salary list status = %d, body = %s", status, body)
+	}
+	var listRes struct {
+		Salaries []struct {
+			MemberID string `json:"memberId"`
+		} `json:"salaries"`
+	}
+	if err := json.Unmarshal(body, &listRes); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(listRes.Salaries) != 1 || listRes.Salaries[0].MemberID != taroID {
+		t.Errorf("salaries = %+v, want taro only", listRes.Salaries)
+	}
+	if status, _ := doJSON(t, http.MethodGet, "/months/"+month+"/settlement", taro, nil); status != http.StatusConflict {
+		t.Errorf("settlement(削除後) status = %d, want 409", status)
+	}
+
+	// 未入力のメンバーの削除も 204（冪等）
+	if status, _ := doJSON(t, http.MethodDelete, "/months/"+month+"/salaries/"+hanakoID, taro, nil); status != http.StatusNoContent {
+		t.Errorf("salary 再削除 status = %d, want 204", status)
+	}
+}

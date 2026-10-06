@@ -45,6 +45,7 @@ func NewRouter(h *Handler, auth *Authenticator, allowedOrigins []string, opt Rou
 	mux.Handle("PUT /expenses/{id}", authed(h.UpdateExpense))
 	mux.Handle("DELETE /expenses/{id}", authed(h.DeleteExpense))
 	mux.Handle("PUT /months/{month}/salaries/{memberId}", authed(h.InputSalary))
+	mux.Handle("DELETE /months/{month}/salaries/{memberId}", authed(h.DeleteSalary))
 	mux.Handle("GET /months/{month}/salaries", authed(h.ListSalaries))
 	mux.Handle("POST /incomes", authed(h.RegisterIncome))
 	mux.Handle("GET /incomes", authed(h.ListIncomes))

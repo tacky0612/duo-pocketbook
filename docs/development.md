@@ -60,7 +60,7 @@ make up && make test-integration
 | `auth_test.go` | 認証・メンバー一覧・アカウント（ログインID/パスワード変更）・プロフィール更新 |
 | `expense_test.go` | 共有支出の CRUD（同月・別月移動を含む更新） |
 | `recurring_expense_test.go` | 固定費の CRUD と精算への反映 |
-| `salary_test.go` | 給与の入力・一覧・精算の可否（未入力で409）・基本精算 |
+| `salary_test.go` | 給与の入力・一覧・精算の可否（未入力で409）・基本精算・給与の削除（未入力に戻る・冪等） |
 | `income_test.go` | 追加収入の CRUD（更新含む）と精算への合算 |
 | `direct_transfer_test.go` | 立替精算の CRUD（更新含む）と精算への反映 |
 | `settlement_test.go` | 締め日集計・精算履歴・精算済みフラグ |

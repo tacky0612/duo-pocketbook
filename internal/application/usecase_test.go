@@ -1054,3 +1054,57 @@ func TestEstimateSettlement(t *testing.T) {
 		t.Errorf("estimated = %v, err = %v, want none", estimated, err)
 	}
 }
+
+func TestDeleteSalary(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	for _, m := range []domain.MemberID{husband, wife} {
+		if _, err := f.settlement.InputSalary(ctx, "2026-07", m, 0); err != nil {
+			t.Fatalf("InputSalary: %v", err)
+		}
+	}
+	// 0円でも入力済みなので精算できる
+	if _, err := f.settlement.GetSettlement(ctx, "2026-07"); err != nil {
+		t.Fatalf("GetSettlement: %v", err)
+	}
+
+	// 削除すると未入力に戻り、精算できなくなる
+	if err := f.settlement.DeleteSalary(ctx, "2026-07", wife); err != nil {
+		t.Fatalf("DeleteSalary: %v", err)
+	}
+	list, err := f.settlement.GetSalaries(ctx, "2026-07")
+	if err != nil {
+		t.Fatalf("GetSalaries: %v", err)
+	}
+	if len(list) != 1 || list[0].MemberID != husband {
+		t.Errorf("salaries = %+v, want husband only", list)
+	}
+	if _, err := f.settlement.GetSettlement(ctx, "2026-07"); !errors.Is(err, domain.ErrIncomeNotReady) {
+		t.Errorf("GetSettlement err = %v, want ErrIncomeNotReady", err)
+	}
+
+	// 未入力のメンバーの削除も成功する（冪等）
+	if err := f.settlement.DeleteSalary(ctx, "2026-07", wife); err != nil {
+		t.Errorf("DeleteSalary(未入力): %v", err)
+	}
+
+	// 不正な月・不明なメンバーは検証エラー
+	if err := f.settlement.DeleteSalary(ctx, "2026-13", wife); !errors.Is(err, domain.ErrValidation) {
+		t.Errorf("不正な月: err = %v, want ErrValidation", err)
+	}
+	if err := f.settlement.DeleteSalary(ctx, "2026-07", "nobody"); !errors.Is(err, domain.ErrValidation) {
+		t.Errorf("不明なメンバー: err = %v, want ErrValidation", err)
+	}
+
+	// 精算確定済みの月は削除できない
+	if _, err := f.settlement.InputSalary(ctx, "2026-07", wife, 50_000); err != nil {
+		t.Fatalf("InputSalary: %v", err)
+	}
+	if _, err := f.settlement.SetSettled(ctx, "2026-07", true); err != nil {
+		t.Fatalf("SetSettled: %v", err)
+	}
+	if err := f.settlement.DeleteSalary(ctx, "2026-07", wife); !errors.Is(err, domain.ErrSettled) {
+		t.Errorf("確定済み: err = %v, want ErrSettled", err)
+	}
+}
