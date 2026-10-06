@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../lib/apiClient";
 import { yen } from "../lib/format";
+import { prevYearMonth } from "../lib/month";
 import { useAsync } from "../hooks";
 import { Card, SectionTitle, Field, Input, NumberInput, Select, Button, Spinner, Empty, MemberBadge, Tabs } from "../components/ui";
 import { PlusIcon, TrashIcon, EditIcon } from "../components/Icons";
@@ -22,6 +23,15 @@ export default function IncomeScreen({ month, members, me, notify, onError, clos
   // --- 給与（メンバーごと・月ごとに1件） ---
   const salaries = useAsync<SalariesResponse>(
     () => api<SalariesResponse>("GET", `/months/${month}/salaries`),
+    [month]
+  );
+  // 前月の給与。当月の給与が未入力のメンバーは、精算画面と同じく前月の給与で概算した収入を示す。
+  // 補助情報なので、取得に失敗しても給与の入力は続けられるようにエラーは握りつぶす。
+  const prevSalaries = useAsync<SalariesResponse>(
+    () =>
+      api<SalariesResponse>("GET", `/months/${prevYearMonth(month)}/salaries`).catch(
+        (): SalariesResponse => ({ month: prevYearMonth(month), salaries: [] })
+      ),
     [month]
   );
   const [salaryValues, setSalaryValues] = useState<Record<string, string>>({});
@@ -61,6 +71,26 @@ export default function IncomeScreen({ month, members, me, notify, onError, clos
   const memberName = (id: MemberId) => members.find((m) => m.id === id)?.name || id;
   const memberColor = (id: MemberId) => members.find((m) => m.id === id)?.color;
   const selectedMemberId = memberId || members[0]?.id || "";
+
+  // 当月の給与が未入力（保存済みの値がない）メンバーについて、概算の収入を示すヒント。
+  // 概算の収入 = 前月の給与 + 当月に適用される追加収入（精算画面の「収入（概算）」と同じ値）。
+  const salaryHint = (id: MemberId) => {
+    if (!salaries.data || salaries.data.salaries.some((s) => s.memberId === id)) return undefined;
+    const prev = prevSalaries.data?.salaries.find((s) => s.memberId === id);
+    if (!prev) {
+      return prevSalaries.loading ? undefined : <span>未入力です（先月の給与も未入力のため、概算できません）</span>;
+    }
+    const extra = (incomes.data?.incomes ?? []).filter((i) => i.memberId === id).reduce((sum, i) => sum + i.amountYen, 0);
+    return (
+      <span className="block space-y-0.5 text-orange-600 dark:text-orange-400">
+        <span className="block">未入力のため、先月の給与 {yen(prev.amountYen)} で概算しています</span>
+        <span className="block font-semibold">
+          概算の収入 <span className="tabular-nums">{yen(prev.amountYen + extra)}</span>
+          {extra > 0 && <span className="font-normal">（＋追加収入 {yen(extra)}）</span>}
+        </span>
+      </span>
+    );
+  };
 
   const saveSalaries = async (ev: FormEvent<HTMLFormElement>) => {
     ev.preventDefault();
@@ -177,7 +207,7 @@ export default function IncomeScreen({ month, members, me, notify, onError, clos
           <form onSubmit={saveSalaries} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               {members.map((m) => (
-                <Field key={m.id} label={`${m.name} の給与`}>
+                <Field key={m.id} label={`${m.name} の給与`} hint={salaryHint(m.id)}>
                   <div className="relative">
                     <NumberInput
                       placeholder="0"
