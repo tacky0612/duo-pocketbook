@@ -43,6 +43,7 @@ TOKEN=$(curl -s -X POST $BASE/login \
 | `PUT /expenses/{id}` | 共有支出の更新 |
 | `DELETE /expenses/{id}` | 共有支出の削除（どちらのメンバーでも可） |
 | `PUT /months/{month}/salaries/{memberId}` | 月次給与の入力（上書き。メンバーごと1件） |
+| `DELETE /months/{month}/salaries/{memberId}` | 月次給与の削除（未入力に戻す。未入力でも 204） |
 | `GET /months/{month}/salaries` | 月次給与の一覧 |
 | `POST /incomes` | 追加収入の登録（`month` 空で毎月継続・指定でその月のみの単発） |
 | `GET /incomes?month=YYYY-MM` | 指定月に適用される追加収入の一覧（継続分＋当月単発分） |

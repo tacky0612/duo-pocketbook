@@ -102,6 +102,14 @@ func (r *SalaryRepository) FindByMonth(_ context.Context, month domain.YearMonth
 	return list, nil
 }
 
+// Delete は対象月・メンバーの給与を削除する（存在しなくてもエラーにしない）。
+func (r *SalaryRepository) Delete(_ context.Context, month domain.YearMonth, memberID domain.MemberID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.salaries, salaryKey(month, memberID))
+	return nil
+}
+
 // IncomeRepository は application.IncomeRepository のインメモリ実装（追加収入・複数件）。
 type IncomeRepository struct {
 	mu    sync.RWMutex

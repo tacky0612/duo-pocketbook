@@ -70,3 +70,15 @@ func (r *SalaryRepository) FindByMonth(ctx context.Context, month domain.YearMon
 	}
 	return salaries, nil
 }
+
+// Delete は対象月・メンバーの給与を削除する（存在しなくてもエラーにしない）。
+func (r *SalaryRepository) Delete(ctx context.Context, month domain.YearMonth, memberID domain.MemberID) error {
+	_, err := r.client.DeleteItem(ctx, &dynamodb.DeleteItemInput{
+		TableName: aws.String(r.table),
+		Key: map[string]types.AttributeValue{
+			"PK": &types.AttributeValueMemberS{Value: monthPKPrefix + month.String()},
+			"SK": &types.AttributeValueMemberS{Value: salarySKPrefix + string(memberID)},
+		},
+	})
+	return err
+}

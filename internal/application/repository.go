@@ -26,6 +26,8 @@ type ExpenseRepository interface {
 type SalaryRepository interface {
 	Save(ctx context.Context, salary domain.Salary) error
 	FindByMonth(ctx context.Context, month domain.YearMonth) ([]domain.Salary, error)
+	// Delete は対象月・メンバーの給与を削除する（存在しなくてもエラーにしない）。
+	Delete(ctx context.Context, month domain.YearMonth, memberID domain.MemberID) error
 }
 
 // IncomeRepository は給与とは別の追加収入（内容付き・単発/継続）の永続化を担う。

@@ -90,6 +90,9 @@ func TestSettledMonthEditLock(t *testing.T) {
 	status, body = doJSON(t, http.MethodPut, "/months/"+month+"/salaries/"+taroID, taro, map[string]any{"amountYen": 120000})
 	wantLocked("給与PUT(確定月)", status, body)
 
+	status, body = doJSON(t, http.MethodDelete, "/months/"+month+"/salaries/"+taroID, taro, nil)
+	wantLocked("給与DELETE(確定月)", status, body)
+
 	status, body = doJSON(t, http.MethodPost, "/incomes", taro, map[string]any{
 		"memberId": taroID, "amountYen": 3000, "description": "副業2", "month": month,
 	})
