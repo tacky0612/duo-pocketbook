@@ -48,9 +48,9 @@ TOKEN=$(curl -s -X POST $BASE/login \
 | `GET /incomes?month=YYYY-MM` | 指定月に適用される追加収入の一覧（継続分＋当月単発分） |
 | `PUT /incomes/{id}` | 追加収入の更新（メンバー・金額・内容。継続/単発と対象月は不変） |
 | `DELETE /incomes/{id}` | 追加収入の削除 |
-| `POST /reservations` | 予約の登録（`kind`=`expense`/`income`。`month` 空で毎月（`startMonth` 以降）・指定でその月のみの単発。見込み額は任意） |
+| `POST /reservations` | 予約の登録（`kind`=`expense`/`income`。`month` 空で毎月（`startMonth` 以降）・指定でその月のみの単発。予約は金額未定として登録し、金額は持たない） |
 | `GET /reservations?month=YYYY-MM[&kind=expense\|income]` | 指定月に存在する予約と入力状況（`status`）の一覧。`pendingCount` は未入力の件数、`settled` はその月が精算確定済みか |
-| `PUT /reservations/{id}` | 予約の更新（メンバー・内容・見込み額・頻度。種別とIDは不変。単発へ変更すると「今月はなし」の記録は消える） |
+| `PUT /reservations/{id}` | 予約の更新（メンバー・内容・頻度。種別とIDは不変。単発へ変更すると「今月はなし」の記録は消える） |
 | `DELETE /reservations/{id}` | 予約の削除（入力済みの支出・収入は残る） |
 | `POST /reservations/{id}/fulfill` | 予約の金額入力（支出の予約は共有支出、収入の予約はその月の追加収入として登録） |
 | `PUT /reservations/{id}/skip` | 予約を指定月で「今月はなし」にする／解除する |
@@ -148,9 +148,9 @@ stateDiagram-v2
 - 精算の確定（`PUT /months/{month}/settlement/status`）自体は未入力の予約があっても拒否しない。クライアントは確定前に `GET /reservations?month=` の `pendingCount` を確認して警告する（Web UI は未入力の予約一覧と「金額を入力」「今月はなし」「未入力のまま完了する」を表示する）。
 
 ```bash
-# 毎月の支出予約（見込み 8,000円）を登録 → 10月分の金額を入力
+# 毎月の支出予約を登録 → 10月分の金額を入力
 curl -X POST $BASE/reservations -H "Authorization: Bearer $TOKEN" \
-  -d '{"kind":"expense","memberId":"<AccountID>","description":"電気代","estimatedAmountYen":8000,"month":""}'
+  -d '{"kind":"expense","memberId":"<AccountID>","description":"電気代","month":""}'
 curl -X POST $BASE/reservations/<予約ID>/fulfill -H "Authorization: Bearer $TOKEN" \
   -d '{"month":"2026-10","amountYen":7820,"date":"2026-10-25"}'
 # 未入力の予約の件数

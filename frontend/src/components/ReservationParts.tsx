@@ -76,10 +76,10 @@ interface FulfillReservationFormProps {
 }
 
 // 予約の金額入力フォーム。確定すると予約に紐づく支出（日付つき）／収入（対象月のみ）として登録される。
-// 金額は見込み額があれば初期値に入れておく。支出の日付は今日（対象月外なら精算期間の初日）を初期値にする。
+// 支出の日付は今日（対象月外なら精算期間の初日）を初期値にする。
 export function FulfillReservationForm({ reservation, month, closingDay, notify, onError, onDone, onCancel }: FulfillReservationFormProps) {
   const isExpense = reservation.kind === "expense";
-  const [amount, setAmount] = useState(reservation.estimatedAmountYen > 0 ? String(reservation.estimatedAmountYen) : "");
+  const [amount, setAmount] = useState("");
   const [date, setDate] = useState(() => defaultDateInSettlementMonth(month, closingDay));
   const [busy, setBusy] = useState(false);
 

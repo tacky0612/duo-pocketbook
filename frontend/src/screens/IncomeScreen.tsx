@@ -82,7 +82,7 @@ export default function IncomeScreen({ month, members, me, notify, onError, clos
   };
 
   // 同じフォームから、通常の収入（/incomes）か予約（/reservations）として登録する。
-  // 予約の金額欄は見込み額（任意）として扱う。
+  // 予約は金額未定として登録するため、金額欄を出さない。
   const add = async (ev: FormEvent<HTMLFormElement>) => {
     ev.preventDefault();
     setBusy(true);
@@ -102,7 +102,6 @@ export default function IncomeScreen({ month, members, me, notify, onError, clos
           kind: "income",
           memberId: selectedMemberId,
           description,
-          estimatedAmountYen: Number(amount || 0),
           month: frequency,
           // 毎月の予約は表示中の月から始める（登録より前の月に未入力として現れないように）。
           startMonth: recurring ? month : "",
@@ -229,7 +228,7 @@ export default function IncomeScreen({ month, members, me, notify, onError, clos
               </Select>
             </Field>
             <div className="grid grid-cols-5 gap-3">
-              <div className="col-span-3">
+              <div className={mode === "actual" ? "col-span-3" : "col-span-5"}>
                 <Field label="内容">
                   <Input
                     type="text" required
@@ -238,19 +237,21 @@ export default function IncomeScreen({ month, members, me, notify, onError, clos
                   />
                 </Field>
               </div>
-              <div className="col-span-2">
-                <Field label={mode === "actual" ? "金額" : "見込み額"}>
-                  <div className="relative">
-                    <NumberInput
-                      required={mode === "actual"}
-                      placeholder={mode === "actual" ? "0" : "未定"}
-                      value={amount} onChange={setAmount}
-                      className="pr-8 text-right tabular-nums"
-                    />
-                    <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-400">円</span>
-                  </div>
-                </Field>
-              </div>
+              {mode === "actual" && (
+                <div className="col-span-2">
+                  <Field label="金額">
+                    <div className="relative">
+                      <NumberInput
+                        required
+                        placeholder="0"
+                        value={amount} onChange={setAmount}
+                        className="pr-8 text-right tabular-nums"
+                      />
+                      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-400">円</span>
+                    </div>
+                  </Field>
+                </div>
+              )}
             </div>
             <Field label="頻度">
               <FrequencyToggle recurring={recurring} onChange={setRecurring} month={month} />

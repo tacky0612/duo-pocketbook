@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api } from "../lib/apiClient";
-import { yen } from "../lib/format";
 import { useAsync } from "../hooks";
-import { Card, SectionTitle, Field, Input, NumberInput, Select, Button, Spinner, Empty, MemberBadge } from "./ui";
+import { Card, SectionTitle, Field, Input, Select, Button, Spinner, Empty, MemberBadge } from "./ui";
 import { TrashIcon, EditIcon } from "./Icons";
 import FrequencyToggle from "./FrequencyToggle";
 import {
@@ -35,12 +34,12 @@ interface ReservationListProps {
 interface ReservationDraft {
   memberId: MemberId;
   description: string;
-  estimated: string;
   recurring: boolean;
 }
 
-// 対象月の予約一覧（入力状況つき）。行ごとに金額入力・今月はなし・入力の取り消し・編集・削除ができる。
+// 対象月の予約一覧（入力状況つき）。行ごとに金額入力・今月はなし・編集・削除ができる。
 // 予約自体は精算に影響せず、金額を入力すると支出／収入として登録されて精算に反映される。
+// 金額を入力済みの予約は一覧に出さない（登録された支出／収入は通常の一覧に表示され、それを削除すると未入力に戻る）。
 export default function ReservationList({ kind, month, members, notify, onError, onActualsChanged, refreshKey, closingDay, initialFulfillingId }: ReservationListProps) {
   const { loading, data, error, reload } = useAsync<ReservationsResponse>(
     () => api<ReservationsResponse>("GET", `/reservations?month=${month}&kind=${kind}`),
@@ -79,7 +78,6 @@ export default function ReservationList({ kind, month, members, notify, onError,
     setDraft({
       memberId: r.memberId,
       description: r.description,
-      estimated: r.estimatedAmountYen > 0 ? String(r.estimatedAmountYen) : "",
       recurring: r.recurring,
     });
   };
@@ -97,7 +95,6 @@ export default function ReservationList({ kind, month, members, notify, onError,
       await api("PUT", `/reservations/${editingId}`, {
         memberId: draft.memberId,
         description: draft.description,
-        estimatedAmountYen: Number(draft.estimated || 0),
         month: draft.recurring ? "" : month,
         // 毎月のままなら開始月を維持し、単発から毎月へ変えるなら表示中の月から始める。
         startMonth: draft.recurring ? (r0?.recurring ? r0.startMonth : month) : "",
@@ -128,26 +125,8 @@ export default function ReservationList({ kind, month, members, notify, onError,
     }
   };
 
-  // 入力の取り消し = 予約から登録された支出／収入をすべて削除する（予約は未入力に戻る）。
-  // 確認ダイアログに出す金額は紐づく全件の合計なので、削除も全件に対して行う。
-  const undoFulfill = async (r: Reservation) => {
-    const count = r.fulfilledIds.length > 1 ? `${r.fulfilledIds.length}件・` : "";
-    if (!confirm(`「${r.description}」の入力（${count}${yen(r.fulfilledAmountYen)}）を取り消しますか?\n登録された${label}も削除されます。`)) return;
-    try {
-      for (const id of r.fulfilledIds) {
-        await api("DELETE", `/${kind === "expense" ? "expenses" : "incomes"}/${id}`);
-      }
-      notify("入力を取り消しました");
-      reload();
-      onActualsChanged?.();
-    } catch (err) {
-      onError(err);
-    }
-  };
-
   const remove = async (r: Reservation) => {
-    const note = r.status === "fulfilled" ? `\n入力済みの${label}は削除されずに残ります。` : "";
-    if (!confirm(`予約「${r.description}」を削除しますか?${note}`)) return;
+    if (!confirm(`予約「${r.description}」を削除しますか?`)) return;
     try {
       await api("DELETE", `/reservations/${r.id}`);
       notify("予約を削除しました");
@@ -159,6 +138,9 @@ export default function ReservationList({ kind, month, members, notify, onError,
   };
 
   const list = data?.reservations ?? [];
+  // 金額を入力済みの予約は表示しない。
+  const visible = list.filter((r) => r.status !== "fulfilled");
+  const fulfilledCount = list.length - visible.length;
   const pendingCount = data?.pendingCount ?? 0;
   // 確定済みの月は金額入力・今月はなし・入力の取り消しができないため、操作ボタンを出さない。
   const settled = data?.settled ?? false;
@@ -177,16 +159,18 @@ export default function ReservationList({ kind, month, members, notify, onError,
         {month} の{label}予約
       </SectionTitle>
       {/* 月を切り替えた直後は前の月の一覧が残っているため表示しない（前の月の予約に対して操作できてしまう） */}
-      {settled && data?.month === month && list.length > 0 && (
+      {settled && data?.month === month && visible.length > 0 && (
         <p className="mb-2 text-xs text-slate-400">この月は精算確定済みのため、金額の入力や「今月はなし」はできません。</p>
       )}
       {(loading && !data) || (data && data.month !== month) ? (
         <Spinner />
-      ) : list.length === 0 ? (
-        <Empty>この月の{label}の予約はありません</Empty>
+      ) : visible.length === 0 ? (
+        <Empty>
+          {fulfilledCount > 0 ? `この月の${label}の予約はすべて金額を入力済みです` : `この月の${label}の予約はありません`}
+        </Empty>
       ) : (
         <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-          {list.map((r) =>
+          {visible.map((r) =>
             editingId === r.id && draft ? (
               <li key={r.id} className="py-3">
                 {/* インライン編集フォーム（種別は変更不可） */}
@@ -204,30 +188,13 @@ export default function ReservationList({ kind, month, members, notify, onError,
                       ))}
                     </Select>
                   </Field>
-                  <div className="grid grid-cols-5 gap-3">
-                    <div className="col-span-3">
-                      <Field label="内容">
-                        <Input
-                          type="text" required placeholder={reservationPlaceholder[kind]}
-                          value={draft.description}
-                          onChange={(ev) => setDraft((d) => (d ? { ...d, description: ev.target.value } : d))}
-                        />
-                      </Field>
-                    </div>
-                    <div className="col-span-2">
-                      <Field label="見込み額">
-                        <div className="relative">
-                          <NumberInput
-                            placeholder="未定"
-                            value={draft.estimated}
-                            onChange={(v) => setDraft((d) => (d ? { ...d, estimated: v } : d))}
-                            className="pr-8 text-right tabular-nums"
-                          />
-                          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-400">円</span>
-                        </div>
-                      </Field>
-                    </div>
-                  </div>
+                  <Field label="内容">
+                    <Input
+                      type="text" required placeholder={reservationPlaceholder[kind]}
+                      value={draft.description}
+                      onChange={(ev) => setDraft((d) => (d ? { ...d, description: ev.target.value } : d))}
+                    />
+                  </Field>
                   <Field
                     label="頻度"
                     hint={
@@ -267,15 +234,9 @@ export default function ReservationList({ kind, month, members, notify, onError,
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
                       <MemberBadge name={memberName(r.memberId)} color={memberColor(r.memberId)} />
-                      <span className="tabular-nums">
-                        見込み {r.estimatedAmountYen > 0 ? yen(r.estimatedAmountYen) : "未定"}
-                      </span>
                       {r.recurring && r.startMonth && <span className="tabular-nums">{r.startMonth} から</span>}
                     </div>
                   </div>
-                  {r.status === "fulfilled" && (
-                    <span className="whitespace-nowrap font-semibold tabular-nums">{yen(r.fulfilledAmountYen)}</span>
-                  )}
                   <button
                     onClick={() => startEdit(r)}
                     className="rounded-lg p-2 text-slate-400 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/40"
@@ -327,11 +288,6 @@ export default function ReservationList({ kind, month, members, notify, onError,
                     {r.status === "skipped" && (
                       <Button variant="secondary" onClick={() => toggleSkip(r, false)} className="px-3 py-1.5 text-xs">
                         「今月はなし」を取り消す
-                      </Button>
-                    )}
-                    {r.status === "fulfilled" && (
-                      <Button variant="ghost" onClick={() => undoFulfill(r)} className="px-3 py-1.5 text-xs">
-                        入力を取り消す
                       </Button>
                     )}
                   </div>

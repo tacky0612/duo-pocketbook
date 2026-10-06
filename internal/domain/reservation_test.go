@@ -25,27 +25,25 @@ func TestReservationID(t *testing.T) {
 
 func TestNewReservationValidation(t *testing.T) {
 	cases := []struct {
-		name      string
-		kind      domain.ReservationKind
-		member    domain.MemberID
-		desc      string
-		estimated domain.Money
+		name   string
+		kind   domain.ReservationKind
+		member domain.MemberID
+		desc   string
 	}{
-		{"不明な種別", "transfer", "taro", "電気代", 0},
-		{"メンバー未指定", domain.ReservationKindExpense, "", "電気代", 0},
-		{"内容が空", domain.ReservationKindExpense, "taro", "  ", 0},
-		{"見込み額が負", domain.ReservationKindIncome, "taro", "賞与", -1},
+		{"不明な種別", "transfer", "taro", "電気代"},
+		{"メンバー未指定", domain.ReservationKindExpense, "", "電気代"},
+		{"内容が空", domain.ReservationKindExpense, "taro", "  "},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			_, err := domain.NewReservation("rsv_x", c.kind, c.member, c.desc, c.estimated, domain.YearMonth{}, domain.YearMonth{})
+			_, err := domain.NewReservation("rsv_x", c.kind, c.member, c.desc, domain.YearMonth{}, domain.YearMonth{})
 			if !errors.Is(err, domain.ErrValidation) {
 				t.Errorf("err = %v, want ErrValidation", err)
 			}
 		})
 	}
 
-	r, err := domain.NewReservation("rsv_x", domain.ReservationKindExpense, "taro", " 電気代 ", 0, domain.YearMonth{}, domain.YearMonth{})
+	r, err := domain.NewReservation("rsv_x", domain.ReservationKindExpense, "taro", " 電気代 ", domain.YearMonth{}, domain.YearMonth{})
 	if err != nil {
 		t.Fatalf("NewReservation: %v", err)
 	}
@@ -194,7 +192,7 @@ func TestReservationFulfill(t *testing.T) {
 
 func TestReservationReviseAndSkip(t *testing.T) {
 	jul, aug := mustYM(t, "2026-07"), mustYM(t, "2026-08")
-	r, err := domain.NewReservation("rsv_a", domain.ReservationKindExpense, "taro", "電気代", 0, domain.YearMonth{}, domain.YearMonth{})
+	r, err := domain.NewReservation("rsv_a", domain.ReservationKindExpense, "taro", "電気代", domain.YearMonth{}, domain.YearMonth{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,11 +211,11 @@ func TestReservationReviseAndSkip(t *testing.T) {
 	}
 
 	// 毎月のまま変更するとスキップは維持、単発へ変更すると消える。IDと種別は変わらない。
-	same, err := r.Revise("hanako", "電気代（東京）", 8000, domain.YearMonth{}, domain.YearMonth{})
+	same, err := r.Revise("hanako", "電気代（東京）", domain.YearMonth{}, domain.YearMonth{})
 	if err != nil || same.ID != r.ID || same.Kind != r.Kind || len(same.SkippedMonths) != 2 || same.MemberID != "hanako" {
 		t.Errorf("Revise(毎月) = %+v, %v", same, err)
 	}
-	oneOff, err := r.Revise("taro", "電気代", 0, jul, domain.YearMonth{})
+	oneOff, err := r.Revise("taro", "電気代", jul, domain.YearMonth{})
 	if err != nil || oneOff.ID != r.ID || oneOff.IsRecurring() || len(oneOff.SkippedMonths) != 0 {
 		t.Errorf("Revise(単発) = %+v, %v", oneOff, err)
 	}
@@ -293,7 +291,7 @@ func TestReservationStartMonth(t *testing.T) {
 	if !sep.Before(oct) || oct.Before(oct) || nov.Before(oct) || !mustYM(t, "2025-12").Before(sep) {
 		t.Error("YearMonth.Before の判定が不正")
 	}
-	r, err := domain.NewReservation("rsv_a", domain.ReservationKindExpense, "taro", "電気代", 0, domain.YearMonth{}, oct)
+	r, err := domain.NewReservation("rsv_a", domain.ReservationKindExpense, "taro", "電気代", domain.YearMonth{}, oct)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -305,20 +303,20 @@ func TestReservationStartMonth(t *testing.T) {
 		t.Errorf("開始月より前のスキップ: err = %v", err)
 	}
 	// 単発の予約は開始月を持たない。
-	oneOff, _ := domain.NewReservation("rsv_b", domain.ReservationKindExpense, "taro", "車検", 0, nov, oct)
+	oneOff, _ := domain.NewReservation("rsv_b", domain.ReservationKindExpense, "taro", "車検", nov, oct)
 	if !oneOff.StartMonth.IsZero() {
 		t.Errorf("単発の StartMonth = %v, want zero", oneOff.StartMonth)
 	}
 	// 単発 → 毎月（開始月未指定）は元の対象月が開始月になり、毎月のまま（未指定）は開始月を維持する。
-	back, _ := oneOff.Revise("taro", "車検", 0, domain.YearMonth{}, domain.YearMonth{})
+	back, _ := oneOff.Revise("taro", "車検", domain.YearMonth{}, domain.YearMonth{})
 	if back.StartMonth != nov {
 		t.Errorf("単発→毎月の開始月 = %v, want %v", back.StartMonth, nov)
 	}
-	kept, _ := r.Revise("taro", "電気代", 0, domain.YearMonth{}, domain.YearMonth{})
+	kept, _ := r.Revise("taro", "電気代", domain.YearMonth{}, domain.YearMonth{})
 	if kept.StartMonth != oct {
 		t.Errorf("毎月のままの開始月 = %v, want %v", kept.StartMonth, oct)
 	}
-	moved, _ := r.Revise("taro", "電気代", 0, domain.YearMonth{}, sep)
+	moved, _ := r.Revise("taro", "電気代", domain.YearMonth{}, sep)
 	if moved.StartMonth != sep {
 		t.Errorf("開始月の指定 = %v, want %v", moved.StartMonth, sep)
 	}

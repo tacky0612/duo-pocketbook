@@ -36,11 +36,10 @@ func NewReservationUsecase(couple domain.Couple, reservations ReservationReposit
 // RegisterReservationInput は予約の登録・更新の入力。
 // Month が空文字なら毎月、"YYYY-MM" ならその精算月のみの単発として扱う。
 type RegisterReservationInput struct {
-	Kind               string // "expense" | "income"（更新時は無視）
-	MemberID           domain.MemberID
-	Description        string
-	EstimatedAmountYen int64 // 0 は未定
-	Month              string
+	Kind        string // "expense" | "income"（更新時は無視）
+	MemberID    domain.MemberID
+	Description string
+	Month       string
 	// StartMonth は毎月の予約の開始月（"YYYY-MM"）。これより前の月には予約が現れない。
 	// 登録時に空なら制限なし。更新時に空なら、毎月のままは現在の開始月、単発から毎月へ変えるなら元の対象月を使う。
 	StartMonth string
@@ -66,7 +65,7 @@ func (u *ReservationUsecase) Register(ctx context.Context, in RegisterReservatio
 	if err := u.ensureMonthsNotSettled(ctx, month); err != nil {
 		return domain.Reservation{}, err
 	}
-	r, err := domain.NewReservation(string(domain.NewReservationID(newIDSuffix())), kind, in.MemberID, in.Description, domain.Money(in.EstimatedAmountYen), month, start)
+	r, err := domain.NewReservation(string(domain.NewReservationID(newIDSuffix())), kind, in.MemberID, in.Description, month, start)
 	if err != nil {
 		return domain.Reservation{}, err
 	}
@@ -76,7 +75,7 @@ func (u *ReservationUsecase) Register(ctx context.Context, in RegisterReservatio
 	return r, nil
 }
 
-// Update は既存の予約のメンバー・内容・見込み額・頻度・開始月を更新する（IDと種別は維持）。
+// Update は既存の予約のメンバー・内容・頻度・開始月を更新する（IDと種別は維持）。
 //
 // 頻度は in.Month で指定する（空文字なら毎月、"YYYY-MM" ならその精算月のみ）。IDは頻度に依存しないため
 // 予約1件の上書きで完結し、予約に紐づく支出・収入はそのまま有効。単発へ変更すると「今月はなし」の記録は消える。
@@ -101,7 +100,7 @@ func (u *ReservationUsecase) Update(ctx context.Context, id domain.ReservationID
 	if err := u.ensureMonthsNotSettled(ctx, existing.Month, month); err != nil {
 		return domain.Reservation{}, err
 	}
-	r, err := existing.Revise(in.MemberID, in.Description, domain.Money(in.EstimatedAmountYen), month, start)
+	r, err := existing.Revise(in.MemberID, in.Description, month, start)
 	if err != nil {
 		return domain.Reservation{}, err
 	}

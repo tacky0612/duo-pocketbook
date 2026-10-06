@@ -85,8 +85,6 @@ export interface Reservation {
   /** 支出なら支払う人、収入なら収入を得る人。 */
   memberId: MemberId;
   description: string;
-  /** 見込み額。0 は未定。 */
-  estimatedAmountYen: number;
   recurring: boolean;
   month: YearMonth; // 毎月は空文字
   /** 毎月の予約の開始月。これより前の月には現れない。空文字は制限なし（単発は常に空文字）。 */

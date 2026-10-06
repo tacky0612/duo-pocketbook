@@ -75,7 +75,7 @@ type DirectTransferRepository interface {
 
 // ReservationRepository は収入・支出の予約と、精算月ごとの入力ロックの永続化を担う。
 type ReservationRepository interface {
-	// Save は予約の内容（種別・メンバー・内容・見込み額・頻度・開始月）を保存する。
+	// Save は予約の内容（種別・メンバー・内容・頻度・開始月）を保存する。
 	// 「今月はなし」の記録（SkippedMonths）は AddSkip / RemoveSkip でのみ更新し、Save では上書きしない
 	// （同時に行われたスキップを失わないため）。ただし単発の予約は記録を持てないため、単発なら記録を消す。
 	Save(ctx context.Context, r domain.Reservation) error

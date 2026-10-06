@@ -24,14 +24,13 @@ type ReservationRepository struct {
 }
 
 type reservationItem struct {
-	PK                 string `dynamodbav:"PK"`
-	SK                 string `dynamodbav:"SK"` // 予約ID
-	Kind               string `dynamodbav:"Kind"`
-	MemberID           string `dynamodbav:"MemberID"`
-	Description        string `dynamodbav:"Description"`
-	EstimatedAmountYen int64  `dynamodbav:"EstimatedAmountYen"`
-	Month              string `dynamodbav:"Month"`      // YYYY-MM。毎月は空文字
-	StartMonth         string `dynamodbav:"StartMonth"` // 毎月の予約の開始月（YYYY-MM）。空文字は制限なし
+	PK          string `dynamodbav:"PK"`
+	SK          string `dynamodbav:"SK"` // 予約ID
+	Kind        string `dynamodbav:"Kind"`
+	MemberID    string `dynamodbav:"MemberID"`
+	Description string `dynamodbav:"Description"`
+	Month       string `dynamodbav:"Month"`      // YYYY-MM。毎月は空文字
+	StartMonth  string `dynamodbav:"StartMonth"` // 毎月の予約の開始月（YYYY-MM）。空文字は制限なし
 	// SkippedMonths は「今月はなし」の月（YYYY-MM）の文字列セット。ADD/DELETE で原子的に更新する。
 	SkippedMonths []string `dynamodbav:"SkippedMonths,stringset,omitempty"`
 }
@@ -65,7 +64,7 @@ func toReservation(item reservationItem) (domain.Reservation, error) {
 	if err != nil {
 		return domain.Reservation{}, err
 	}
-	r, err := domain.NewReservation(item.SK, domain.ReservationKind(item.Kind), domain.MemberID(item.MemberID), item.Description, domain.Money(item.EstimatedAmountYen), month, start)
+	r, err := domain.NewReservation(item.SK, domain.ReservationKind(item.Kind), domain.MemberID(item.MemberID), item.Description, month, start)
 	if err != nil {
 		return domain.Reservation{}, err
 	}
@@ -91,13 +90,13 @@ func (r *ReservationRepository) Save(ctx context.Context, rsv domain.Reservation
 	} else {
 		monthStr = rsv.Month.String()
 	}
-	expr := "SET #kind = :kind, #member = :member, #desc = :desc, #est = :est, #month = :month, #start = :start"
+	expr := "SET #kind = :kind, #member = :member, #desc = :desc, #month = :month, #start = :start"
 	if !rsv.IsRecurring() {
 		expr += " REMOVE #skipped"
 	}
 	names := map[string]string{
 		"#kind": "Kind", "#member": "MemberID", "#desc": "Description",
-		"#est": "EstimatedAmountYen", "#month": "Month", "#start": "StartMonth",
+		"#month": "Month", "#start": "StartMonth",
 	}
 	if !rsv.IsRecurring() {
 		names["#skipped"] = "SkippedMonths"
@@ -106,7 +105,6 @@ func (r *ReservationRepository) Save(ctx context.Context, rsv domain.Reservation
 		":kind":   string(rsv.Kind),
 		":member": string(rsv.MemberID),
 		":desc":   rsv.Description,
-		":est":    int64(rsv.EstimatedAmount),
 		":month":  monthStr,
 		":start":  startStr,
 	})

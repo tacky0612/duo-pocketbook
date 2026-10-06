@@ -31,7 +31,7 @@ func TestReservationExpenseFulfillFlow(t *testing.T) {
 	ctx := context.Background()
 
 	r, err := f.reserve.Register(ctx, application.RegisterReservationInput{
-		Kind: "expense", MemberID: husband, Description: "電気代", EstimatedAmountYen: 8000,
+		Kind: "expense", MemberID: husband, Description: "電気代",
 	})
 	if err != nil {
 		t.Fatalf("Register: %v", err)
@@ -106,7 +106,7 @@ func TestReservationIncomeFulfill(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Register: %v", err)
 	}
-	if r.IsRecurring() || r.EstimatedAmount != 0 {
+	if r.IsRecurring() {
 		t.Fatalf("reservation = %+v", r)
 	}
 	// 単発の予約は対象月だけに現れる。
@@ -185,11 +185,11 @@ func TestReservationUpdateAndDelete(t *testing.T) {
 		t.Fatalf("Register: %v", err)
 	}
 	// 種別は更新で変わらない。頻度・対象月が同じならIDも変わらない。
-	u, err := f.reserve.Update(ctx, r.ID, application.RegisterReservationInput{Kind: "income", MemberID: wife, Description: "車検代", EstimatedAmountYen: 60000, Month: "2026-07"})
+	u, err := f.reserve.Update(ctx, r.ID, application.RegisterReservationInput{Kind: "income", MemberID: wife, Description: "車検代", Month: "2026-07"})
 	if err != nil {
 		t.Fatalf("Update: %v", err)
 	}
-	if u.ID != r.ID || u.Kind != domain.ReservationKindExpense || u.Month != r.Month || u.MemberID != wife || u.EstimatedAmount != 60000 || u.Description != "車検代" {
+	if u.ID != r.ID || u.Kind != domain.ReservationKindExpense || u.Month != r.Month || u.MemberID != wife || u.Description != "車検代" {
 		t.Errorf("updated = %+v", u)
 	}
 	if _, err := f.reserve.Update(ctx, "rsv_missing", application.RegisterReservationInput{MemberID: wife, Description: "x"}); !errors.Is(err, application.ErrNotFound) {
@@ -210,7 +210,6 @@ func TestReservationValidation(t *testing.T) {
 		{Kind: "transfer", MemberID: husband, Description: "x"},
 		{Kind: "expense", MemberID: "unknown", Description: "x"},
 		{Kind: "expense", MemberID: husband, Description: ""},
-		{Kind: "expense", MemberID: husband, Description: "x", EstimatedAmountYen: -1},
 		{Kind: "expense", MemberID: husband, Description: "x", Month: "2026/07"},
 	}
 	for _, in := range cases {

@@ -12,7 +12,7 @@
 | 給与 | `MONTH#<yyyy-MM>` | `SALARY#<memberID>` | `MemberID`, `AmountYen` |
 | 追加収入（継続） | `INCOME#RECURRING` | `<収入ID>` | `MemberID`, `AmountYen`, `Description`, `Month`(空文字) |
 | 追加収入（単発） | `INCOME#<yyyy-MM>` | `<収入ID>` | `MemberID`, `AmountYen`, `Description`, `Month`(YYYY-MM), `ReservationID`(予約から登録した場合のみ) |
-| 予約 | `RESERVATION` | `<予約ID>`（`rsv_<hex>`） | `Kind`(expense/income), `MemberID`, `Description`, `EstimatedAmountYen`(0=未定), `Month`(YYYY-MM。毎月は空文字), `StartMonth`(毎月の予約の開始月。空文字は制限なし), `SkippedMonths`(「今月はなし」の月の文字列セット。毎月の予約のみ) |
+| 予約 | `RESERVATION` | `<予約ID>`（`rsv_<hex>`） | `Kind`(expense/income), `MemberID`, `Description`, `Month`(YYYY-MM。毎月は空文字), `StartMonth`(毎月の予約の開始月。空文字は制限なし), `SkippedMonths`(「今月はなし」の月の文字列セット。毎月の予約のみ) |
 | 予約の入力ロック | `RESERVATIONFILL#<yyyy-MM>` | `<予約ID>` | `TargetID`（その月の入力で登録した支出／収入のID） |
 | 精算スナップショット | `MONTH#<yyyy-MM>` | `SNAPSHOT` | 完了時点の精算結果（`Members`, `Transfer`/`SettlementTransfer`/`DirectTransfer`, `TotalExpenseYen`, `TotalDirectTransferYen`）＋明細（`Expenses`, `DirectTransfers`）＋`SettledAt`(RFC3339) |
 | 固定費 | `RECURRING` | `<固定費ID>` | `PaidBy`, `AmountYen`, `Description` |
