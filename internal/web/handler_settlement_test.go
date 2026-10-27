@@ -88,3 +88,41 @@ func TestSettlementEstimateAPI(t *testing.T) {
 		t.Errorf("transfer = %+v, want nil", s.Transfer)
 	}
 }
+
+func TestOldestUnsettledMonthAPI(t *testing.T) {
+	srv, acc := newTestServer(t)
+	taro := acc[0]
+	token := login(t, srv, taro.LoginID, taro.Password)
+
+	get := func(url string) (int, *string) {
+		t.Helper()
+		resp, body := doJSON(t, http.MethodGet, url, token, nil)
+		var r struct {
+			Month *string `json:"month"`
+		}
+		if resp.StatusCode == http.StatusOK {
+			if err := json.Unmarshal(body, &r); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+		}
+		return resp.StatusCode, r.Month
+	}
+
+	// 不正な before は 400
+	if status, _ := get(srv.URL + "/settlements/unsettled?before=bad"); status != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", status)
+	}
+	// データが無ければ month は null
+	if status, m := get(srv.URL + "/settlements/unsettled?before=2026-10"); status != http.StatusOK || m != nil {
+		t.Errorf("status = %d, month = %v, want 200 null", status, m)
+	}
+	// 8月に支出があり未精算なら 2026-08
+	if resp, body := doJSON(t, http.MethodPost, srv.URL+"/expenses", token, map[string]any{
+		"paidBy": taro.AccountID, "amountYen": 1000, "description": "食費", "date": "2026-08-05",
+	}); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", resp.StatusCode, body)
+	}
+	if status, m := get(srv.URL + "/settlements/unsettled?before=2026-10"); status != http.StatusOK || m == nil || *m != "2026-08" {
+		t.Errorf("status = %d, month = %v, want 200 2026-08", status, m)
+	}
+}

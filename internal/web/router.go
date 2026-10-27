@@ -60,6 +60,7 @@ func NewRouter(h *Handler, auth *Authenticator, allowedOrigins []string, opt Rou
 	mux.Handle("GET /months/{month}/settlement", authed(h.GetSettlement))
 	mux.Handle("PUT /months/{month}/settlement/status", authed(h.UpdateSettlementStatus))
 	mux.Handle("GET /settlements/history", authed(h.GetSettlementHistory))
+	mux.Handle("GET /settlements/unsettled", authed(h.GetOldestUnsettledMonth))
 	mux.Handle("POST /recurring-expenses", authed(h.RegisterRecurringExpense))
 	mux.Handle("GET /recurring-expenses", authed(h.ListRecurringExpenses))
 	mux.Handle("PUT /recurring-expenses/{id}", authed(h.UpdateRecurringExpense))

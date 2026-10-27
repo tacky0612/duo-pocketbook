@@ -591,6 +591,13 @@ components:
           example: acct_1a2b3c4d5e6f7a8b
           type: string
       type: object
+    web.unsettledMonthResponse:
+      properties:
+        month:
+          description: Month は before より前でデータがあるのに精算が完了していない最も古い月。該当なしなら null。
+          example: 2026-06
+          type: string
+      type: object
     web.updateLoginIDRequest:
       properties:
         loginId:
@@ -2176,6 +2183,42 @@ paths:
       security:
       - BearerAuth: []
       summary: 精算履歴の取得
+      tags:
+      - settlement
+  /settlements/unsettled:
+    get:
+      description: |-
+        before（YYYY-MM）より前の月のうち、データ（給与・共有支出・単発の追加収入・単発の立替精算）があるのに精算が完了していない最も古い月を返す。該当なしなら month は null。
+        before の前月から遡り、精算済みの月に到達した時点で打ち切る（最大12か月）。アプリの初期表示月の決定に使う。
+      parameters:
+      - description: 基準月（YYYY-MM）。この月より前を探す
+        in: query
+        name: before
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.unsettledMonthResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/web.errorResponse'
+          description: Unauthorized
+      security:
+      - BearerAuth: []
+      summary: 未精算月の取得
       tags:
       - settlement
 servers:

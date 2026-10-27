@@ -13,7 +13,7 @@ import ExpenseScreen from "./screens/ExpenseScreen";
 import DirectTransferScreen from "./screens/DirectTransferScreen";
 import HistoryScreen from "./screens/HistoryScreen";
 import SettingsScreen from "./screens/SettingsScreen";
-import type { ClosingDayResponse, ExpenseTab, Member, MembersResponse, MemberView, NavigateOptions, ScreenName, ScreenProps, ToastKind, ToastMessage } from "./types";
+import type { ClosingDayResponse, ExpenseTab, Member, MembersResponse, MemberView, NavigateOptions, ScreenName, ScreenProps, ToastKind, ToastMessage, UnsettledMonthResponse } from "./types";
 
 export default function App() {
   const theme = useTheme();
@@ -102,17 +102,22 @@ export default function App() {
       .finally(() => setMembersLoading(false));
   }, [me, handleError]);
 
-  // 締め日を取得して初期表示月を「今日が属する精算月」へ補正する。
-  // 締め日=1（暦月）なら当月と一致するため実質変化しない。ユーザーが手動で月を
-  // 変更済みの場合や取得失敗時は暦当月のままにする（致命的でないため無視）。
+  // 締め日を取得して初期表示月を決める。まず「今日が属する精算月」を求め、それより前に
+  // データがあるのに未精算の月があれば、その最も古い月を初期表示にする（精算漏れを防ぐ）。
+  // 締め日=1（暦月）なら精算月は当月と一致する。ユーザーが手動で月を変更済みの場合や
+  // 締め日の取得失敗時は暦当月のまま、未精算月の取得失敗時は精算月のままにする（致命的でないため無視）。
   useEffect(() => {
     if (!me || defaultMonthApplied.current) return;
     api<ClosingDayResponse>("GET", "/settings/closing-day")
-      .then((res) => {
+      .then(async (res) => {
         defaultMonthApplied.current = true;
         setClosingDay(res.closingDay);
         const target = settlementMonthOf(todayISO(), res.closingDay);
-        setMonth((cur) => (cur === currentYearMonth() ? target : cur));
+        const unsettled = await api<UnsettledMonthResponse>("GET", `/settlements/unsettled?before=${target}`)
+          .then((r) => r.month)
+          .catch(() => null);
+        const initial = unsettled ?? target;
+        setMonth((cur) => (cur === currentYearMonth() ? initial : cur));
       })
       .catch(() => {
         /* 締め日の取得に失敗しても暦当月で続行する */

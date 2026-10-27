@@ -322,6 +322,75 @@ func (u *SettlementUsecase) History(ctx context.Context, from, to string) ([]dom
 	return snapshots, nil
 }
 
+// maxUnsettledLookbackMonths は未精算月を探すときに遡る最大月数。
+const maxUnsettledLookbackMonths = 12
+
+// OldestUnsettledMonth は before（YYYY-MM）より前の月のうち、データがあるのに精算が完了していない
+// 最も古い月を返す。該当する月が無ければ ok=false を返す。
+//
+// before の前月から遡り、精算済みの月に到達した時点で打ち切る（それより前は精算済みとみなす）。
+// 最大 maxUnsettledLookbackMonths か月まで遡る。データの有無は月に紐づく実データ
+// （給与・共有支出・単発の追加収入・単発の立替精算）で判定し、全月に効く固定費や継続分は含めない。
+func (u *SettlementUsecase) OldestUnsettledMonth(ctx context.Context, before string) (month domain.YearMonth, ok bool, err error) {
+	beforeYM, err := domain.ParseYearMonth(before)
+	if err != nil {
+		return domain.YearMonth{}, false, err
+	}
+	closingDay, err := currentClosingDay(ctx, u.settings)
+	if err != nil {
+		return domain.YearMonth{}, false, err
+	}
+	cur := beforeYM.Prev()
+	for i := 0; i < maxUnsettledLookbackMonths; i, cur = i+1, cur.Prev() {
+		_, settled, err := u.snapshots.Find(ctx, cur)
+		if err != nil {
+			return domain.YearMonth{}, false, fmt.Errorf("精算スナップショットの取得に失敗しました: %w", err)
+		}
+		if settled {
+			break
+		}
+		has, err := u.hasMonthData(ctx, cur, closingDay)
+		if err != nil {
+			return domain.YearMonth{}, false, err
+		}
+		if has {
+			month, ok = cur, true
+		}
+	}
+	return month, ok, nil
+}
+
+// hasMonthData は精算月 ym に紐づく実データ（給与・共有支出・単発の追加収入・単発の立替精算）が
+// 1件でもあるかを返す。読み取りを減らすため、見つかった時点で打ち切る。
+func (u *SettlementUsecase) hasMonthData(ctx context.Context, ym domain.YearMonth, cd domain.ClosingDay) (bool, error) {
+	salaries, err := u.salaries.FindByMonth(ctx, ym)
+	if err != nil {
+		return false, fmt.Errorf("給与の取得に失敗しました: %w", err)
+	}
+	if len(salaries) > 0 {
+		return true, nil
+	}
+	expenses, err := expensesForSettlementMonth(ctx, u.expenses, ym, cd)
+	if err != nil {
+		return false, fmt.Errorf("支出の取得に失敗しました: %w", err)
+	}
+	if len(expenses) > 0 {
+		return true, nil
+	}
+	incomes, err := u.incomes.FindByMonth(ctx, ym)
+	if err != nil {
+		return false, fmt.Errorf("収入の取得に失敗しました: %w", err)
+	}
+	if len(incomes) > 0 {
+		return true, nil
+	}
+	transfers, err := u.transfers.FindByMonth(ctx, ym)
+	if err != nil {
+		return false, fmt.Errorf("立替精算の取得に失敗しました: %w", err)
+	}
+	return len(transfers) > 0, nil
+}
+
 // monthIndex は年月を「年×12＋月」の連番に変換して比較・差分計算に使う。
 func monthIndex(ym domain.YearMonth) int {
 	return ym.Year()*12 + int(ym.Month()) - 1
