@@ -108,6 +108,7 @@
 | 予約の月別一覧（入力状況つき） | `Query (PK = RESERVATION)` → 対象月に存在するものを抽出。照合に `INCOME#<月>`（収入の予約がある場合）と締め期間の支出集計（支出の予約がある場合） |
 | 予約の入力ロック | `PutItem`（`attribute_not_exists(PK)` 条件）→ 競合時は `GetItem`（強い整合性）で保持者を確認 → 保持者が削除済みなら `PutItem`（`TargetID = :stale` 条件）で置き換え |
 | 精算スナップショットの取得/保存/削除 | `GetItem` / `PutItem` / `DeleteItem`（`PK=MONTH#<月>, SK=SNAPSHOT`） |
+| 未精算月の探索 | 前月から1か月ずつ `GetItem`（`SNAPSHOT`）→ 未精算なら給与・締め期間の支出・単発の追加収入・単発の立替精算を順に `Query`（見つかった時点で打ち切り）。精算済みの月で探索終了、最大12か月 |
 | 固定費の登録/更新 | `PutItem`（`PK=RECURRING`） |
 | 固定費の取得/削除 | `GetItem` / `DeleteItem` |
 | 固定費の一覧 | `Query (PK = RECURRING)` |

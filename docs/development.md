@@ -64,6 +64,7 @@ make up && make test-integration
 | `income_test.go` | 追加収入の CRUD（更新含む）と精算への合算 |
 | `direct_transfer_test.go` | 立替精算の CRUD（更新含む）と精算への反映 |
 | `settlement_test.go` | 締め日集計・精算履歴・精算済みフラグ |
+| `settlement_unsettled_test.go` | 未精算月の取得（最も古い未精算月・データ種別ごとの検出・固定費/継続分は対象外・精算済み月で打ち切り・最大12か月・締め日考慮・入力検証） |
 | `settlement_estimate_test.go` | 前月の給与実績による概算精算（`estimate=true`。前月の単発収入は持ち越さない・概算のままは完了不可・当月が揃うと確定値） |
 | `settings_test.go` | 精算比重・締め日の設定 |
 | `validation_test.go` | 各エンドポイントの入力検証（400/404） |

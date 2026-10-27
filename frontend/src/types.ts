@@ -236,6 +236,10 @@ export interface SettlementStatusResponse {
 export interface HistoryResponse {
   entries: SettlementHistoryEntry[];
 }
+/** GET /settlements/unsettled: 基準月より前でデータがあるのに未精算の最も古い月。該当なしなら null。 */
+export interface UnsettledMonthResponse {
+  month: YearMonth | null;
+}
 
 // --- エラー ---
 export type ErrorCode =

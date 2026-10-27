@@ -58,6 +58,7 @@ TOKEN=$(curl -s -X POST $BASE/login \
 | `GET /months/{month}/settlement[?estimate=true]` | 月次精算の取得（`estimate=true` で給与未入力のメンバーを前月の給与実績で補った概算を返す） |
 | `PUT /months/{month}/settlement/status` | 精算の完了/取り消し（`settled=true` で完了時点のスナップショットを保存、`false` で削除） |
 | `GET /settlements/history?from=YYYY-MM&to=YYYY-MM` | 精算履歴（完了時点のスナップショット）の取得（新しい月順） |
+| `GET /settlements/unsettled?before=YYYY-MM` | `before` より前でデータがあるのに未精算の最も古い月の取得（該当なしは `month: null`） |
 | `POST /recurring-expenses` | 固定費の登録 |
 | `GET /recurring-expenses` | 固定費の一覧 |
 | `PUT /recurring-expenses/{id}` | 固定費の更新 |
@@ -127,6 +128,13 @@ curl $BASE/months/2026-07/settlement -H "Authorization: Bearer $TOKEN"
 ### 精算履歴（スナップショット）
 
 `GET /settlements/history` は、**精算を完了した月**のスナップショット（完了時点の精算内容）を新しい月順に返す。精算未完了の月は含まれない。各エントリは精算レスポンスと同等の内訳（`members` / `transfer` / `settlementTransfer` / `directTransfer` / `totalExpenseYen` / `totalDirectTransferYen`）に加え、完了日時 `settledAt`（RFC3339）と、当月の共有支出明細 `expenses`（固定費由来は `recurring=true`）・立替精算明細 `directTransfers` を含む。スナップショットは完了時点の内容を保持するため、後から固定費や収支・比重を変更しても履歴の内容は変わらない（背景と保存方式は [data-model.md](data-model.md#精算スナップショット精算完了時点の内容を凍結) を参照）。
+
+### 未精算月の取得
+
+`GET /settlements/unsettled?before=YYYY-MM` は、`before` より前の月のうち**データがあるのに精算が完了していない最も古い月**を `{"month": "YYYY-MM"}` で返す（該当なしは `{"month": null}`）。フロントの初期表示月の決定に使う（[settlement.md](settlement.md#締め日)）。
+
+- 「データがある」は、その精算月に紐づく給与・共有支出（締め日考慮）・単発の追加収入・単発の立替精算が1件以上あること。全月に効く固定費・継続の追加収入/立替精算は含めない（含めると全月が対象になるため）。
+- `before` の前月から遡り、**精算済みの月に到達した時点で打ち切る**（それより前は精算済みとみなす）。最大12か月まで遡る。DynamoDB の読み取り（1RCU）を抑えるため、通常の運用（前月まで精算済み）では1回の取得で済む。
 
 ## 予約（金額未確定の収入・支出）
 

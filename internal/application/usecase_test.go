@@ -1108,3 +1108,86 @@ func TestDeleteSalary(t *testing.T) {
 		t.Errorf("確定済み: err = %v, want ErrSettled", err)
 	}
 }
+
+// TestOldestUnsettledMonth は、基準月より前でデータがあるのに未精算の最も古い月を返すこと、
+// 精算済みの月で遡りを打ち切ること、データの無い月や固定費だけの月は対象外であることを検証する。
+func TestOldestUnsettledMonth(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	assert := func(before, want string) {
+		t.Helper()
+		got, ok, err := f.settlement.OldestUnsettledMonth(ctx, before)
+		if err != nil {
+			t.Fatalf("OldestUnsettledMonth(%s): %v", before, err)
+		}
+		if want == "" {
+			if ok {
+				t.Errorf("OldestUnsettledMonth(%s) = %s, want なし", before, got)
+			}
+			return
+		}
+		if !ok || got.String() != want {
+			t.Errorf("OldestUnsettledMonth(%s) = %s (ok=%v), want %s", before, got, ok, want)
+		}
+	}
+
+	// データが無ければ該当なし。固定費（全月に効く）だけでは対象にしない。
+	if _, err := f.recurring.Register(ctx, application.RegisterRecurringExpenseInput{
+		PaidBy: husband, AmountYen: 80_000, Description: "家賃",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	assert("2026-10", "")
+
+	// 7月: 給与を入力して精算完了。8月: 支出のみ（未精算）。9月: データなし。
+	for _, m := range []domain.MemberID{husband, wife} {
+		if _, err := f.settlement.InputSalary(ctx, "2026-07", m, 100_000); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := f.settlement.SetSettled(ctx, "2026-07", true); err != nil {
+		t.Fatal(err)
+	}
+	assert("2026-10", "")
+	if _, err := f.expenses.Register(ctx, application.RegisterExpenseInput{
+		PaidBy: wife, AmountYen: 3000, Description: "食費", Date: "2026-08-10",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	assert("2026-10", "2026-08")
+	// 基準月そのもの（8月）は対象外
+	assert("2026-08", "")
+
+	// 9月にも給与を入れると、より古い8月が返る
+	if _, err := f.settlement.InputSalary(ctx, "2026-09", husband, 100_000); err != nil {
+		t.Fatal(err)
+	}
+	assert("2026-10", "2026-08")
+
+	// 8月を精算すると9月が残る（9月は片方の給与のみなので精算できないが未精算として返る）
+	if _, err := f.settlement.InputSalary(ctx, "2026-08", husband, 100_000); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.settlement.InputSalary(ctx, "2026-08", wife, 100_000); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.settlement.SetSettled(ctx, "2026-08", true); err != nil {
+		t.Fatal(err)
+	}
+	assert("2026-10", "2026-09")
+
+	// 精算済みの月より前は遡らない（6月のデータは見ない）
+	if _, err := f.direct.Register(ctx, application.RegisterDirectTransferInput{
+		From: husband, AmountYen: 1000, Description: "立替", Month: "2026-06",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	assert("2026-10", "2026-09")
+	// 単発の立替精算だけの月も対象になる
+	assert("2026-07", "2026-06")
+
+	if _, _, err := f.settlement.OldestUnsettledMonth(ctx, "bad"); !errors.Is(err, domain.ErrValidation) {
+		t.Errorf("不正な月: err = %v, want ErrValidation", err)
+	}
+}

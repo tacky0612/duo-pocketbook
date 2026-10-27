@@ -14,6 +14,7 @@
 //	direct_transfer_test.go 立替精算 CRUD と精算反映
 //	settlement_test.go      締め日・履歴・精算済みフラグ
 //	settlement_estimate_test.go 前月の給与実績による概算精算
+//	settlement_unsettled_test.go 未精算月の取得（初期表示月の決定）
 //	settings_test.go        精算比重・締め日設定
 //	validation_test.go      バリデーションエラー
 //

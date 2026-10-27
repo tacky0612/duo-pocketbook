@@ -490,6 +490,25 @@ export async function demoApi(method: HttpMethod, path: string, body?: unknown):
     }
     return { entries };
   }
+  // 基準月より前でデータがあるのに未精算の最も古い月（SettlementUsecase.OldestUnsettledMonth 相当）。
+  // 前月から遡り、精算済みの月で打ち切る（最大12か月）。固定費・継続分はデータとみなさない。
+  if (key === "GET /settlements/unsettled") {
+    const before = q.get("before");
+    if (!before || !/^\d{4}-(0[1-9]|1[0-2])$/.test(before)) validation("年月は YYYY-MM 形式で指定してください");
+    const cd = db.closingDay ?? 1;
+    const hasData = (month: string) =>
+      (db.salaries ?? []).some((s) => s.month === month) ||
+      db.expenses.some((e) => settlementMonthOf(e.date, cd) === month) ||
+      (db.incomes ?? []).some((i) => !i.recurring && i.month === month) ||
+      (db.directTransfers ?? []).some((dt) => !dt.recurring && dt.month === month);
+    let found: string | null = null;
+    for (let i = 1; i <= 12; i++) {
+      const month = shiftMonth(before, -i);
+      if (db.snapshots[month]) break;
+      if (hasData(month)) found = month;
+    }
+    return { month: found };
+  }
 
   // --- 固定費 ---
   if (key === "GET /recurring-expenses") {

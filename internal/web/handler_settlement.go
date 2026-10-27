@@ -194,6 +194,39 @@ func (h *Handler) GetSettlementHistory(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, settlementHistoryResponse{Entries: dtos})
 }
 
+// unsettledMonthResponse は未精算月の取得レスポンス。
+type unsettledMonthResponse struct {
+	// Month は before より前でデータがあるのに精算が完了していない最も古い月。該当なしなら null。
+	Month *string `json:"month" example:"2026-06"`
+}
+
+// GetOldestUnsettledMonth godoc
+//
+//	@Summary		未精算月の取得
+//	@Description	before（YYYY-MM）より前の月のうち、データ（給与・共有支出・単発の追加収入・単発の立替精算）があるのに精算が完了していない最も古い月を返す。該当なしなら month は null。
+//	@Description	before の前月から遡り、精算済みの月に到達した時点で打ち切る（最大12か月）。アプリの初期表示月の決定に使う。
+//	@Tags			settlement
+//	@Produce		json
+//	@Param			before	query		string	true	"基準月（YYYY-MM）。この月より前を探す"
+//	@Success		200		{object}	unsettledMonthResponse
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse
+//	@Security		BearerAuth
+//	@Router			/settlements/unsettled [get]
+func (h *Handler) GetOldestUnsettledMonth(w http.ResponseWriter, r *http.Request) {
+	month, ok, err := h.settlement.OldestUnsettledMonth(r.Context(), r.URL.Query().Get("before"))
+	if err != nil {
+		writeUsecaseError(w, err)
+		return
+	}
+	resp := unsettledMonthResponse{}
+	if ok {
+		s := month.String()
+		resp.Month = &s
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
 // toSettlementHistoryEntryDTO は精算スナップショットを履歴エントリDTOへ変換する。
 func toSettlementHistoryEntryDTO(s domain.SettlementSnapshot) settlementHistoryEntryDTO {
 	set := s.Settlement
