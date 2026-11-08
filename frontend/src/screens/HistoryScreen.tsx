@@ -203,7 +203,7 @@ function HistoryEntryCard({ entry, members }: { entry: SettlementHistoryEntry; m
           </div>
         )}
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {entry.members.map((m) => (
             <div key={m.id} className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800/50">
               <div className="flex items-center justify-between">
@@ -236,7 +236,7 @@ function HistoryEntryCard({ entry, members }: { entry: SettlementHistoryEntry; m
         </p>
 
         {/* メンバー別の共有費一覧 */}
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {entry.members.map((m) => {
             const items = itemsFor(m.id);
             const subtotal = items.reduce((s, e) => s + e.amountYen, 0);

@@ -209,7 +209,7 @@ export default function IncomeScreen({ month, members, me, notify, onError, clos
           <Spinner />
         ) : (
           <form onSubmit={saveSalaries} className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {members.map((m) => (
                 <Field key={m.id} label={`${m.name} の給与`} hint={salaryHint(m.id)}>
                   <div className="relative">
@@ -235,7 +235,7 @@ export default function IncomeScreen({ month, members, me, notify, onError, clos
       </Card>
 
       {/* 追加収入 */}
-      <div className="grid gap-4 lg:grid-cols-5 lg:items-start">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:items-start">
         <Card className="lg:col-span-2 lg:sticky lg:top-20">
           <SectionTitle>収入を追加</SectionTitle>
           <form onSubmit={add} className="space-y-4">

@@ -166,7 +166,7 @@ function VariableExpenses({ month, members, me, notify, onError }: SectionProps 
   const total = data?.expenses.reduce((s, e) => s + e.amountYen, 0) ?? 0;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-5 lg:items-start">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:items-start">
       <Card className="lg:col-span-2 lg:sticky lg:top-20">
         <SectionTitle>支出を登録</SectionTitle>
         <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
@@ -413,7 +413,7 @@ function FixedExpenses({ members, me, notify, onError }: SectionProps) {
   const total = data?.recurringExpenses.reduce((s, e) => s + e.amountYen, 0) ?? 0;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-5 lg:items-start">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:items-start">
       <Card className="lg:col-span-2 lg:sticky lg:top-20">
         <SectionTitle>固定費を追加</SectionTitle>
         <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
