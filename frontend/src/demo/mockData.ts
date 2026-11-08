@@ -117,6 +117,9 @@ export function seedData(): DemoDb {
       exp(m0, 15, "taro", 4800, "スーパー"),
       exp(m0, 12, "hanako", 2600, "日用品"),
       exp(m0, 8, "taro", 3200, "外食"),
+      // 表示崩れ確認用の長い内容（全角の長文・スペースを含まない英数字列）
+      exp(m0, 5, "hanako", 18400, "週末にまとめて買った一週間分の食料品・日用品・ペット用品（ドラッグストアとホームセンターの合計）"),
+      exp(m0, 3, "taro", 1480, "AmazonPrimeVideoAnnualSubscriptionRenewal_FamilyPlan_2026"),
       // 過去の月（精算済み）
       ...pastMonths.flatMap((d, i) => pastExpenses(i + 1).map(([day, paidBy, amount, desc]) => exp(ymOf(d), day, paidBy, amount, desc))),
     ],
@@ -124,12 +127,14 @@ export function seedData(): DemoDb {
       rec("rent", "taro", 90000, "家賃"),
       rec("utility", "hanako", 12000, "光熱費"),
       rec("subscription", "hanako", 3000, "サブスク"),
+      rec("insurance", "taro", 8600, "火災保険・地震保険・家財保険の月払い（マンション管理組合経由の団体契約分）"),
     ],
     directTransfers: [
       // 毎月継続: アカウントB → アカウントA へお小遣い
       dtr("hanako", "taro", 10000, "お小遣い"),
       // 今月だけ: アカウントA → アカウントB へ立替の返済
       dtOnce(m0, "taro", "hanako", 3000, "立替の返済"),
+      dtOnce(m0, "hanako", "taro", 5500, "先月の実家帰省時に立て替えてもらった新幹線の指定席と駅弁とお土産代の精算"),
     ],
     salaries: [
       sal(m0, "taro", 320000),
@@ -145,11 +150,13 @@ export function seedData(): DemoDb {
       incRec("taro", 20000, "副業"),
       // 今月だけ: アカウントB の臨時収入
       incOnce(m0, "hanako", 15000, "臨時収入"),
+      incOnce(m0, "taro", 12000, "フリマアプリで売れた使わなくなったカメラ用レンズと三脚とカメラバッグ一式の売上"),
     ],
-    // 予約（金額未確定の予定）。今月は電気代・賞与が未入力の状態で始まる。
+    // 予約（金額未確定の予定）。今月は電気代・賞与・車関係の出費が未入力の状態で始まる。
     reservations: [
       { id: `rsv_${nextHex()}`, kind: "expense", memberId: "taro", description: "電気代", recurring: true, month: "", startMonth: m0 },
       { id: `rsv_${nextHex()}`, kind: "income", memberId: "hanako", description: "賞与", recurring: false, month: m0, startMonth: "" },
+      { id: `rsv_${nextHex()}`, kind: "expense", memberId: "hanako", description: "自動車税・車検・タイヤ交換など車関係でまとめて発生する予定の出費", recurring: false, month: m0, startMonth: "" },
     ],
     // スナップショットは下で過去の月を精算済みとして埋める
     snapshots: {},
@@ -168,7 +175,7 @@ type PastItem = [day: number, paidBy: MemberId, amountYen: number, description: 
 // 日々の買い物の量（scale）と主に買い物をした人（lead）を月ごとに変え、
 // 大きな出費（events）のある月・ない月を混ぜて、支出の偏りが A・B どちらにも出るようにする。
 const PAST_PLANS: { scale: number; lead: MemberId; events: PastItem[] }[] = [
-  { scale: 1.1, lead: "hanako", events: [[13, "hanako", 62000, "旅行"]] },
+  { scale: 1.1, lead: "hanako", events: [[13, "hanako", 62000, "旅行"], [20, "taro", 7200, "結婚式の二次会の会費とプレゼント代（大学時代のサークルの友人）"]] },
   { scale: 0.6, lead: "taro", events: [] },
   { scale: 1.0, lead: "taro", events: [[7, "taro", 45000, "家具"], [22, "taro", 9800, "外食（記念日）"]] },
   { scale: 1.3, lead: "hanako", events: [[16, "hanako", 38000, "家電の買い替え"], [25, "hanako", 8500, "医療費"]] },

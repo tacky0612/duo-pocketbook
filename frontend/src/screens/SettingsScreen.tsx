@@ -225,7 +225,7 @@ export default function SettingsScreen({ members, me, theme, notify, onError, on
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
       {/* 左カラム: アカウント（プロフィール + アカウント設定を統合） */}
       <div className="flex flex-col gap-4">
         <Card>

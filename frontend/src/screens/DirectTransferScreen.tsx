@@ -102,7 +102,7 @@ export default function DirectTransferScreen({ month, members, me, notify, onErr
   const list = data?.directTransfers ?? [];
 
   return (
-    <div className="grid gap-4 lg:grid-cols-5 lg:items-start">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:items-start">
       <Card className="min-w-0 lg:col-span-2 lg:sticky lg:top-20">
         <SectionTitle>立替精算を追加</SectionTitle>
         <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
