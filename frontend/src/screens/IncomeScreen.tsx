@@ -235,7 +235,7 @@ export default function IncomeScreen({ month, members, me, notify, onError, clos
       </Card>
 
       {/* 追加収入 */}
-      <div className="grid gap-4 lg:grid-cols-5 lg:items-start">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:items-start">
         <Card className="lg:col-span-2 lg:sticky lg:top-20">
           <SectionTitle>収入を追加</SectionTitle>
           <form onSubmit={add} className="space-y-4">
