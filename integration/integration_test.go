@@ -49,8 +49,10 @@ var baseURL = func() string {
 
 // testMonth はテスト間の干渉を避けるため、実行ごとにユニークな月を返す。
 // バリデーションなど「月スコープのデータを残さない」テストで使う。
+// 他のテストが固定で使う月（2030〜2060年代）と重ならないよう 2100 年以降から選ぶ。
+// 重なると、精算済みにされた月で 409 MONTH_SETTLED が返り検証が失敗する。
 var testMonth = func() string {
-	base := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
+	base := time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC)
 	offset := time.Now().UnixNano() % 120
 	return base.AddDate(0, int(offset), 0).Format("2006-01")
 }()
