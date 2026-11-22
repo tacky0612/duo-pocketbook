@@ -174,11 +174,11 @@ cd frontend && npm run docs:api   # OpenAPIからAPIドキュメント生成（d
 
 Unit / Integration のテストレポートは dorny/test-reporter により **PRのChecksタブ** に表示される。
 
-### Dependabot パッチアップデートの自動マージ
+### Dependabot パッチ・マイナーアップデートの自動マージ
 
-`.github/workflows/dependabot-auto-merge.yml` は、Dependabot が作った PR のうち **update-type が `version-update:semver-patch` のもの**を `GITHUB_TOKEN` で承認し、`gh pr merge --auto --squash` で auto-merge を予約する。マージは main の Ruleset の必須ステータスチェック（Lint / OpenAPI Up-to-date / Unit Test / Integration Test / Frontend Build / Docs Mermaid Validation）が全部通った時点で GitHub が行う。
+`.github/workflows/dependabot-auto-merge.yml` は、Dependabot が作った PR のうち **update-type が `version-update:semver-patch` または `version-update:semver-minor` のもの**を `GITHUB_TOKEN` で承認し、`gh pr merge --auto --squash` で auto-merge を予約する。マージは main の Ruleset の必須ステータスチェック（Lint / OpenAPI Up-to-date / Unit Test / Integration Test / Frontend Build / Docs Mermaid Validation）が全部通った時点で GitHub が行う。
 
-- グループ PR（`go-minor-patch` など）の update-type は、含まれる更新のうち最大のものになる。minor を1つでも含む PR は自動マージされず、手動で確認する
+- グループ PR（`go-minor-patch` など）の update-type は、含まれる更新のうち最大のものになる。major を1つでも含む PR（`actions-all` グループなど）は自動マージされず、手動で確認する
 - `GITHUB_TOKEN` によるマージは新しいワークフローを起動しない。そのためマージ後の `deploy-pages.yml` / `terraform.yml` の apply は自動では走らない。反映が必要なら `workflow_dispatch` で手動実行する
 - 前提になるリポジトリ設定: auto-merge の許可（`allow_auto_merge`）、Actions による PR 承認の許可（`can_approve_pull_request_reviews`）、Ruleset の必須ステータスチェック
 
