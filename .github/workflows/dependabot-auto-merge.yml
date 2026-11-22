@@ -1,0 +1,28 @@
+# Dependabot のパッチアップデート PR を自動で承認し、auto-merge を予約する。
+# 実際のマージは main の Ruleset の必須ステータスチェック（CI）が全て通った時点で GitHub が行う。
+# グループ PR の update-type は含まれる更新のうち最大のものになるため、minor を含む PR は対象外。
+# 注意: GITHUB_TOKEN によるマージは新たなワークフローを起動しないため、
+# マージ後の deploy-pages / terraform apply は自動では走らない（必要なら手動実行する）。
+name: Dependabot auto-merge
+
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@v3
+      - name: Approve and enable auto-merge
+        if: steps.meta.outputs.update-type == 'version-update:semver-patch'
+        run: |
+          gh pr review --approve "$PR_URL"
+          gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
